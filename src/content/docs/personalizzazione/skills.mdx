@@ -1,10 +1,571 @@
 ---
 title: "8 · Skills personalizzate"
-description: "Struttura di SKILL.md, come Claude decide quando usare una skill ed esempi reali da riusare."
+description: "La struttura di SKILL.md, il riferimento completo del frontmatter, file di supporto, argomenti, esecuzione in subagent e come capire se una skill funziona davvero."
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Tabs, TabItem, Steps, Aside, FileTree } from '@astrojs/starlight/components';
 
-<Aside type="caution" title="Modulo in lavorazione">
-Questo modulo è in fase di scrittura e verifica sui docs ufficiali. Torna a breve.
+<div class="meta-modulo">
+	<span><strong>Tempo stimato:</strong> 60 minuti</span>
+	<span><strong>Prerequisiti:</strong> il <a href="/personalizzazione/slash-commands/">modulo 7</a> e il <a href="/fondamenta/memoria-e-contesto/">modulo 4</a>.</span>
+</div>
+
+## Obiettivi
+
+- Scrivere una `SKILL.md` corretta e sapere quali campi del frontmatter servono davvero.
+- Scegliere tra `CLAUDE.md`, regola e skill in base a quando l'informazione deve essere in contesto.
+- Controllare chi invoca una skill: tu, Claude, o entrambi.
+- Far girare una skill in un subagent per non consumare il contesto principale.
+- Capire se una skill funziona davvero, invece di sperarlo.
+
+## Concetti chiave
+
+**Il vantaggio delle skill è il caricamento pigro.** Il corpo di una skill si carica **solo quando viene
+usata**: materiale di riferimento lungo costa quasi nulla finché non serve. È la differenza sostanziale
+rispetto al `CLAUDE.md`, che si carica per intero a ogni sessione.
+
+Il criterio di scelta è quindi temporale, non di contenuto:
+
+| Serve... | Va in |
+| --- | --- |
+| **Sempre**, in ogni sessione | `CLAUDE.md` |
+| Quando Claude tocca certi file | Regola in `.claude/rules/` con `paths:` |
+| Quando serve quella procedura | **Skill** |
+| Sempre, senza eccezioni, come codice | [Hook](/personalizzazione/hooks/) |
+
+Il segnale che una cosa è diventata una skill: hai una sezione di `CLAUDE.md` che è cresciuta fino a
+diventare una **procedura** invece di un fatto. Oppure incolli in chat le stesse istruzioni per la terza
+volta.
+
+**Due parti, un file.** Ogni skill ha una `SKILL.md` con frontmatter YAML tra `---` che dice a Claude
+**quando** usarla, e contenuto markdown con le istruzioni da seguire. **Il nome della directory diventa il
+comando.**
+
+**Il corpo resta in contesto per tutta la sessione.** Quando una skill viene invocata, il contenuto entra
+nella conversazione come un singolo messaggio e **ci resta**. Claude Code non rilegge il file nei turni
+successivi. Due conseguenze pratiche: ogni riga è un costo di token ricorrente, quindi il corpo va tenuto
+conciso; e le indicazioni che devono valere per tutto un task vanno scritte come **istruzioni permanenti**,
+non come passi da eseguire una volta.
+
+**La `description` è il meccanismo di attivazione.** Claude vede all'avvio solo nomi e descrizioni delle
+skill: è su quel testo che decide se una skill è pertinente. Una descrizione vaga produce una skill che non
+si attiva mai; una troppo ampia produce una skill che si attiva sempre.
+
+## Dove vivono le skill
+
+| Livello | Percorso | Vale per |
+| --- | --- | --- |
+| Enterprise | Vedi le impostazioni gestite | Tutti nell'organizzazione |
+| Personale | `~/.claude/skills/<nome>/SKILL.md` | Tutti i tuoi progetti |
+| Progetto | `.claude/skills/<nome>/SKILL.md` | Solo questo progetto |
+| Plugin | `<plugin>/skills/<nome>/SKILL.md` | Dove il plugin è abilitato |
+
+Le skill si caricano anche da directory `.claude/skills/` **annidate** sotto la working directory: quando
+Claude legge o modifica un file in una sottodirectory, le skill di quel `.claude/skills/` diventano
+disponibili. Un pacchetto di un monorepo può così fornire le proprie skill, anche se la sessione è partita
+dalla root del repo.
+
+La risoluzione dei conflitti di nome è quella vista nel [modulo 7](/personalizzazione/slash-commands/):
+enterprise > personale > progetto, la skill batte il comando, i plugin usano un namespace a parte.
+
+## La struttura di una skill
+
+<FileTree>
+
+- .claude/skills/
+  - security-review/
+    - SKILL.md **obbligatorio** — panoramica e navigazione
+    - checklist.md Riferimento dettagliato, caricato quando serve
+    - examples.md Esempi d'uso, caricati quando servono
+    - scripts/
+      - scan.py Script di utilità: **eseguito**, non caricato in contesto
+
+</FileTree>
+
+I file di supporto tengono `SKILL.md` focalizzata sull'essenziale. Documentazione lunga, specifiche API o
+raccolte di esempi non devono entrare in contesto ogni volta che la skill parte. Vanno **referenziati** da
+`SKILL.md`, così Claude sa cosa contengono e quando aprirli:
+
+```markdown title="SKILL.md"
+## Risorse aggiuntive
+
+- Per i dettagli completi delle API, vedi [reference.md](reference.md)
+- Per esempi d'uso, vedi [examples.md](examples.md)
+```
+
+<Aside type="tip" title="Tieni SKILL.md sotto le 500 righe">
+Il materiale di riferimento dettagliato va nei file separati. E ricorda che dopo una compattazione la skill
+viene re-iniettata mantenendo i **primi 5.000 token**: le istruzioni importanti vanno in cima.
 </Aside>
+
+## Riferimento del frontmatter
+
+Tutti i campi sono opzionali. Solo `description` è consigliato, perché è ciò che permette a Claude di
+capire quando usare la skill.
+
+```yaml
+---
+name: my-skill
+description: What this skill does
+disable-model-invocation: true
+allowed-tools: Read Grep
+---
+
+Le istruzioni della skill...
+```
+
+I campi booleani accettano `yes`, `no`, `on`, `off`, `1` e `0` in qualsiasi combinazione di maiuscole,
+oltre a `true` e `false`.
+
+### Identità e attivazione
+
+| Campo | Cosa fa |
+| --- | --- |
+| `name` | Nome mostrato negli elenchi. Default: il nome della directory |
+| `description` | **Cosa fa la skill e quando usarla.** Se omesso, viene usato il primo paragrafo del markdown. Metti il caso d'uso principale per primo: `description` e `when_to_use` insieme vengono troncati a **1.536 caratteri** nel listing |
+| `when_to_use` | Contesto aggiuntivo su quando invocarla — frasi trigger, esempi di richieste. Si somma a `description` e conta verso lo stesso limite |
+| `argument-hint` | Suggerimento mostrato nell'autocomplete, es. `[issue-number]` o `[filename] [format]` |
+| `arguments` | Argomenti posizionali con nome, per la sostituzione `$nome`. Accetta una stringa separata da spazi o una lista YAML |
+
+### Chi la invoca
+
+| Campo | Cosa fa |
+| --- | --- |
+| `disable-model-invocation` | `true` impedisce a Claude di caricarla da solo. Per i workflow che vuoi lanciare a mano con `/nome`. Impedisce anche il preload nei subagent e l'esecuzione da un task programmato. Default: `false` |
+| `user-invocable` | `false` quando **solo Claude** deve invocarla: sparisce dal menu `/` e digitare `/nome` non la esegue. Per conoscenza di sfondo che l'utente non deve lanciare. Default: `true` |
+
+### Tool e modello
+
+| Campo | Cosa fa |
+| --- | --- |
+| `allowed-tools` | Tool che Claude può usare **senza chiedere permesso**, durante il turno che invoca la skill. Il permesso decade al tuo messaggio successivo |
+| `disallowed-tools` | Tool **rimossi** dal pool disponibile mentre la skill è attiva. Per skill autonome che non devono mai chiamare certi tool, per esempio `AskUserQuestion` in un loop di background |
+| `model` | Modello da usare mentre la skill è attiva. Vale per il resto del turno corrente e non viene salvato nelle impostazioni. Accetta gli stessi valori di `/model`, o `inherit` |
+| `effort` | Livello di effort: `low`, `medium`, `high`, `xhigh`, `max`. I livelli disponibili dipendono dal modello |
+
+### Esecuzione in subagent
+
+| Campo | Cosa fa |
+| --- | --- |
+| `context` | `fork` fa girare la skill in un contesto di subagent separato |
+| `agent` | Quale tipo di subagent usare, quando `context: fork` è impostato |
+| `background` | Solo con `context: fork`. `false` aspetta il risultato nel turno che ha invocato la skill, invece di farlo girare in background. Default: `true` |
+| `hooks` | Hook che Claude Code registra quando la skill viene invocata, e che restano attivi per il resto della sessione |
+
+<Aside type="caution" title="`allowed-tools` non restringe, allarga">
+`allowed-tools` **pre-approva**, non limita: tutti i tool restano chiamabili, e le tue impostazioni di
+permessi continuano a governare quelli non elencati. Per restringere davvero servono `disallowed-tools` o
+delle deny rule nei permessi.
+
+E soprattutto: **il workspace trust non protegge da questo campo.** Claude Code applica l'`allowed-tools`
+di una skill di progetto ogni volta che viene invocata, anche in un run `-p` in una cartella di cui non ti
+sei mai fidato. Una skill può concedersi accesso ampio ai tool: **rivedi l'`allowed-tools` delle skill
+committate in un repo prima di lanciarci Claude Code**.
+</Aside>
+
+## Due tipi di contenuto
+
+**Contenuto di riferimento** — conoscenza che Claude applica al lavoro corrente: convenzioni, pattern,
+guide di stile, conoscenza di dominio. Gira inline, così Claude la usa insieme al contesto della
+conversazione.
+
+```yaml
+---
+name: api-conventions
+description: API design patterns for this codebase
+---
+
+When writing API endpoints:
+- Use RESTful naming conventions
+- Return consistent error formats
+- Include request validation
+```
+
+**Contenuto di task** — istruzioni passo-passo per un'azione specifica: deploy, commit, generazione di
+codice. Di solito lo invochi tu con `/nome` invece di lasciare decidere a Claude.
+
+```yaml
+---
+name: deploy
+description: Deploy the application to production
+context: fork
+disable-model-invocation: true
+---
+
+Deploy the application:
+1. Run the test suite
+2. Build the application
+3. Push to the deployment target
+```
+
+## Argomenti e contesto dinamico
+
+Gli argomenti funzionano come per i comandi del [modulo 7](/personalizzazione/slash-commands/):
+`$ARGUMENTS` per tutto, `$ARGUMENTS[N]` o `$N` per posizione.
+
+Il contesto dinamico `` !`comando` `` esegue il comando **prima** che il contenuto arrivi a Claude e
+sostituisce il segnaposto con l'output:
+
+```yaml
+---
+name: pr-summary
+description: Summarize changes in a pull request
+context: fork
+agent: Explore
+allowed-tools: Bash(gh *)
+---
+
+## Pull request context
+
+!`gh pr diff`
+
+## Your task
+
+Riassumi la PR per un revisore che non ha seguito il lavoro.
+```
+
+<Aside type="note" title="Le skill sincronizzate non eseguono comandi">
+Claude Code **non** esegue i comandi di contesto dinamico sulla tua macchina quando la skill arriva
+sincronizzata dal tuo account claude.ai. È una protezione, non un bug.
+</Aside>
+
+## Visibilità dalle impostazioni
+
+`skillOverrides` controlla la visibilità di una skill dalle **impostazioni**, invece che dal suo
+frontmatter. Serve per le skill di cui non vuoi toccare il `SKILL.md` — tipiche quelle committate in un
+repo condiviso.
+
+| Valore | Elencata a Claude | Nel menu `/` |
+| --- | --- | --- |
+| `"on"` (default) | Nome e descrizione | Sì |
+| `"name-only"` | Solo il nome | Sì |
+| `"user-invocable-only"` | Nascosta | Sì |
+| `"off"` | Nascosta | Nascosta |
+
+```json title=".claude/settings.local.json"
+{
+  "skillOverrides": {
+    "legacy-context": "name-only",
+    "deploy": "off"
+  }
+}
+```
+
+Il menu `/skills` lo scrive per te: evidenzia una skill, premi `Spazio` per ciclare gli stati, `Invio` per
+salvare. Le skill dei plugin **non** sono influenzate da `skillOverrides`: si gestiscono con `/plugin`.
+
+## Esempio guidato: dalla prima skill a una che funziona
+
+<Steps>
+
+1. **Crea la directory.**
+
+   <Tabs syncKey="os">
+   <TabItem label="macOS" icon="apple">
+   ```bash
+   mkdir -p ~/.claude/skills/summarize-changes
+   ```
+   </TabItem>
+   <TabItem label="Windows" icon="seti:windows">
+   ```powershell
+   New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\skills\summarize-changes"
+   ```
+   </TabItem>
+   </Tabs>
+
+2. **Scrivi `SKILL.md`.**
+
+   ```markdown title="~/.claude/skills/summarize-changes/SKILL.md"
+   ---
+   description: Summarizes uncommitted changes and flags anything risky. Use when the user asks what changed, wants a commit message, or asks to review their diff.
+   ---
+
+   ## Current changes
+
+   !`git diff HEAD`
+
+   ## Instructions
+
+   Summarize the changes above in two or three bullet points, then list any risks
+   you notice such as missing error handling, hardcoded values, or tests that need
+   updating. If the diff is empty, say there are no uncommitted changes.
+   ```
+
+   Guarda la `description`: dice **cosa fa** *e* **quando usarla**, con le frasi che l'utente direbbe
+   davvero — *"what changed"*, *"commit message"*, *"review their diff"*. È quello il meccanismo di
+   attivazione.
+
+3. **Testala in due modi.** Apri un progetto git, fai una piccola modifica e lancia `claude`.
+
+   Lasciando decidere a Claude:
+
+   ```text
+   What did I change?
+   ```
+
+   Invocandola direttamente:
+
+   ```text
+   /summarize-changes
+   ```
+
+   Devono produrre la stessa cosa. Se il primo modo non attiva la skill, il problema è la `description`.
+
+4. **Verifica che Claude la veda.**
+
+   ```text
+   What skills are available?
+   ```
+
+   Se la skill non è in elenco, controlla il percorso e lancia `/reload-skills`.
+
+5. **Aggiungi un file di supporto.** Le istruzioni lunghe non devono stare in `SKILL.md`:
+
+   ```bash
+   cat > ~/.claude/skills/summarize-changes/rischi.md <<'EOF'
+   # Catalogo dei rischi da cercare
+
+   ## Credenziali
+   Chiavi API, token, password, URL di connessione con credenziali inline.
+   Cerca anche i file `.env` aggiunti allo staging.
+
+   ## Errori silenziati
+   `catch` vuoti, `except: pass`, promise senza `.catch`, errori loggati
+   e poi ignorati.
+
+   ## Confini non validati
+   Input esterni usati senza validazione: parametri di query, body di
+   richieste, variabili d'ambiente, argomenti da riga di comando.
+   EOF
+   ```
+
+   Poi referenzialo da `SKILL.md`, aggiungendo in fondo:
+
+   ```markdown
+   ## Risorse aggiuntive
+
+   - Per il catalogo completo dei rischi, vedi [rischi.md](rischi.md)
+   ```
+
+   Il file viene letto **solo quando serve**: non pesa sul contesto di ogni invocazione.
+
+6. **Falla girare in un subagent.** Se la skill legge molti file, fai stare quelle letture fuori dal tuo
+   contesto. Aggiungi al frontmatter:
+
+   ```yaml
+   context: fork
+   agent: Explore
+   background: false
+   ```
+
+   `background: false` fa aspettare il risultato nello stesso turno, invece di lanciarla in background.
+
+7. **Blindala per l'uso manuale.** Se è una skill con effetti collaterali che non vuoi che Claude lanci da
+   solo:
+
+   ```yaml
+   disable-model-invocation: true
+   allowed-tools: Bash(git add *) Bash(git commit *) Bash(git status *)
+   ```
+
+   Ora `/summarize-changes` esegue i comandi git senza chiederti conferma a ogni passo, ma Claude non la
+   invoca mai di sua iniziativa.
+
+</Steps>
+
+## Capire se una skill funziona
+
+Vedere una skill attivarsi ti dice che Claude l'ha trovata, **non** che ha fatto quello che volevi. Le due
+cose vanno misurate separatamente:
+
+1. **Attivazione** — Claude la invoca sui prompt su cui dovrebbe? Scrivi cinque richieste che *dovrebbero*
+   attivarla e cinque che *non* dovrebbero, e provale.
+2. **Output** — quando si attiva, il risultato è quello che ti aspetti? Definisci prima cosa consideri
+   corretto.
+
+Esiste anche una skill dedicata, `skill-creator`, per far girare delle eval su una skill.
+
+## Esercizio
+
+Trasforma una parte del tuo `CLAUDE.md` in una skill, e misura la differenza.
+
+1. Trova nel tuo `CLAUDE.md` una sezione che è diventata una procedura invece che un fatto.
+2. Misura quanto costa oggi in contesto.
+3. Spostala in una skill, con la `description` giusta.
+4. Verifica che si attivi quando serve e non quando non serve.
+5. Misura di nuovo.
+
+<details class="soluzione">
+<summary>Soluzione</summary>
+
+**Passi 1–2.** La candidata tipica è una sezione tipo "Come si fa il rilascio" o "Checklist prima della
+PR": otto passi che valgono una volta a settimana ma che paghi in **ogni** sessione. Misura con `/context`
+e annota la riga del `CLAUDE.md` di progetto.
+
+**Passo 3.** Sposta il contenuto e — questa è la parte che conta — **riscrivi la `description`**. Nel
+`CLAUDE.md` non serviva, perché il contenuto c'era sempre. In una skill è tutto:
+
+```markdown title=".claude/skills/rilascio/SKILL.md"
+---
+description: Procedura di rilascio in produzione. Usala quando l'utente chiede di rilasciare, fare una release, taggare una versione, o chiede "come si mette in produzione".
+disable-model-invocation: true
+argument-hint: "[versione]"
+---
+
+Rilascia la versione $ARGUMENTS.
+
+1. Verifica che `main` sia allineato con il remoto e che la CI sia verde
+2. `npm run typecheck` e `npm test` — entrambi devono passare
+3. Aggiorna il CHANGELOG con le modifiche da `git log --oneline <ultimo-tag>..HEAD`
+4. Bump della versione in `package.json`
+5. Commit `chore(release): v$ARGUMENTS`, tag `v$ARGUMENTS`, push con `--follow-tags`
+6. Verifica che il deploy sia partito e riporta l'URL
+
+Fermati e chiedi conferma prima del passo 5. Non procedere se il passo 2 fallisce.
+```
+
+Nota due scelte deliberate: `disable-model-invocation: true`, perché un rilascio non deve partire perché
+Claude ha ritenuto pertinente; e le due frasi finali, scritte come **istruzioni permanenti** — restano in
+contesto per tutta la sessione, quindi devono valere per tutta la sessione.
+
+**Passo 4.** La verifica dell'attivazione va fatta con `disable-model-invocation` **temporaneamente
+tolto**, altrimenti stai testando solo l'invocazione manuale. Cinque prompt che devono attivarla:
+
+```text
+come rilascio la 2.3.0?
+possiamo fare una release?
+è ora di taggare la versione
+mettiamo in produzione
+qual è la procedura di deploy?
+```
+
+E cinque che **non** devono:
+
+```text
+questo test fallisce
+aggiungi un endpoint
+perché la CI è rossa?
+riassumi le modifiche
+come si chiama questa funzione in inglese?
+```
+
+Se "perché la CI è rossa?" attiva la skill di rilascio, la descrizione è troppo ampia: contiene concetti
+(CI, produzione) che compaiono in contesti diversi. Restringila.
+
+Rimetti `disable-model-invocation: true` quando hai finito di testare.
+
+**Passo 5.** Rilancia `/context` in una sessione nuova. Il `CLAUDE.md` è più corto; al suo posto paghi solo
+la riga di descrizione nel listing delle skill. Il corpo lo paghi le due volte al mese in cui rilasci.
+
+</details>
+
+## Errori comuni e troubleshooting
+
+### La skill non si attiva
+
+<Steps>
+
+1. Controlla che la `description` contenga le **parole che diresti davvero**. È il criterio con cui Claude
+   decide.
+2. Verifica che compaia: chiedi `What skills are available?`.
+3. Riformula la richiesta avvicinandola alla descrizione — serve a capire se il problema è lì.
+4. Invocala direttamente con `/nome-skill`, se è invocabile dall'utente.
+
+</Steps>
+
+Se il YAML del frontmatter è **malformato**, Claude Code carica il corpo con metadati vuoti: `/nome-skill`
+funziona ancora, ma Claude non ha nessuna `description` su cui fare match. È il caso più insidioso, perché
+sembra funzionare. Lancia con `--debug` per vedere l'errore di parsing.
+
+### Le descrizioni vengono troncate
+
+Claude Code carica in contesto un listing di nomi e descrizioni. Il listing contiene **sempre tutti i
+nomi**, ma se hai molte skill le descrizioni vengono accorciate per stare nel budget — che è l'**1% della
+finestra di contesto** del modello. Quando il listing sfora, vengono tolte per prime le descrizioni delle
+skill che invochi meno.
+
+Rimedi, in ordine di preferenza:
+
+| Rimedio | Come |
+| --- | --- |
+| Accorcia il testo alla fonte | Caso d'uso principale per primo; il limite per voce è 1.536 caratteri |
+| Libera budget | `"name-only"` in `skillOverrides` per le skill a bassa priorità |
+| Alza il budget | `skillListingBudgetFraction` (es. `0.02` = 2%) o `SLASH_COMMAND_TOOL_CHAR_BUDGET` |
+| Alza il cap per voce | `skillListingMaxDescChars` |
+
+`/doctor` stima il costo in contesto del listing e i suoi maggiori contributori. La riga *Skills* di
+`/context` riporta la dimensione **dopo** l'applicazione del budget, quindi corrisponde a quello che il
+modello riceve davvero.
+
+### Tabella dei sintomi
+
+| Sintomo | Causa | Soluzione |
+| --- | --- | --- |
+| La skill non parte mai da sola | `description` vaga o troncata | Riscrivila con le parole dell'utente; controlla il budget del listing |
+| La skill parte troppo spesso | `description` troppo ampia | Rendila più specifica, o `disable-model-invocation: true` |
+| `/nome` funziona ma Claude non la invoca mai | Frontmatter YAML malformato | `--debug` mostra l'errore di parsing |
+| La skill smette di influenzare il comportamento dopo la prima risposta | Il contenuto è ancora lì, ma il modello sta scegliendo altro | Rafforza `description` e istruzioni, o usa un [hook](/personalizzazione/hooks/) |
+| Dopo una compattazione la skill non ha più effetto | Ne hai invocate molte: le più vecchie cadono per prime dai 25.000 token totali | Ri-invocala per ripristinare il contenuto pieno |
+| Metà delle istruzioni della skill viene ignorata | Il troncamento tiene i primi 5.000 token | Metti le istruzioni importanti in cima a `SKILL.md` |
+| La skill nuova non compare | Directory non ri-scansionate | `/reload-skills` |
+| Una skill di un repo clonato ha permessi che non ti aspettavi | `allowed-tools` non è gated dal workspace trust | Rivedi il frontmatter delle skill committate **prima** di lanciare Claude Code nel repo |
+| I comandi `` !`...` `` non eseguono | La skill è sincronizzata da claude.ai | Comportamento previsto: le skill sincronizzate non eseguono comandi locali |
+
+## Cheat-sheet
+
+**Struttura minima**
+
+```text
+.claude/skills/<nome>/SKILL.md   →  /<nome>
+```
+
+```yaml
+---
+description: Cosa fa e quando usarla, con le parole dell'utente
+---
+
+Le istruzioni.
+```
+
+**Frontmatter, i campi che userai davvero**
+
+| Campo | Quando |
+| --- | --- |
+| `description` | Sempre |
+| `when_to_use` | Quando servono frasi trigger esplicite |
+| `disable-model-invocation: true` | Workflow con effetti collaterali, da lanciare a mano |
+| `user-invocable: false` | Conoscenza di sfondo che l'utente non deve invocare |
+| `allowed-tools` | Per evitare conferme ripetute durante il turno |
+| `disallowed-tools` | Per togliere tool a una skill autonoma |
+| `context: fork` + `agent` | Quando la skill legge molto e non deve consumare il tuo contesto |
+| `argument-hint` | Quando accetta argomenti |
+| `model` / `effort` | Quando il task richiede più o meno potenza del solito |
+
+**Sostituzioni e sintassi**
+
+| | |
+| --- | --- |
+| `$ARGUMENTS` | Tutto ciò che segue il nome |
+| `$0`, `$1`, `$2` | Argomenti posizionali |
+| `` !`comando` `` | Esegue e inserisce l'output prima che Claude legga |
+
+**Numeri**
+
+| Cosa | Valore |
+| --- | --- |
+| `SKILL.md` consigliata | Sotto 500 righe |
+| `description` + `when_to_use` | Troncate a 1.536 caratteri nel listing |
+| Budget del listing | 1% della finestra di contesto |
+| Re-iniezione dopo compattazione | 5.000 token per skill, 25.000 totali |
+| Skill concatenabili | La prima più altre cinque |
+
+## Fonti
+
+Pagine ufficiali consultate, verificate il **16 agosto 2026**:
+
+- [Extend Claude with skills](https://code.claude.com/docs/en/skills) — struttura, frontmatter completo, file di supporto, argomenti, subagent, `skillOverrides`, troubleshooting
+- [Commands reference](https://code.claude.com/docs/en/commands) — skill bundled e comandi built-in
+- [Subagents](https://code.claude.com/docs/en/sub-agents) — `context: fork` e preload delle skill
+- [Hooks](https://code.claude.com/docs/en/hooks) — hook nelle skill e quando servono al posto delle istruzioni
+- [Settings](https://code.claude.com/docs/en/settings) — `skillListingBudgetFraction` e `skillListingMaxDescChars`
+- [How Claude remembers your project](https://code.claude.com/docs/en/memory) — quando usare una skill al posto di `CLAUDE.md` o di una regola

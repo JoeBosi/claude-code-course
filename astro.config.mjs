@@ -28,13 +28,12 @@ export default defineConfig({
 				Footer: './src/components/Footer.astro',
 			},
 			plugins: [starlightLinksValidator()],
-			social: [
-				{
-					icon: 'github',
-					label: 'GitHub',
-					href: 'https://github.com/JoeBosi/claude-tutorial',
-				},
-			],
+			// Il repo resta privato fino alla consegna: riattivare questo link quando
+			// github.com/JoeBosi/claude-tutorial diventa pubblico, altrimenti i
+			// visitatori trovano un 404.
+			// social: [
+			// 	{ icon: 'github', label: 'GitHub', href: 'https://github.com/JoeBosi/claude-tutorial' },
+			// ],
 			head: [
 				{ tag: 'meta', attrs: { property: 'og:site_name', content: 'Claude Code Tutorial' } },
 				{ tag: 'meta', attrs: { property: 'og:type', content: 'website' } },

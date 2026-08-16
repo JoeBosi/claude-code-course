@@ -30,11 +30,11 @@ Ultimo aggiornamento: 2026-08-16
 
 ## Sezione 2 — Personalizzazione ed estensioni
 
-- [ ] 07 · Slash Commands — `personalizzazione/slash-commands`
-- [ ] 08 · Skills personalizzate — `personalizzazione/skills`
-- [ ] 09 · MCP e server remoti — `personalizzazione/mcp`
-- [ ] 10 · Hooks e automazioni locali — `personalizzazione/hooks`
-- [ ] 11 · Agents e Subagents — `personalizzazione/agents-subagents`
+- [x] 07 · Slash Commands — `personalizzazione/slash-commands`
+- [x] 08 · Skills personalizzate — `personalizzazione/skills`
+- [x] 09 · MCP e server remoti — `personalizzazione/mcp`
+- [x] 10 · Hooks e automazioni locali — `personalizzazione/hooks`
+- [x] 11 · Agents e Subagents — `personalizzazione/agents-subagents`
 
 ## Sezione 3 — Automazione e integrazione
 
