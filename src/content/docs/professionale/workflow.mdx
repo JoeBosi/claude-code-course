@@ -1,10 +1,740 @@
 ---
 title: "19 · Workflow professionali"
-description: "TDD assistito dall'AI, code review, git worktrees e lavoro in team con Claude Code."
+description: "TDD assistito dall'AI, code review a più livelli, git worktrees per il lavoro in parallelo e agent teams: i workflow che reggono in un progetto vero e in un team."
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
 
-<Aside type="caution" title="Modulo in lavorazione">
-Questo modulo è in fase di scrittura e verifica sui docs ufficiali. Torna a breve.
+<div class="meta-modulo">
+	<span><strong>Tempo stimato:</strong> 65 minuti</span>
+	<span><strong>Prerequisiti:</strong> le sezioni precedenti, in particolare i moduli <a href="/personalizzazione/agents-subagents/">11</a>, <a href="/automazione/pipeline-locali/">14</a> e <a href="/professionale/boilerplate/">18</a>.</span>
+</div>
+
+## Obiettivi
+
+- Usare il TDD come **meccanismo di verifica** per un agente, non come rituale.
+- Comporre i quattro livelli di code review disponibili, sapendo quale usare quando.
+- Isolare sessioni parallele con i git worktree e capire cosa Claude Code blocca dentro un worktree.
+- Sapere quando un agent team batte i subagent, e quando è solo più costoso.
+- Portare tutto questo in un team, senza che diventi una regola che nessuno segue.
+
+## Concetti chiave
+
+**Il TDD non è disciplina: è il modo più economico di chiudere il ciclo agentico.** Come visto nel
+[modulo 3](/fondamenta/agentic-coding/), Claude si ferma quando il lavoro *sembra* finito. Un test che
+fallisce trasforma "sembra finito" in un segnale binario, e il ciclo si chiude da solo. La sequenza *test
+prima, poi implementazione* non serve a te: serve a dare all'agente qualcosa contro cui verificarsi.
+
+**La revisione va fatta da un contesto diverso da quello che ha scritto il codice.** Un revisore che ha
+visto il ragionamento che ha prodotto una modifica ne è influenzato. Tutti i livelli di review qui sotto
+condividono lo stesso principio: contesto fresco, solo la diff e i criteri.
+
+**I worktree isolano i file, i subagent e i team coordinano il lavoro.** Sono ortogonali e si combinano.
+Confondere le due cose porta a usare un agent team dove bastava un worktree, pagando dieci volte tanto.
+
+**Ogni livello di parallelismo ha un costo di coordinamento.** Un subagent costa poco e riporta solo a chi
+lo ha chiamato. Un agent team costa molto e i membri si parlano tra loro. Se il lavoro è sequenziale o
+tocca gli stessi file, il parallelismo è solo overhead.
+
+## TDD assistito dall'AI
+
+### Il ciclo
+
+<Steps>
+
+1. **Descrivi il comportamento come casi di test, non come implementazione.**
+
+   ```text
+   Write failing tests for the password reset flow:
+     - a valid token resets the password and invalidates the token
+     - an expired token returns 410 and does not change the password
+     - a token for a deleted user returns 404
+     - reusing a valid token twice: the second attempt returns 410
+
+   Do not write the implementation yet. Run the tests and show me they fail
+   for the right reason.
+   ```
+
+   L'ultima frase è la parte che quasi tutti saltano. Un test che fallisce con `ModuleNotFoundError` non
+   sta verificando niente: fallisce perché il file non esiste, non perché il comportamento è sbagliato.
+
+2. **Leggi i test prima di far scrivere il codice.** È il vero momento di revisione: correggere un caso
+   di test costa una riga, correggere l'implementazione costa una sessione.
+
+   Le tre cose da cercare:
+
+   | Cosa | Perché |
+   | --- | --- |
+   | Un caso che manca | L'agente implementerà solo ciò che è testato |
+   | Un test che verifica l'implementazione invece del comportamento | Si romperà a ogni refactoring, senza cogliere bug |
+   | Un'asserzione troppo debole | `assert response is not None` non verifica nulla |
+
+3. **Fai implementare, con il vincolo esplicito.**
+
+   ```text
+   Now implement until all four tests pass. Do not modify the tests.
+   Run the suite and show me the output.
+   ```
+
+   *"Do not modify the tests"* non è pignoleria: senza, un agente in difficoltà rilassa l'asserzione invece
+   di correggere il codice, e ottieni una suite verde che non verifica niente.
+
+4. **Chiedi le prove, non l'affermazione.** *"Show me the output"* produce l'output del runner; senza,
+   ottieni *"tutti i test passano"*, che è una cosa diversa.
+
+5. **Rendilo deterministico con un hook.** Le istruzioni sono consigli. Se il ciclo deve valere sempre, il
+   posto è un hook `Stop` o `PostToolUse` — vedi il [modulo 10](/personalizzazione/hooks/) e il boilerplate
+   `web-fullstack` del [modulo 18](/professionale/boilerplate/).
+
+</Steps>
+
+<Aside type="tip" title="Il gate più forte: `/goal`">
+Per un ciclo che deve reggere su una sessione lunga, esiste `/goal`: un valutatore separato ricontrolla la
+condizione dopo **ogni turno**, e Claude continua a lavorare finché l'obiettivo non si risolve.
+
+```text
+/goal npm test passes with zero failures and npm run typecheck is clean
+```
+
+È il gradino intermedio tra "lo chiedo nel prompt" e "lo impongo con un hook `Stop`".
 </Aside>
+
+### Quando il TDD non conviene
+
+Il TDD costa un giro in più. Non vale la pena per:
+
+- Codice esplorativo che butterai
+- Modifiche a una riga con effetto ovvio
+- Codice il cui comportamento corretto non sai ancora definire — lì prima esplori
+- Interfaccia grafica, dove il criterio è visivo: usa uno screenshot da confrontare
+
+---
+
+## Code review a quattro livelli
+
+Claude Code offre quattro livelli. Non sono alternative: si sovrappongono di proposito.
+
+| Livello | Quando gira | Costo | Cosa cattura |
+| --- | --- | --- | --- |
+| **Plugin `security-guidance`** | Mentre Claude scrive | Basso | Vulnerabilità comuni, corrette nella stessa sessione |
+| **`/code-review`** | Quando lo chiedi tu | Medio | Bug di correttezza, semplificazioni, riuso |
+| **Subagent revisore tuo** | Quando lo chiedi tu | Medio | I criteri **specifici del tuo progetto** |
+| **Code Review su PR** | Su ogni PR | 15–25 $ a review | Bug con il contesto dell'intero codebase, multi-agente |
+
+### `/code-review`
+
+Il comando che userai di più:
+
+```text
+/code-review
+```
+
+Rivede i commit del branch avanti rispetto al suo upstream, più le modifiche non committate. Per rivedere
+altro, passa un bersaglio: un percorso, un numero di PR, un branch, o un intervallo come
+`main...my-feature`.
+
+I flag:
+
+| Flag | Cosa fa |
+| --- | --- |
+| `--fix` | Applica i rilievi al working tree dopo la review |
+| `--comment` | Pubblica i rilievi come commenti inline sulla PR |
+| `--post` | Su una review `ultra` di una PR github.com, preseleziona la pubblicazione dei risultati |
+
+La review gira come **subagent in background** con la sua finestra di contesto: non riempie la tua
+conversazione, e i risultati arrivano quando ha finito.
+
+<Aside type="caution" title="`--fix` in background sfugge ai checkpoint">
+Una review in background applica le sue modifiche **fuori dai checkpoint** della tua sessione: `/rewind`
+non le annulla. Per tornare indietro serve git.
+</Aside>
+
+### Il livello di effort cambia il compromesso
+
+```text
+/code-review high
+```
+
+A `low` e `medium` la review riporta solo i rilievi di cui è più sicura: meno falsi positivi. Da `high` a
+`max` allarga la copertura e può includere rilievi meno certi.
+
+Se non digiti un livello, viene riusato l'ultimo che hai digitato, **anche di una sessione precedente**, e
+compare un avviso tipo `Reusing high effort, the level you typed last time`.
+
+### Il pattern Writer/Reviewer
+
+Il pattern che rende la revisione davvero indipendente: due sessioni separate.
+
+| Sessione A — Writer | Sessione B — Reviewer |
+| --- | --- |
+| `Implement a rate limiter for our API endpoints` | |
+| | `Review the rate limiter implementation in @src/middleware/rateLimiter.ts. Look for edge cases, race conditions, and consistency with our existing middleware patterns.` |
+| `Here's the review feedback: [output di B]. Address these issues.` | |
+
+Un contesto fresco migliora la review perché **Claude non è di parte verso codice che ha appena scritto**.
+
+Lo stesso vale con i test: una sessione scrive i test, un'altra scrive il codice che li fa passare.
+
+### Governare la review su PR
+
+Il servizio gestito legge due file dal repository, con pesi diversi:
+
+- **`CLAUDE.md`** — contesto di progetto. Le violazioni introdotte da una PR vengono segnalate come **nit**.
+- **`REVIEW.md`** — istruzioni **solo per la review**, iniettate nel system prompt di ogni agente della
+  pipeline come blocco a priorità massima.
+
+`REVIEW.md` è quello che ti serve quando la review è rumorosa. Le leve che funzionano:
+
+```markdown title="REVIEW.md"
+# Review instructions
+
+## Cosa significa Important qui
+
+Riserva 🔴 Important a ciò che romperebbe il comportamento, esporrebbe dati, o
+impedirebbe un rollback: logica errata, query non delimitate per tenant, PII nei
+log, migrazioni non retrocompatibili. Stile, naming e suggerimenti di refactoring
+sono al massimo Nit.
+
+## Limita i nit
+
+Al massimo cinque Nit per review. Se ne trovi di più, scrivi "più altri N simili"
+nel riassunto invece di pubblicarli inline. Se hai trovato solo Nit, apri il
+riassunto con "Nessun problema bloccante".
+
+## Non riportare
+
+- Ciò che la CI già impone: lint, formattazione, errori di tipo
+- File generati sotto `src/gen/` e qualsiasi `*.lock`
+- Codice di test che viola di proposito le regole di produzione
+
+## Controlla sempre
+
+- Le nuove route API hanno un test di integrazione
+- I log non contengono email, user ID o corpi di richiesta
+- Le query sono delimitate al tenant del chiamante
+
+## Alle review successive
+
+Dopo la prima review, sopprimi i nit nuovi e riporta solo gli Important.
+```
+
+Le ultime due righe risolvono il problema che fa abbandonare le review automatiche: una correzione di una
+riga che arriva al settimo giro di commenti di stile.
+
+<Aside type="note" title="`REVIEW.md` non espande gli import">
+È incollato **verbatim**: la sintassi `@` non viene espansa e i file referenziati non vengono letti.
+Scrivi le regole direttamente lì dentro. E tienilo corto: un `REVIEW.md` lungo diluisce le regole che
+contano.
+</Aside>
+
+---
+
+## Git worktrees
+
+Un worktree è una directory di lavoro separata con i suoi file e il suo branch, che condivide storia e
+remote con il checkout principale. Una sessione per worktree significa che le modifiche di una non toccano
+mai i file di un'altra.
+
+### Avviare
+
+```bash
+claude --worktree feature-auth
+```
+
+Crea il worktree sotto `.claude/worktrees/<nome>/` nella root del repository, su un branch nuovo chiamato
+`worktree-<nome>`. Lancia il comando di nuovo con un altro nome in un altro terminale per una seconda
+sessione isolata. Senza nome, ne viene generato uno tipo `bright-running-fox`.
+
+<Aside type="tip" title="Due righe di configurazione che risolvono metà dei problemi">
+Nel `.gitignore`:
+
+```text
+.claude/worktrees/
+```
+
+Senza, i contenuti dei worktree compaiono come file non tracciati nel checkout principale.
+
+E un `.worktreeinclude` nella root, con sintassi `.gitignore`:
+
+```text title=".worktreeinclude"
+.env
+.env.local
+config/secrets.json
+```
+
+Un worktree è un checkout fresco: senza questo file, il tuo `.env` non c'è e la prima cosa che fai in ogni
+worktree è chiederti perché non parte niente. Vengono copiati solo i file che corrispondono a un pattern
+**e sono gitignored**, quindi i file tracciati non vengono mai duplicati.
+</Aside>
+
+### Cosa Claude Code blocca dentro un worktree
+
+Non è una convenzione: è applicata. Quattro controlli:
+
+| Controllo | Cosa blocca |
+| --- | --- |
+| **Modifiche ai file** | `Edit`, `Write` o `NotebookEdit` che puntano al checkout principale |
+| **Directory di lavoro dei comandi** | Un comando Bash o PowerShell la cui working directory finisce nel checkout principale |
+| **Redirezioni di git** | Un comando che redirige git nel checkout principale, via `git -C`, `--git-dir`, `GIT_DIR`, `GIT_WORK_TREE`, o un `cd` prima di git |
+| **Forma del comando** | Un comando di cui non si può verificare staticamente che resti nel worktree — brace expansion, heredoc con delimitatore non quotato. **Non disattivabile** |
+
+L'enforcement copre anche **ogni subagent** generato dalla sessione isolata.
+
+### Pulizia
+
+Uscendo da una sessione interattiva in un worktree, Claude controlla se c'è lavoro che la rimozione
+distruggerebbe:
+
+- **Worktree pulito** — per una sessione senza nome, viene rimosso in automatico con il suo branch. Una
+  sessione **con nome** ti chiede prima, così puoi tenerlo.
+- **Worktree con lavoro dentro** — ti viene chiesto se tenerlo o rimuoverlo.
+
+<Aside type="danger" title="I run `-p` non puliscono">
+Le esecuzioni non interattive non hanno il prompt di uscita: i loro worktree restano, con il lock preso
+alla creazione, finché uno sweep successivo non lo rilascia. Per rimuoverne uno a mano:
+
+```bash
+git worktree remove <path>
+git worktree unlock <path>   # se git rifiuta perché è bloccato
+```
+</Aside>
+
+Uno sweep periodico rimuove i worktree creati per **subagent e sessioni in background** più vecchi di
+`cleanupPeriodDays`, saltando quelli che contengono ancora lavoro. **Non tocca mai** i worktree creati con
+`--worktree`.
+
+### Opzioni utili
+
+| Cosa | Come |
+| --- | --- |
+| Ramificare dal lavoro corrente invece che da `main` | `worktree.baseRef: "head"` nei settings |
+| Partire da una PR | `claude --worktree "#1234"` — le virgolette servono, o la shell tratta `#` come commento |
+| Isolare un subagent | `isolation: worktree` nel suo frontmatter |
+| Elencare | `git worktree list` |
+| Rimuovere | `git worktree remove <path>`, con `--force` se ci sono modifiche |
+
+### Cosa un worktree condivide col checkout principale
+
+Tre cose, ed è un bene:
+
+- **La directory `.git`** — i comandi git dentro un worktree scrivono sul `.git` condiviso, quindi
+  `git commit` funziona anche con la sandbox attiva.
+- **I plugin di scope progetto** — non serve reinstallarli per worktree.
+- **Le approvazioni di permesso** — un *"Yes, don't ask again"* dentro un worktree viene salvato nel
+  `.claude/settings.local.json` del checkout principale, quindi vale ovunque e **sopravvive alla rimozione
+  del worktree**.
+
+---
+
+## Agent teams
+
+Coordinano **più istanze di Claude Code**. Una sessione fa da team lead, i compagni lavorano in modo
+indipendente, ciascuno con la sua finestra di contesto, e **si parlano direttamente tra loro**.
+
+<Aside type="caution" title="Sperimentali e disattivati per default">
+Si abilitano con `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`, nell'ambiente o nei settings:
+
+```json title="settings.json"
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  }
+}
+```
+
+**Attenzione a un effetto collaterale:** con i team attivi, un subagent a cui Claude dà un nome parte come
+**teammate**, non come subagent. Un flusso che aspetta il risultato di un subagent può bloccarsi, perché la
+notifica di idle di un teammate **non porta il suo output**. Se ti succede, riporta la variabile a `0`.
+</Aside>
+
+### Team o subagent?
+
+| | **Subagent** | **Agent team** |
+| --- | --- | --- |
+| Contesto | Proprio; i risultati tornano al chiamante | Proprio; completamente indipendente |
+| Comunicazione | Solo verso l'agente principale | I compagni si messaggiano tra loro |
+| Coordinamento | Lo gestisce l'agente principale | Auto-coordinamento più una lista di task condivisa |
+| Ideale per | Task focalizzati dove conta solo il risultato | Lavoro che richiede discussione e collaborazione |
+| Costo in token | Più basso: risultati riassunti | **Molto più alto**: ogni compagno è un'istanza a sé |
+
+I casi in cui un team si ripaga: ricerca e review su assi indipendenti, moduli nuovi con proprietari
+distinti, debugging con **ipotesi in competizione**, coordinamento tra livelli diversi dello stack.
+
+I casi in cui è solo più costoso: task sequenziali, modifiche agli stessi file, lavoro con molte dipendenze.
+
+### Il caso che vale davvero: ipotesi in competizione
+
+```text
+Users report the app exits after one message instead of staying connected.
+Spawn 5 agent teammates to investigate different hypotheses. Have them talk to
+each other to try to disprove each other's theories, like a scientific
+debate. Update the findings doc with whatever consensus emerges.
+```
+
+Il meccanismo è **il dibattito**. Un'indagine sequenziale soffre di *anchoring*: esplorata una teoria,
+tutto il resto viene interpretato alla sua luce. Con investigatori indipendenti che cercano attivamente di
+smentirsi, la teoria che sopravvive ha molte più probabilità di essere la causa vera.
+
+### Dimensionare
+
+- **3–5 compagni** per la maggior parte dei workflow.
+- I costi in token scalano **linearmente** con il numero di compagni.
+- **Tre compagni concentrati battono spesso cinque sparsi.**
+- Circa **5–6 task per compagno** tengono tutti occupati e permettono al lead di riassegnare.
+
+Con 15 task indipendenti, tre compagni sono un buon punto di partenza — non quindici.
+
+### Gestirlo
+
+| Cosa | Come |
+| --- | --- |
+| Selezionare un compagno | Frecce su/giù nel pannello agenti |
+| Aprirne la trascrizione e parlargli | `Enter` |
+| Interromperne il turno | `Esc` |
+| Fermarlo | `x` sul compagno selezionato |
+| Mostrare la lista dei task | `Ctrl+T` |
+| Pannelli separati | `claude --teammate-mode auto` — richiede tmux o iTerm2 |
+| Chiudere un compagno | *"Ask the researcher teammate to shut down"* |
+
+Per lavoro rischioso, si può richiedere l'approvazione del piano:
+
+```text
+Spawn an architect teammate to refactor the authentication module.
+Require plan approval before they make any changes.
+```
+
+Il compagno lavora in sola lettura finché il lead non approva. Il lead decide **da solo**: per influenzarlo,
+dagli i criteri nel prompt — *"only approve plans that include test coverage"*.
+
+### I limiti da conoscere prima
+
+- **`/resume` e `/rewind` non ripristinano i compagni in-process.** Dopo una ripresa, il lead può provare a
+  scrivere a compagni che non esistono più: digli di generarne di nuovi.
+- **Lo stato dei task può restare indietro**: un compagno a volte non marca un task come completato,
+  bloccando quelli dipendenti.
+- **Un solo team per sessione**, e **niente team annidati**: solo il lead può gestire la squadra.
+- **I permessi si fissano allo spawn**: tutti i compagni partono con la modalità del lead.
+- **I pannelli separati** non funzionano nel terminale integrato di VS Code, in Windows Terminal, né in Ghostty.
+
+---
+
+## Esempio guidato: una feature dall'inizio alla PR
+
+Mettiamo insieme tutto su un caso realistico.
+
+<Steps>
+
+1. **Isola il lavoro.**
+
+   ```bash
+   claude --worktree reset-password
+   ```
+
+   Verifica che `.worktreeinclude` abbia portato il tuo `.env`; se non c'è, aggiungilo e ricrea il worktree.
+
+2. **Esplora prima di pianificare.** In Plan Mode:
+
+   ```text
+   Read src/auth/ and understand how tokens are issued and validated.
+   Also look at how we send transactional email. Don't propose anything yet.
+   ```
+
+3. **Fatti fare il piano, e correggilo.**
+
+   ```text
+   I want to add a password reset flow. What files need to change?
+   What are the failure modes? Create a plan.
+   ```
+
+   `Ctrl+G` per aprirlo nell'editor. Aggiungi in fondo la sezione di verifica, se manca.
+
+4. **Test prima.** Approva il piano scegliendo *Yes, manually approve edits*, poi:
+
+   ```text
+   Write the failing tests from the plan first. Do not implement anything yet.
+   Run them and show me they fail for the right reason.
+   ```
+
+5. **Leggi i test.** È il vero punto di controllo. Manca un caso? Un'asserzione è debole?
+
+6. **Implementa con il vincolo.**
+
+   ```text
+   Now implement until all tests pass. Do not modify the tests.
+   Run the suite and show me the output.
+   ```
+
+7. **Revisione con occhi freschi**, due livelli:
+
+   ```text
+   /code-review high
+   ```
+
+   e poi quello coi criteri del tuo progetto:
+
+   ```text
+   @"reviewer (agent)" review the diff against PLAN.md. Check that every
+   requirement is implemented, the listed edge cases have tests, and nothing
+   outside src/auth/ changed.
+   ```
+
+8. **Spedisci.** Se usi il boilerplate del [modulo 18](/professionale/boilerplate/):
+
+   ```text
+   /ship aggiunge il flusso di reset password
+   ```
+
+9. **Esci dal worktree.** Con lavoro dentro, ti viene chiesto se tenerlo: tienilo finché la PR non è
+   mergiata, così puoi rispondere ai commenti senza ricrearlo.
+
+</Steps>
+
+## Portarlo in un team
+
+Un workflow che vive nella testa di una persona non è un workflow. Tre livelli di formalizzazione, in
+ordine crescente di forza:
+
+| Livello | Strumento | Forza |
+| --- | --- | --- |
+| **Contesto** | `CLAUDE.md` committato | Consiglio: Claude lo legge e di solito lo segue |
+| **Comando** | `.claude/commands/`, committati | Incapsula il workflow: chiunque lo invoca allo stesso modo |
+| **Vincolo** | Hook in `.claude/settings.json`, committati | Codice: succede sempre |
+
+E due file che governano la review:
+
+- **`CLAUDE.md`** — le convenzioni. Le violazioni introdotte da una PR diventano nit.
+- **`REVIEW.md`** — cosa la review deve e non deve segnalare, con che gravità.
+
+<Aside type="tip" title="La regola che fa attecchire un workflow in un team">
+**Se una regola conta davvero, scrivila come hook o come test, non come frase nel `CLAUDE.md`.**
+
+Una frase è un consiglio che si perde nel rumore quando il file cresce. Un hook con
+`permissionDecisionReason` che dice cosa fare invece corregge il comportamento senza che nessuno debba
+ricordarsene. Il boilerplate `agentic-rag` del [modulo 18](/professionale/boilerplate/) mostra la coppia
+completa: hook che difende prima, test che verifica dopo.
+</Aside>
+
+## Esercizio
+
+Metti in piedi il workflow completo su un progetto reale, e rendilo condivisibile.
+
+1. Isola una feature in un worktree e portala fino alla PR con TDD.
+2. Aggiungi al progetto un `REVIEW.md` calibrato sul tuo codebase.
+3. Trasforma il tuo ciclo di verifica da consiglio a vincolo.
+4. Prova un agent team su un caso in cui si ripaga, e uno in cui non si ripaga.
+
+<details class="soluzione">
+<summary>Soluzione</summary>
+
+**Passi 1–2.** Segui l'esempio guidato. Per il `REVIEW.md`, il modo che funziona non è scriverlo a priori:
+è **farlo scrivere dalle review rumorose**. Fai girare due o tre review, annota i rilievi che ti hanno
+fatto perdere tempo, e trasformali in regole:
+
+```markdown title="REVIEW.md"
+# Review instructions
+
+## Cosa significa Important qui
+
+Riserva Important a: logica errata, query non delimitate per tenant, segreti nei
+log, migrazioni non retrocompatibili. Tutto il resto è Nit al massimo.
+
+## Non riportare
+
+- Ciò che la CI già impone: lint, prettier, tsc
+- File sotto `src/generated/` e `*.lock`
+- "Si potrebbe estrarre in una funzione": non è un difetto
+
+## Soglia di verifica
+
+Le affermazioni sul comportamento richiedono una citazione `file:riga` nel sorgente,
+non un'inferenza dal nome di una variabile.
+
+## Alle review successive
+
+Dopo la prima, sopprimi i nit nuovi e riporta solo gli Important.
+```
+
+La sezione *Soglia di verifica* è quella con il rapporto valore/righe più alto: taglia i rilievi dedotti
+dal nome di una funzione invece che dal suo corpo, che sono la fonte principale di falsi positivi.
+
+**Passo 3 — da consiglio a vincolo.** Tre gradini, e conviene salirli in ordine:
+
+*Gradino 1 — nel prompt.* Funziona subito, non funziona quando te ne dimentichi:
+
+```text
+...run the tests and show me the output.
+```
+
+*Gradino 2 — `/goal`.* Un valutatore separato ricontrolla dopo ogni turno:
+
+```text
+/goal npm test passes with zero failures and npm run typecheck is clean
+```
+
+*Gradino 3 — hook `Stop`.* Blocca la fine del turno finché il controllo non passa:
+
+```json title=".claude/settings.json"
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/gate.sh",
+            "timeout": 300
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+```bash title=".claude/hooks/gate.sh"
+#!/usr/bin/env bash
+# Impedisce la fine del turno se i test non passano.
+set -uo pipefail
+
+# Solo se qualcosa è cambiato: un hook Stop che lancia la suite dopo
+# ogni domanda è insopportabile.
+git diff --quiet && git diff --cached --quiet && exit 0
+
+if ! OUT=$(npm test --silent 2>&1); then
+  printf '%s\n' "$OUT" | tail -30 >&2
+  exit 2
+fi
+```
+
+L'exit 2 su `Stop` **fa continuare la conversazione**: Claude vede il fallimento e lo corregge invece di
+fermarsi. Da sapere: Claude Code scavalca l'hook e chiude il turno dopo **8 blocchi consecutivi**, così un
+gate che non può essere soddisfatto non ti intrappola.
+
+La riga `git diff --quiet` è quella che rende l'hook usabile: senza, la suite parte anche quando chiedi
+"come si chiama questa funzione".
+
+**Passo 4 — dove un team si ripaga e dove no.**
+
+*Caso in cui si ripaga* — un bug di cui non conosci la causa:
+
+```text
+Users report that uploads over 10MB fail silently, but only in production.
+Spawn 4 teammates to investigate different hypotheses: one on the client-side
+upload, one on the reverse proxy config, one on the storage adapter, one on
+the request timeout chain. Have them challenge each other's theories.
+```
+
+Osserva cosa succede: i compagni si contraddicono, e la teoria che sopravvive al dibattito è quella giusta.
+Da solo avresti trovato la prima spiegazione plausibile e ti saresti fermato lì.
+
+*Caso in cui non si ripaga* — una migrazione su molti file:
+
+```text
+Spawn 5 teammates to migrate all our components from the old form library
+to the new one.
+```
+
+Cosa va storto, prevedibilmente: i compagni toccano gli stessi file di utility condivise, si sovrascrivono,
+e il coordinamento costa più del lavoro. **Qui la risposta era il fan-out del
+[modulo 14](/automazione/pipeline-locali/)**: un ciclo di `claude -p` per file, idempotente, con retry.
+Nessun coordinamento perché non serve.
+
+La regola che emerge:
+
+```text
+I compagni devono discutere?      → agent team
+I compagni devono solo lavorare?  → subagent, o fan-out con claude -p
+I compagni toccano gli stessi file? → non parallelizzare, o worktree separati
+```
+
+</details>
+
+## Errori comuni e troubleshooting
+
+| Sintomo | Causa | Soluzione |
+| --- | --- | --- |
+| I test scritti dall'agente passano ma non verificano nulla | Asserzioni troppo deboli, o test modificati per farli passare | Leggi i test **prima** dell'implementazione; vieta esplicitamente di modificarli |
+| I test falliscono per il motivo sbagliato | Falliscono per un import mancante, non per il comportamento | Chiedi sempre *"show me they fail for the right reason"* |
+| La review segnala sempre le stesse cose irrilevanti | Nessun `REVIEW.md`, o troppo generico | Aggiungi le sezioni *Non riportare* e *Soglia di verifica* |
+| La review arriva al settimo giro di commenti di stile | Nessuna regola di convergenza | *"Dopo la prima review, sopprimi i nit nuovi"* |
+| `/rewind` non annulla le modifiche di `/code-review --fix` | Una review in background applica fuori dai checkpoint | Usa git |
+| `/code-review` usa un effort che non ti aspetti | Riusa l'ultimo livello che hai digitato, anche di sessioni precedenti | Digita il livello: `/code-review high` |
+| Il worktree nuovo non parte: manca `.env` | Un worktree è un checkout fresco | `.worktreeinclude` nella root |
+| I worktree compaiono come file non tracciati | Sono dentro il repository | `.claude/worktrees/` nel `.gitignore` |
+| Claude rifiuta un comando dentro un worktree | Non può verificare staticamente che resti nel worktree | Spezzalo in comandi semplici e separati: il controllo non è disattivabile |
+| I worktree dei run `-p` si accumulano | Le esecuzioni non interattive non hanno prompt di uscita | `git worktree remove`, e `git worktree unlock` se è bloccato |
+| Un flusso che aspettava un subagent si blocca | Con i team attivi, un subagent con nome parte come teammate, e l'idle **non porta l'output** | `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=0` |
+| Dopo `/resume` il lead scrive a compagni inesistenti | I compagni in-process non vengono ripristinati | Digli di generarne di nuovi |
+| Un task del team resta bloccato | Un compagno non l'ha marcato come completato | Aggiornalo a mano, o di' al lead di sollecitare |
+| Il lead si mette a implementare invece di aspettare | Comportamento noto | *"Wait for your teammates to complete their tasks before proceeding"* |
+| Il consumo di token esplode con un team | Ogni compagno è un'istanza a sé, e il costo scala linearmente | 3–5 compagni; per il lavoro senza discussione usa i subagent |
+| Un hook `Stop` intrappola la sessione | — | Claude Code lo scavalca dopo **8 blocchi consecutivi** |
+
+## Cheat-sheet
+
+**TDD**
+
+```text
+1. "Write failing tests for [comportamento]. Do not implement yet.
+    Run them and show me they fail for the right reason."
+2. Leggi i test. È il vero momento di revisione.
+3. "Now implement until all tests pass. Do not modify the tests.
+    Run the suite and show me the output."
+4. /goal <condizione>   → gate morbido
+5. hook Stop            → gate duro (scavalcato dopo 8 blocchi)
+```
+
+**Code review**
+
+| Livello | Comando |
+| --- | --- |
+| Mentre Claude scrive | `/plugin install security-guidance@claude-plugins-official` |
+| Su richiesta | `/code-review [livello] [bersaglio] [--fix] [--comment]` |
+| Coi tuoi criteri | `@"reviewer (agent)" review the diff against PLAN.md` |
+| Su PR | Code Review gestito + `REVIEW.md` nel repository |
+| Approfondita, nel cloud | `/code-review ultra` |
+
+**Worktrees**
+
+| | |
+| --- | --- |
+| `claude --worktree <nome>` | Sessione isolata in `.claude/worktrees/<nome>/` |
+| `claude --worktree "#1234"` | Da una PR — le virgolette servono |
+| `.worktreeinclude` | File gitignored da copiare in ogni worktree |
+| `.claude/worktrees/` nel `.gitignore` | Evita i file non tracciati |
+| `worktree.baseRef: "head"` | Ramifica dal lavoro corrente invece che da `main` |
+| `isolation: worktree` | Nel frontmatter di un subagent |
+| `git worktree list` · `remove` · `unlock` | Gestione manuale |
+
+**Agent teams**
+
+```text
+CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1   → li abilita (e cambia la delega!)
+frecce · Enter · Esc · x · Ctrl+T        → pannello agenti
+claude --teammate-mode auto              → pannelli separati (tmux/iTerm2)
+3–5 compagni · 5–6 task ciascuno
+```
+
+**La domanda che sceglie lo strumento**
+
+```text
+Serve verifica?            → test, /goal, hook Stop
+Serve un giudizio fresco?  → /code-review, o un subagent revisore
+Servono file isolati?      → worktree
+Serve lavoro parallelo?    → subagent, o fan-out con claude -p
+Serve che discutano?       → agent team
+```
+
+## Fonti
+
+Pagine ufficiali consultate, verificate il **16 agosto 2026**:
+
+- [Best practices](https://code.claude.com/docs/en/best-practices) — verifica, pattern Writer/Reviewer, revisione avversariale, fan-out
+- [Code review](https://code.claude.com/docs/en/code-review) — `/code-review`, effort, `--fix`, `--comment`, `REVIEW.md`, severità e prezzi
+- [Run parallel sessions with worktrees](https://code.claude.com/docs/en/worktrees) — `--worktree`, `.worktreeinclude`, enforcement, pulizia
+- [Orchestrate teams of Claude Code sessions](https://code.claude.com/docs/en/agent-teams) — abilitazione, coordinamento, dimensionamento, limiti
+- [Subagents](https://code.claude.com/docs/en/sub-agents) — delega e `isolation: worktree`
+- [Hooks reference](https://code.claude.com/docs/en/hooks) — hook `Stop`, `TeammateIdle`, `TaskCreated`, `TaskCompleted`
+- [Set a goal](https://code.claude.com/docs/en/goal) — `/goal` e come viene valutato
+- [Security guidance plugin](https://code.claude.com/docs/en/security-guidance) — revisione automatica durante la sessione
+- [Manage sessions](https://code.claude.com/docs/en/sessions) — ripresa e branch delle sessioni
