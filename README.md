@@ -75,14 +75,44 @@ Ogni push su `main` fa un deploy di produzione; ogni altro branch genera un depl
 
 ### Dominio custom
 
-Sul pannello DNS di `giuseppebosi.com`:
+Il dominio `giuseppebosi.com` è gestito da **IONOS** (nameserver `ns1125.ui-dns.com` e affini).
+Due passaggi, in quest'ordine.
 
-| Tipo | Nome | Valore | TTL |
-| --- | --- | --- | --- |
-| CNAME | `claude-tutorial` | `cname.vercel-dns.com` | auto (o 3600) |
+**1. Aggiungi il dominio in Vercel.** Project `claude-tutorial` → **Settings → Domains → Add**,
+inserisci `claude-tutorial.giuseppebosi.com`. Vercel mostrerà il record da creare e resterà in
+attesa: è normale.
 
-Poi in Vercel: **Project → Settings → Domains → Add** `claude-tutorial.giuseppebosi.com`. Il
-certificato HTTPS viene emesso automaticamente appena il DNS propaga.
+**2. Crea il record DNS su IONOS.** Pannello IONOS → **Domini e SSL** → `giuseppebosi.com` →
+**DNS** → *Aggiungi record*:
+
+| Campo | Valore |
+| --- | --- |
+| Tipo | `CNAME` |
+| Nome host | `claude-tutorial` |
+| Punta a | `cname.vercel-dns.com` |
+| TTL | 3600 (o il default) |
+
+Nel campo *Nome host* va **solo** `claude-tutorial`, non il dominio completo: IONOS aggiunge da
+sé `.giuseppebosi.com`. È l'errore più comune su questo pannello.
+
+**Verifica.** La propagazione richiede da pochi minuti a un'ora:
+
+```bash
+dig +short claude-tutorial.giuseppebosi.com
+# atteso: cname.vercel-dns.com.  seguito da uno o più IP
+```
+
+Quando il record risolve, Vercel emette il certificato HTTPS da solo e il dominio passa a
+**Valid Configuration**. Non serve toccare nulla in Vercel dopo.
+
+<!-- Il sottodominio `files.giuseppebosi.com` punta al VPS (164.68.123.249) e non viene
+     toccato da questa configurazione. -->
+
+### Aprire il repository al pubblico
+
+Finché il repository resta privato, il link GitHub nell'header del sito è commentato in
+`astro.config.mjs` per non mandare i visitatori su un 404. Quando lo rendi pubblico, togli il
+commento e ricommetta.
 
 ## Licenza
 
