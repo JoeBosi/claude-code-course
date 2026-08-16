@@ -38,10 +38,10 @@ Ultimo aggiornamento: 2026-08-16
 
 ## Sezione 3 — Automazione e integrazione
 
-- [ ] 12 · CLI scripting — `automazione/cli-scripting`
-- [ ] 13 · Output JSON — `automazione/output-json`
-- [ ] 14 · Pipeline locali — `automazione/pipeline-locali`
-- [ ] 15 · Sessioni remote e lavoro asincrono — `automazione/sessioni-remote`
+- [x] 12 · CLI scripting — `automazione/cli-scripting`
+- [x] 13 · Output JSON — `automazione/output-json`
+- [x] 14 · Pipeline locali — `automazione/pipeline-locali`
+- [x] 15 · Sessioni remote e lavoro asincrono — `automazione/sessioni-remote`
 
 ## Sezione 4 — Livello professionale
 

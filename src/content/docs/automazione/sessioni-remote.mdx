@@ -1,10 +1,651 @@
 ---
 title: "15 · Sessioni remote e lavoro asincrono"
-description: "Claude Code sul web e su desktop: sessioni cloud, task programmati e ripresa delle sessioni."
+description: "Claude Code sul web, Remote Control dal telefono, l'app desktop e i task programmati: avviare, riprendere, teletrasportare e sorvegliare sessioni che non stanno nel tuo terminale."
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
 
-<Aside type="caution" title="Modulo in lavorazione">
-Questo modulo è in fase di scrittura e verifica sui docs ufficiali. Torna a breve.
+<div class="meta-modulo">
+	<span><strong>Tempo stimato:</strong> 55 minuti</span>
+	<span><strong>Prerequisiti:</strong> i moduli <a href="/fondamenta/setup/">0</a> e <a href="/automazione/cli-scripting/">12</a>, un abbonamento Pro/Max/Team e un repository su GitHub.</span>
+</div>
+
+## Obiettivi
+
+- Distinguere le tre modalità remote — cloud, Remote Control, desktop — e scegliere quella giusta.
+- Avviare una sessione cloud dal terminale e riportarla in locale quando serve.
+- Continuare una sessione locale dal telefono, senza spostare l'esecuzione dalla tua macchina.
+- Ritrovare, nominare e ramificare le sessioni invece di ricominciare da capo.
+- Programmare lavoro ricorrente.
+
+## Concetti chiave
+
+**Tre modalità, e la differenza è *dove gira il codice*.**
+
+| | **Claude Code sul web** | **Remote Control** | **App desktop** |
+| --- | --- | --- | --- |
+| Dove esegue | VM gestite da Anthropic (o il tuo ambiente self-hosted) | **La tua macchina** | La tua macchina, o cloud/SSH/WSL |
+| Cosa serve | Un repository GitHub | Una sessione `claude` che resta accesa | L'app installata |
+| I tuoi server MCP e file locali | No | **Sì** | Sì |
+| Sopravvive alla chiusura del laptop | **Sì** | No | Solo le sessioni cloud |
+| Da telefono | Sì | Sì | No |
+| Lavoro in parallelo | Molte sessioni indipendenti | Server mode con più sessioni | Sessioni parallele in worktree |
+
+La confusione più comune è tra `--cloud` e `--remote-control`: **il primo crea una sessione che gira nel
+cloud**, il secondo **espone una sessione locale** perché tu la possa guardare dal browser. Non c'entrano
+nulla l'uno con l'altro.
+
+**Il passaggio di consegne dalla CLI è a senso unico.** Puoi tirare una sessione cloud nel tuo terminale
+con `--teleport`, ma **non** puoi spingere una sessione del terminale sul web. L'app desktop ha un menu
+*Continue in* che sa mandare una sessione locale sul web.
+
+<Aside type="note" title="Stato di disponibilità">
+Claude Code sul web è in **research preview** per utenti Pro, Max e Team, e per gli utenti Enterprise con
+posti premium o Chat + Claude Code. Remote Control è in research preview su **tutti i piani**; su Team ed
+Enterprise è disattivato finché un Owner non abilita l'interruttore nelle impostazioni admin.
 </Aside>
+
+## Claude Code sul web
+
+Gira su infrastruttura cloud gestita da Anthropic su [claude.ai/code](https://claude.ai/code). Le sessioni
+**persistono anche se chiudi il browser**, e le puoi sorvegliare dall'app mobile.
+
+### Collegare GitHub
+
+Le sessioni cloud hanno bisogno di accedere ai tuoi repository per clonare e pushare. Due strade:
+
+| Metodo | Come funziona | Per chi |
+| --- | --- | --- |
+| **GitHub App** | Autorizzi la Claude GitHub App durante l'onboarding web | Chi parte dal browser; team che vogliono l'auto-fix |
+| **`/web-setup`** | Sincronizza il token del tuo `gh` CLI locale con l'account Claude | Chi usa già `gh` |
+
+<Aside type="caution" title="L'installazione dell'App non è un controllo di accesso">
+Con entrambi i metodi, una sessione cloud può accedere a **qualsiasi repository che l'account GitHub
+collegato può vedere**, non solo a quelli su cui la Claude GitHub App è installata. L'installazione serve
+ad abilitare i webhook per l'auto-fix. Per limitare cosa il team può raggiungere dalle sessioni cloud,
+il controllo va fatto **su GitHub**.
+</Aside>
+
+### Avviare dal terminale
+
+```bash
+claude --cloud "Fix the authentication bug in src/auth/login.ts"
+```
+
+La VM cloud clona il **remote GitHub della tua directory corrente, al branch corrente** — non il tuo
+checkout locale. Se hai commit locali, **pusha prima**. `--cloud` lavora su un repository alla volta.
+
+Mentre il container parte, la CLI mostra una checklist live dei passi di setup e mette in coda i messaggi
+che scrivi, inviandoli quando la sessione è pronta.
+
+### Lavorare in parallelo
+
+Ogni comando `--cloud` crea una sessione indipendente:
+
+```bash
+claude --cloud "Fix the flaky test in auth.spec.ts"
+claude --cloud "Update the API documentation"
+claude --cloud "Refactor the logger to use structured output"
+```
+
+Le sorvegli tutte con `/tasks` dalla CLI.
+
+<Aside type="tip" title="Il pattern che funziona meglio: pianifica in locale, esegui nel cloud">
+Per un task complesso, entra in Plan Mode in locale, collabora sull'approccio, salva il piano nel repo,
+committa e pusha. Poi manda l'esecuzione nel cloud:
+
+```bash
+claude --permission-mode plan
+# ... concordate il piano, salvatelo in docs/migration-plan.md, commit e push
+
+claude --cloud "Execute the migration plan in docs/migration-plan.md"
+```
+
+Tieni il controllo sulla strategia e deleghi l'esecuzione autonoma.
+</Aside>
+
+### Repository senza GitHub
+
+Se lanci `claude --cloud` da un repository non collegato a GitHub, Claude Code **impacchetta il repository
+locale** e lo carica nella sessione. Il bundle include la storia completa su tutti i branch, più le
+modifiche non committate ai file **tracciati**.
+
+I limiti:
+
+- Deve essere un repository git con **almeno un commit**
+- Il bundle deve stare **sotto i 100 MB**; oltre, si ripiega sul solo branch corrente, poi su uno snapshot
+  compresso del working tree, e fallisce solo se anche quello è troppo grande
+- **I file non tracciati non sono inclusi**: fai `git add` su quello che vuoi far vedere
+- Una sessione creata da un bundle **non può pushare** su un remote, a meno che tu non abbia comunque
+  configurato l'autenticazione GitHub
+
+Per forzare il bundle anche con GitHub collegato: `CCR_FORCE_BUNDLE=1`.
+
+### Mandare messaggi a una sessione in corso
+
+```bash
+claude -p "your message" --cloud <session-id>
+```
+
+Mette il messaggio in coda ed esce **senza aspettare risposta**. Serve per steerare una sessione lunga,
+accodare il passo successivo, o mandare follow-up da uno script di CI. Funziona da **qualsiasi macchina**
+dove sei autenticato con `claude auth login`: non serve la macchina che ha avviato la sessione.
+
+Puoi anche fare pipe del messaggio: `echo "your message" | claude -p --cloud <session-id>`.
+
+Senza `-p`, `claude --cloud <session-id>` **attacca il tuo terminale** alla sessione. L'attach interattivo
+sta uscendo gradualmente; il messaggio `Attaching to an existing cloud session is not enabled for your
+account` non riguarda la forma con `-p`.
+
+Per `<session-id>` va bene l'ID nudo (`session_...` o `cse_...`) o l'URL `claude.ai/code/<id>`, con o senza
+schema e query string.
+
+Con `--output-format json` ottieni `{ok, session_id, url}` in caso di successo, o
+`{ok: false, session_id, error}` in caso di fallimento.
+
+### Riportare una sessione in locale: `--teleport`
+
+```bash
+claude --teleport              # selettore interattivo
+claude --teleport <session-id> # direttamente
+```
+
+Dall'interno di una sessione già aperta: `/teleport` o `/tp`. Da `/tasks`: premi `t`. Dall'interfaccia web:
+**Open in → Terminal**.
+
+Il teleport verifica di essere nel repository giusto, scarica e fa checkout del branch della sessione
+cloud, e carica tutta la cronologia della conversazione nel tuo terminale.
+
+I requisiti:
+
+| Requisito | Dettaglio |
+| --- | --- |
+| Stato git pulito | Nessuna modifica non committata. Ti viene proposto di stashare |
+| Repository corretto | Deve essere un checkout **dello stesso repository**, non un fork |
+| Branch disponibile | Il branch della sessione cloud deve essere stato pushato sul remote |
+| Stesso account | Devi essere autenticato allo stesso account claude.ai |
+
+<Aside type="caution" title="Dopo il teleport la sessione si sdoppia">
+Il terminale ottiene **una sua copia** della sessione: il lavoro nuovo resta locale e **non** compare più
+nella sessione cloud su claude.ai né sull'app mobile. Per continuare a steerare dal telefono dopo il
+teleport, avvia `/remote-control` nella sessione locale.
+</Aside>
+
+`--teleport` è diverso da `--resume`: `--resume` riapre una conversazione dalla cronologia **locale** di
+questa macchina e non elenca le sessioni cloud.
+
+### Auto-fix delle pull request
+
+Claude può sorvegliare una PR e rispondere automaticamente ai fallimenti di CI e ai commenti di review.
+Richiede la Claude GitHub App installata. Si attiva:
+
+- **PR create sul web**: apri la barra di stato CI e seleziona **Auto-fix**
+- **Dal terminale**: `/autofix-pr` mentre sei sul branch della PR
+- **Dall'app mobile**: chiedilo a Claude
+- **Qualsiasi PR esistente**: incolla l'URL in una sessione e chiedi l'auto-fix
+
+<Aside type="danger" title="L'auto-fix commenta con il tuo account GitHub">
+Claude può rispondere ai thread di review come parte della risoluzione. Le risposte sono pubblicate **con
+il tuo account GitHub**, quindi appaiono sotto il tuo username, anche se ogni risposta è etichettata come
+proveniente da Claude Code.
+
+Se il tuo repository usa automazioni innescate dai commenti — Atlantis, Terraform Cloud, GitHub Actions su
+`issue_comment` — **Claude può innescarle a tuo nome**. Rivedi le automazioni prima di abilitare
+l'auto-fix, e valuta di tenerlo spento dove un commento in PR può fare un deploy.
+</Aside>
+
+GitHub **non** emette un webhook quando il branch di base avanza e crea un conflitto: l'auto-fix non può
+reagirci da solo. Apri la sessione e chiedi un rebase.
+
+## Remote Control
+
+Collega claude.ai/code o l'app mobile a una sessione **che gira sulla tua macchina**. Claude continua a
+girare in locale per tutto il tempo: esecuzione e accesso al filesystem restano tuoi.
+
+### Requisiti
+
+- **Abbonamento** Pro, Max, Team o Enterprise. **Le API key non sono supportate.**
+- **Autenticazione** via `/login` con claude.ai.
+- **Endpoint API**: non disponibile su Bedrock, Agent Platform o Foundry, ed è disattivato quando
+  `ANTHROPIC_BASE_URL` punta a un host diverso da `api.anthropic.com`.
+- **Feature flag**: `DISABLE_TELEMETRY`, `DO_NOT_TRACK`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` e
+  `DISABLE_GROWTHBOOK` disattivano la valutazione dei feature flag da cui dipende Remote Control.
+- **Workspace trust**: lancia `claude` nella directory di progetto almeno una volta e accetta il dialogo.
+  Il dialogo di avvio non salva mai il trust per la home: parti da una directory di progetto.
+
+### Tre modi per avviarlo
+
+<Tabs syncKey="os">
+<TabItem label="macOS" icon="apple">
+```bash
+# Server mode: il processo resta in ascolto, senza sessione interattiva locale
+claude remote-control
+
+# Sessione interattiva con Remote Control attivo
+claude --remote-control
+claude --remote-control "My Project"
+```
+
+Da dentro una sessione già avviata:
+
+```text
+/remote-control
+/rc My Project
+```
+</TabItem>
+<TabItem label="Windows" icon="seti:windows">
+```powershell
+# Server mode: il processo resta in ascolto, senza sessione interattiva locale
+claude remote-control
+
+# Sessione interattiva con Remote Control attivo
+claude --remote-control
+claude --remote-control "My Project"
+```
+
+Da dentro una sessione già avviata:
+
+```text
+/remote-control
+/rc My Project
+```
+</TabItem>
+</Tabs>
+
+In server mode, il terminale mostra un URL di sessione e — premendo la **barra spaziatrice** — un QR code
+per collegarti rapidamente dal telefono.
+
+I flag di server mode che contano:
+
+| Flag | Cosa fa |
+| --- | --- |
+| `--name "My Project"` | Titolo visibile nella lista sessioni su claude.ai |
+| `-c`, `--continue` | Riprende la sessione dell'ultimo server in questa directory |
+| `--session-id <id>` | Riprende una sessione specifica |
+| `--spawn same-dir` | Default: tutte le sessioni condividono la working directory |
+| `--spawn worktree` | Ogni sessione on-demand ottiene un **worktree git suo** |
+| `--spawn session` | Una sola sessione, rifiuta le connessioni aggiuntive |
+| `--capacity <N>` | Massimo di sessioni concorrenti, default 32 |
+| `--sandbox` / `--no-sandbox` | Isolamento di filesystem e rete. Spento di default |
+
+Premendo `w` a runtime si passa tra `same-dir` e `worktree`.
+
+### Notifiche push sul telefono
+
+Con Remote Control attivo, Claude può mandare notifiche push. Decide lui quando: tipicamente quando un
+task lungo finisce o quando gli serve una decisione. Puoi anche chiederlo nel prompt — *"notify me when
+the tests finish"*.
+
+Per configurarle: installa l'app Claude, accedi con lo stesso account, accetta i permessi di notifica,
+poi in terminale `/config` e attiva **Push when Claude decides** e/o **Push when actions required**.
+
+Claude Code salta le push mentre stai scrivendo nel terminale connesso.
+
+### Limiti
+
+- **Una sessione remota per processo interattivo**, fuori dal server mode.
+- **Il processo locale deve restare vivo.** Se chiudi il terminale, la sessione va offline. Per tenerla
+  viva su una macchina remota dopo esserti disconnesso da SSH, avviala dentro `tmux` o `screen`.
+- **Outage di rete prolungato**: in server mode, Claude Code si arrende dopo circa 10 minuti e il processo
+  esce; in sessione interattiva riprova finché serve e si riconnette da solo.
+- **Alcuni comandi sono solo locali**: quelli che esistono solo nell'interfaccia terminale, come `/plugin` o
+  `/resume`. Funzionano invece da mobile e web `/compact`, `/clear`, `/context`, `/usage`, `/recap`, e —
+  passando il valore come argomento — `/model sonnet`, `/effort high`, `/autocompact 500k`.
+
+## Ritrovare e gestire le sessioni
+
+### Riprendere
+
+| Comando | Cosa fa |
+| --- | --- |
+| `claude --continue` | Riprende la più recente nella directory corrente |
+| `claude --resume` | Apre il selettore di sessioni |
+| `claude --resume <nome>` | Riprende direttamente la sessione con quel nome |
+| `claude --from-pr <numero>` | Selettore filtrato sulle sessioni legate a quella PR |
+| `/resume` | Cambia conversazione da dentro una sessione attiva |
+
+`claude --resume <session-id>` funziona **da qualsiasi directory**: Claude Code cerca l'ID prima nella
+directory corrente e nei suoi worktree, poi in ogni altro progetto sulla macchina.
+
+Le sessioni create con `claude -p` **non compaiono nel selettore**, ma puoi comunque riprenderle passando
+l'ID.
+
+### Il selettore
+
+| Tasto | Azione |
+| --- | --- |
+| `↑` / `↓` | Naviga |
+| `→` / `←` | Espande o comprime i gruppi |
+| `Enter` | Riprende |
+| `Space` | Anteprima del contenuto |
+| `Ctrl+R` | Rinomina |
+| `/` o un carattere qualsiasi | Modalità ricerca. **Puoi incollare l'URL di una PR** per trovare la sessione che l'ha creata |
+| `Ctrl+A` | Sessioni di **tutti i progetti** sulla macchina |
+| `Ctrl+W` | Sessioni di **tutti i worktree** del repository |
+| `Ctrl+B` | Solo le sessioni del branch git corrente |
+| `Esc` | Esce |
+
+### Dare un nome
+
+Fa la differenza quando lavori su più task in parallelo:
+
+| Quando | Come |
+| --- | --- |
+| All'avvio | `claude -n auth-refactor` |
+| Durante | `/rename auth-refactor` |
+| Dal selettore | `Ctrl+R` sulla sessione evidenziata |
+| Accettando un piano | Il nome viene dedotto dal contenuto del piano |
+| Da claude.ai o dall'app | Rinomina una sessione Remote Control: il nome si applica anche nella CLI |
+
+Se dai a una sessione un nome già usato da un'altra sessione viva sulla macchina, Claude Code lascia il
+nome a chi ce l'ha già e rinomina la tua con un suffisso di due parole, tipo
+`auth-refactor-graceful-unicorn`, avvisandoti.
+
+### Ramificare
+
+`/branch` crea una copia della conversazione e ti ci porta dentro, lasciando l'originale intatta:
+
+```text
+/branch try-streaming-approach
+```
+
+Da riga di comando:
+
+```bash
+claude --continue --fork-session
+```
+
+Cosa eredita il ramo:
+
+| Stato | Dopo `/branch` |
+| --- | --- |
+| Cronologia della conversazione | Copiata fino al punto in cui hai lanciato `/branch` |
+| Permessi concessi "per questa sessione" | **Mantenuti**: il ramo gira nello stesso processo. Con `--fork-session` in un processo separato, si riapprova |
+| Subagent e comandi Bash in background | Continuano; il loro output appare nel **nuovo ramo** |
+| Connessione Remote Control | Resta connessa e ti **segue nel ramo** |
+
+<Aside type="caution" title="Stessa sessione in due terminali">
+Se riprendi la stessa sessione in due terminali **senza** fare fork, i messaggi di entrambi si intrecciano
+in un'unica trascrizione.
+</Aside>
+
+### Riprendere una sessione lunga
+
+Su piano Pro o Max, riprendendo una sessione inattiva da più di un'ora e sopra i **100.000 token**, si apre
+un dialogo con tre opzioni:
+
+| Opzione | Cosa fa |
+| --- | --- |
+| **Resume from summary** | Esegue subito `/compact`: le richieste successive portano il riassunto invece della storia intera |
+| **Resume full session as-is** | Carica la conversazione invariata; il costo per richiesta scala con la dimensione |
+| **Don't ask me again** | Riprende intera e non chiede più |
+
+La cache dei prompt è comunque scaduta a quel punto, quindi la prossima richiesta rielabora tutta la storia
+una volta, qualunque opzione scegli.
+
+## Lavoro programmato
+
+Per far girare del lavoro da solo, ci sono due strade a seconda di dove deve girare:
+
+| Strumento | Dove gira | Come |
+| --- | --- | --- |
+| **Routine** (`/schedule`) | Cloud | Lavoro su schedule, via chiamata API o in risposta a eventi GitHub |
+| **Scheduled tasks dell'app desktop** | Sulla tua macchina | Review quotidiana, audit settimanale delle dipendenze, briefing |
+| `/loop` | Nella sessione corrente | Ripete un prompt a intervalli |
+| **GitHub Actions** | CI | Vedi il [modulo 14](/automazione/pipeline-locali/) |
+
+`/schedule` verifica che tu abbia una delle due forme di accesso GitHub e ti chiede di lanciare
+`/web-setup` se non ne hai nessuna.
+
+## Esempio guidato
+
+<Steps>
+
+1. **Collega GitHub dal terminale.**
+
+   ```bash
+   gh auth status
+   ```
+
+   Poi, dentro una sessione `claude`:
+
+   ```text
+   /web-setup
+   ```
+
+2. **Avvia una sessione cloud.** Assicurati prima di aver pushato:
+
+   ```bash
+   git push
+   claude --cloud "Add input validation to the /webhooks endpoint, with tests. Follow the patterns already used in src/routes/."
+   ```
+
+3. **Sorvegliala.**
+
+   ```text
+   /tasks
+   ```
+
+   Oppure apri claude.ai/code, o l'app sul telefono.
+
+4. **Mandale un follow-up da un'altra macchina.**
+
+   ```bash
+   claude -p "also handle the case where the signature header is missing" --cloud <session-id>
+   ```
+
+5. **Riportala in locale quando è pronta.**
+
+   ```bash
+   git stash          # il teleport richiede uno stato git pulito
+   claude --teleport
+   ```
+
+   Ricorda: da questo momento la sessione locale e quella cloud divergono.
+
+6. **Ora l'altro verso: una sessione locale visibile dal telefono.**
+
+   ```bash
+   claude --remote-control "audit dipendenze"
+   ```
+
+   Premi la **barra spaziatrice** per il QR code, inquadralo col telefono. Da lì puoi scrivere, e la
+   sessione continua a girare sulla tua macchina con i tuoi file e i tuoi server MCP.
+
+7. **Attiva le push.** In terminale:
+
+   ```text
+   /config
+   ```
+
+   Abilita **Push when Claude decides** e **Push when actions required**. Poi lancia un task lungo e
+   allontanati:
+
+   ```text
+   run the full test suite, fix everything that fails, and notify me when you're done
+   ```
+
+8. **Server mode con worktree isolati**, per far lavorare più sessioni in parallelo senza collisioni:
+
+   ```bash
+   claude remote-control --spawn worktree --name "parallelo"
+   ```
+
+9. **Ritrova tutto domani.**
+
+   ```bash
+   claude --resume
+   ```
+
+   Nel selettore: `Ctrl+A` per vedere tutti i progetti, `Ctrl+W` per tutti i worktree, `Ctrl+B` per filtrare
+   sul branch corrente. E puoi incollare l'URL di una PR per trovare la sessione che l'ha aperta.
+
+</Steps>
+
+## Esercizio
+
+Organizza una giornata di lavoro asincrono su tre task indipendenti.
+
+1. Manda tre task nel cloud, ciascuno su un aspetto diverso.
+2. Nomina le sessioni in modo da ritrovarle.
+3. Sorvegliale dal telefono e mandane avanti una con un follow-up.
+4. Porta in locale quella che serve rivedere a mano, e continua a controllarla dal telefono.
+
+<details class="soluzione">
+<summary>Soluzione</summary>
+
+**Passi 1–2.** Prima pusha — la VM clona il **remote**, non il tuo checkout:
+
+```bash
+git push
+claude --cloud "Add rate limiting to the public API endpoints. Follow the existing middleware patterns. Write tests."
+claude --cloud "Our README is out of date: the install section still mentions Node 18. Audit it against package.json and fix everything that's wrong."
+claude --cloud "Find every place we swallow an exception without logging it, and add structured logging. Do not change control flow."
+```
+
+Ogni comando restituisce un ID di sessione: annotali, o ritrovali su claude.ai/code.
+
+I nomi si danno più comodamente dall'interfaccia web, dal menu della sessione. Da terminale, il nome vale
+per le sessioni locali (`-n`, `/rename`) e per quelle Remote Control.
+
+**Passo 3.**
+
+```text
+/tasks
+```
+
+Dal telefono: app Claude → la lista delle sessioni. Il follow-up da qualsiasi macchina:
+
+```bash
+claude -p "the rate limit should be per-API-key, not per-IP" --cloud session_01ABC...
+```
+
+Nota che questo comando **non aspetta la risposta**: accoda ed esce. È il comportamento giusto per steerare
+qualcosa che sta girando.
+
+**Passo 4.** Per la sessione che vuoi rivedere:
+
+```bash
+git status              # deve essere pulito
+git stash               # se non lo è
+claude --teleport
+```
+
+Scegli la sessione dal selettore. Claude verifica il repository, fa fetch e checkout del branch, e carica
+tutta la conversazione.
+
+**E qui il passaggio che quasi tutti sbagliano:** dopo il teleport, la sessione cloud e quella locale sono
+**due cose separate**. Il telefono continua a mostrarti la versione cloud, che è ferma. Per continuare a
+seguire il lavoro dal telefono devi riesporre la sessione **locale**:
+
+```text
+/remote-control
+```
+
+Ora il telefono segue la sessione che gira davvero sulla tua macchina.
+
+**Riepilogo di cosa hai messo in piedi:**
+
+| Task | Dove gira | Come lo segui |
+| --- | --- | --- |
+| Rate limiting | Cloud | claude.ai/code, app mobile |
+| README | Cloud | idem |
+| Logging | **Locale**, dopo il teleport | Terminale + telefono via Remote Control |
+
+Due cose da tenere a mente:
+
+- Le sessioni cloud **condividono i rate limit** con tutto il resto del tuo utilizzo Claude. Tre task in
+  parallelo consumano proporzionalmente di più. Non c'è un costo di calcolo separato per la VM.
+- Le sessioni cloud si fermano dopo un periodo di inattività e la VM viene recuperata; sul web la sessione
+  risulta scaduta. Riaprendola da claude.ai/code viene fornita una VM nuova con la cronologia ripristinata.
+
+</details>
+
+## Errori comuni e troubleshooting
+
+| Sintomo | Causa | Soluzione |
+| --- | --- | --- |
+| La sessione cloud non vede le tue modifiche | La VM clona il **remote**, non il checkout locale | `git push` prima di `claude --cloud` |
+| `Unable to get organization UUID` | `--cloud` e `--teleport` richiedono il login claude.ai, non una API key | `/login` con l'account claude.ai |
+| `Cloud sessions aren't available with <provider>` | Claude Code è configurato per un provider di terze parti | Togli la configurazione del provider, es. `CLAUDE_CODE_USE_BEDROCK` |
+| `Cloud sessions are disabled by your organization's policy` | Policy `allow_remote_sessions` disattivata | Un Owner la abilita nelle impostazioni admin |
+| `Session not found: <id>` | L'ID non corrisponde a una sessione accessibile | Confrontalo con l'URL `claude.ai/code` della sessione |
+| `cloud session <id> is archived` | La sessione è stata archiviata | Avvia una sessione nuova |
+| Il teleport rifiuta di partire | Working directory sporca, o repository sbagliato | Committa o stasha; devi essere nello **stesso** repository, non un fork |
+| Dopo il teleport il telefono non aggiorna più | La sessione locale è una copia separata | `/remote-control` nella sessione locale |
+| `Session creation failed` | Non è stato possibile allocare una VM | Controlla status.claude.com, riprova dopo un minuto, verifica l'accesso al repository |
+| La sessione cloud risulta scaduta | Le VM si fermano dopo inattività | Riaprila da claude.ai/code: viene fornita una VM nuova con la cronologia |
+| I file non tracciati non arrivano nel bundle | Comportamento previsto | `git add` su quello che deve essere visto |
+| Remote Control non parte | Requisiti non soddisfatti | API key non supportate; controlla `ANTHROPIC_BASE_URL` e le variabili che disattivano i feature flag |
+| La sessione Remote Control va offline | Il processo locale è morto | Deve restare vivo: usa `tmux` o `screen` su una macchina remota |
+| Le push non arrivano | App non aperta di recente, o Focus mode | `/config` mostra **No mobile registered**: apri l'app per rinfrescare il token |
+| `/resume` non funziona dal telefono | È un comando solo-locale | Funzionano `/compact`, `/clear`, `/context`, `/usage`, `/model <valore>`, `/effort <valore>` |
+| Due terminali sulla stessa sessione producono una trascrizione confusa | Non hai fatto fork | `--fork-session` o `/branch` |
+| Le sessioni `-p` non compaiono nel selettore | È il comportamento previsto | Riprendile passando l'ID a `claude --resume <session-id>` |
+
+## Cheat-sheet
+
+**Le tre modalità**
+
+```text
+claude --cloud "task"          → nuova sessione nel CLOUD (clona il remote GitHub)
+claude --teleport              → tira una sessione cloud nel tuo TERMINALE
+claude --remote-control        → espone la sessione LOCALE a browser e telefono
+```
+
+**Sessioni cloud**
+
+| Comando | |
+| --- | --- |
+| `claude --cloud "task"` | Nuova sessione cloud |
+| `claude -p "msg" --cloud <id>` | Accoda un messaggio ed esce |
+| `claude --cloud <id>` | Attacca il terminale alla sessione |
+| `claude --teleport [<id>]` | Porta la sessione in locale |
+| `/tasks` | Elenco delle sessioni in background |
+| `/teleport`, `/tp` | Teleport da dentro una sessione |
+| `/web-setup` | Sincronizza il token `gh` con l'account Claude |
+| `/autofix-pr` | Attiva l'auto-fix sulla PR del branch corrente |
+| `CCR_FORCE_BUNDLE=1` | Forza il bundle locale invece di GitHub |
+
+**Remote Control**
+
+| Comando | |
+| --- | --- |
+| `claude remote-control` | Server mode; **barra spaziatrice** per il QR |
+| `claude --remote-control ["nome"]` | Sessione interattiva esposta |
+| `/remote-control`, `/rc` | Espone la sessione corrente |
+| `--spawn worktree` | Ogni sessione in un worktree isolato |
+| `--capacity N` | Massimo di sessioni concorrenti (default 32) |
+
+**Gestione delle sessioni**
+
+| Comando | |
+| --- | --- |
+| `claude --continue` | La più recente in questa directory |
+| `claude --resume [<nome\|id>]` | Selettore, o ripresa diretta |
+| `claude --from-pr <n>` | Sessioni legate a una PR |
+| `claude -n <nome>` · `/rename <nome>` | Dà un nome |
+| `/branch [<nome>]` · `--fork-session` | Ramifica |
+| `/export [file]` | Esporta la trascrizione |
+
+**Selettore: i tasti che contano**
+
+```text
+Ctrl+A  tutti i progetti      Ctrl+W  tutti i worktree
+Ctrl+B  solo questo branch    Ctrl+R  rinomina
+Space   anteprima             /       ricerca (accetta l'URL di una PR)
+```
+
+## Fonti
+
+Pagine ufficiali consultate, verificate il **16 agosto 2026**:
+
+- [Use Claude Code on the web](https://code.claude.com/docs/en/claude-code-on-the-web) — sessioni cloud, `--cloud`, `--teleport`, bundle locale, auto-fix, limiti
+- [Get started on the web](https://code.claude.com/docs/en/web-quickstart) — onboarding e collegamento di GitHub
+- [Remote Control](https://code.claude.com/docs/en/remote-control) — requisiti, modalità di avvio, server mode, push mobile, limiti
+- [Manage sessions](https://code.claude.com/docs/en/sessions) — ripresa, selettore, naming, branch, ripresa da riassunto
+- [Cloud environments](https://code.claude.com/docs/en/cloud-environments) — configurazione degli ambienti cloud
+- [Routines](https://code.claude.com/docs/en/routines) — lavoro programmato nel cloud
+- [Scheduled tasks](https://code.claude.com/docs/en/scheduled-tasks) e [Desktop scheduled tasks](https://code.claude.com/docs/en/desktop-scheduled-tasks) — lavoro programmato in locale
+- [Use Claude Code Desktop](https://code.claude.com/docs/en/desktop) — sessioni parallele e *Continue in*
+- [Agent view](https://code.claude.com/docs/en/agent-view) — sessioni in background

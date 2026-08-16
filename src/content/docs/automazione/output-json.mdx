@@ -1,10 +1,566 @@
 ---
 title: "13 · Output JSON"
-description: "Formati di output di Claude Code, parsing dei risultati e integrazione in script e tooling."
+description: "I formati di output di Claude Code: text, json e stream-json, lo schema reale di ogni risposta, output validato con --json-schema, parsing con jq e integrazione negli script."
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
 
-<Aside type="caution" title="Modulo in lavorazione">
-Questo modulo è in fase di scrittura e verifica sui docs ufficiali. Torna a breve.
+<div class="meta-modulo">
+	<span><strong>Tempo stimato:</strong> 45 minuti</span>
+	<span><strong>Prerequisiti:</strong> il <a href="/automazione/cli-scripting/">modulo 12</a>. Serve <code>jq</code> installato.</span>
+</div>
+
+## Obiettivi
+
+- Scegliere il formato di output giusto per quello che devi fare.
+- Leggere lo schema di una risposta `json` e sapere quali campi esistono davvero.
+- Forzare un output strutturato con `--json-schema`, invece di parsare della prosa.
+- Consumare `stream-json` per avere token in tempo reale e seguire i subagent.
+- Usare gli eventi di sistema per far fallire una CI quando un plugin o un server MCP non si carica.
+
+## Concetti chiave
+
+**Tre formati, tre usi diversi.**
+
+| Formato | Cosa produce | Quando |
+| --- | --- | --- |
+| `text` (default) | Testo semplice | Uso a mano, pipe verso altri comandi Unix |
+| `json` | Un singolo oggetto JSON con risultato, ID di sessione, costi e metadati | Script che devono ramificare o tracciare la spesa |
+| `stream-json` | JSON delimitato da a-capo, un oggetto per riga | Streaming in tempo reale, monitoraggio, UI |
+
+**Parsare la prosa è un antipattern.** Chiedere a un modello di rispondere "solo con l'elenco" e poi
+estrarre con una regex funziona finché non smette di funzionare. Per un output che uno script deve
+consumare, esiste `--json-schema`: la risposta viene **validata contro lo schema** e arriva nel campo
+`structured_output` già strutturata.
+
+**Il costo è nella risposta.** Con `--output-format json`, il payload include `total_cost_usd` e una
+ripartizione per modello: uno script può tracciare la spesa per invocazione senza consultare la dashboard.
+Sono **stime lato client** e possono differire dalla fattura reale.
+
+## Il formato `json`
+
+```bash
+claude -p "Summarize this project" --output-format json
+```
+
+La risposta è un singolo oggetto. Questi sono i campi che ti serviranno davvero:
+
+| Campo | Tipo | Cosa contiene |
+| --- | --- | --- |
+| `result` | string | **Il testo della risposta.** È il campo che estrai il 90% delle volte |
+| `structured_output` | object | Presente solo con `--json-schema`: l'oggetto validato |
+| `is_error` | boolean | Se il run è andato in errore |
+| `subtype` | string | `"success"` o il tipo di fallimento |
+| `session_id` | string | ID della sessione, per riprenderla con `--resume` |
+| `num_turns` | integer | Quanti turni agentici sono serviti |
+| `stop_reason` | string | Perché si è fermato, es. `"end_turn"` |
+| `terminal_reason` | string | Es. `"completed"` |
+| `total_cost_usd` | number | Costo stimato dell'invocazione |
+| `usage` | object | Token di input, output, cache read e cache creation |
+| `modelUsage` | object | Ripartizione per modello, con costo e finestra di contesto |
+| `permission_denials` | array | Le azioni negate dai permessi durante il run |
+| `duration_ms` / `duration_api_ms` | integer | Durata totale e durata delle chiamate API |
+| `api_error_status` | integer or null | Stato HTTP in caso di errore API |
+| `uuid` | string | Identificatore dell'evento |
+
+Un esempio reale, prodotto da `claude --version 2.1.233`, ridotto ai campi principali:
+
+```json
+{
+  "type": "result",
+  "subtype": "success",
+  "is_error": false,
+  "result": "ok",
+  "session_id": "62a5cb30-f042-4152-8909-f2ad6571c0af",
+  "num_turns": 1,
+  "stop_reason": "end_turn",
+  "terminal_reason": "completed",
+  "total_cost_usd": 0.108213,
+  "duration_ms": 2426,
+  "duration_api_ms": 3067,
+  "permission_denials": [],
+  "api_error_status": null,
+  "usage": {
+    "input_tokens": 2,
+    "output_tokens": 4,
+    "cache_read_input_tokens": 16016,
+    "cache_creation_input_tokens": 9952
+  }
+}
+```
+
+### Estrarre con `jq`
+
+```bash
+# Il testo della risposta
+claude -p "Summarize this project" --output-format json | jq -r '.result'
+
+# L'ID di sessione, per riprenderla dopo
+sid=$(claude -p "Start a review" --output-format json | jq -r '.session_id')
+
+# Il costo
+claude -p "..." --output-format json | jq '.total_cost_usd'
+
+# Fallire se il run è andato in errore
+claude -p "..." --output-format json | jq -e '.is_error == false' > /dev/null
+```
+
+## Output validato con `--json-schema`
+
+È la funzione più utile del modulo. Passi uno [JSON Schema](https://json-schema.org/) e ottieni una
+risposta conforme:
+
+```bash
+claude -p "Extract the main function names from auth.py" \
+  --output-format json \
+  --json-schema '{"type":"object","properties":{"functions":{"type":"array","items":{"type":"string"}}},"required":["functions"]}'
+```
+
+L'oggetto validato finisce in **`structured_output`**; il campo `result` contiene lo stesso JSON come
+**stringa**:
+
+```json
+{
+  "result": "{\"functions\":[\"alpha\",\"beta\"]}",
+  "structured_output": { "functions": ["alpha", "beta"] },
+  "subtype": "success",
+  "is_error": false
+}
+```
+
+Quindi:
+
+```bash
+claude -p "Extract function names from auth.py" \
+  --output-format json \
+  --json-schema '{...}' \
+  | jq '.structured_output'
+```
+
+<Aside type="caution" title="Schema invalido = errore, non fallback">
+Se il valore non è uno JSON Schema valido, `claude` esce con
+`Error: --json-schema is not a valid JSON Schema` seguito dalla diagnostica del validatore.
+
+Gli schemi che usano la keyword `format`, tipo `"format": "email"`, sono **accettati**, ma `format` è
+trattato come annotazione e **non viene applicato**: non contarci per la validazione.
 </Aside>
+
+<Aside type="tip" title="Lo schema è anche un prompt">
+I nomi dei campi e la loro obbligatorietà **guidano il modello**. Uno schema che richiede un campo
+`scenario` per ogni rilievo costringe a giustificare ogni segnalazione, e nella pratica taglia i falsi
+positivi meglio di qualsiasi istruzione nel prompt.
+</Aside>
+
+## Il formato `stream-json`
+
+Un oggetto JSON per riga, man mano che le cose accadono. Richiede `--verbose`; per i token man mano che
+vengono generati serve anche `--include-partial-messages`:
+
+```bash
+claude -p "Explain recursion" --output-format stream-json --verbose --include-partial-messages
+```
+
+### I tipi di evento
+
+Verificati su un run reale:
+
+| `type` | `subtype` | Quando |
+| --- | --- | --- |
+| `system` | `init` | **Primo evento**: metadati di sessione |
+| `system` | `api_retry` | Prima di ritentare una richiesta API fallita |
+| `system` | `plugin_install` | Installazione di plugin da marketplace, con `CLAUDE_CODE_SYNC_PLUGIN_INSTALL` |
+| `assistant` | — | Un messaggio dell'assistente |
+| `user` | — | Un messaggio utente, o un risultato di tool |
+| `stream_event` | — | Delta di streaming, con `--include-partial-messages` |
+| `rate_limit_event` | — | Informazioni sui rate limit |
+| `result` | `success` | **Ultimo evento**: risposta finale, costo, metadati |
+
+### Streaming del testo
+
+```bash
+claude -p "Write a poem" --output-format stream-json --verbose --include-partial-messages | \
+  jq -rj 'select(.type == "stream_event" and .event.delta.type? == "text_delta") | .event.delta.text'
+```
+
+`-r` produce stringhe grezze senza virgolette, `-j` unisce senza a-capo: i token scorrono in continuo.
+
+### Seguire i subagent
+
+I messaggi dei subagent compaiono nello stream come `assistant` e `user` il cui campo
+**`parent_tool_use_id`** è l'ID della chiamata a tool che li ha generati. I messaggi della conversazione
+principale hanno `null` in quel campo.
+
+Di default vengono emessi solo i blocchi `tool_use` e `tool_result` dei subagent. Con
+`--forward-subagent-text` — o la variabile `CLAUDE_CODE_FORWARD_SUBAGENT_TEXT` — vengono emessi anche
+testo e thinking, così puoi ricostruire la trascrizione di ciascuno. Con l'opzione attiva, i messaggi
+arrivano da **ogni livello di annidamento**: un subagent che ne genera un altro produce messaggi il cui
+`parent_tool_use_id` è l'ID della chiamata che li ha creati, quindi puoi ricostruire l'albero completo
+seguendo gli ID.
+
+### L'evento `system/init`
+
+È il primo evento e contiene i metadati di sessione. I campi presenti in un run reale:
+
+```text
+type, subtype, cwd, session_id, tools, mcp_servers, model, permissionMode,
+slash_commands, terminal_slash_commands, apiKeySource, claude_code_version,
+output_style, agents
+```
+
+Più, quando applicabile:
+
+| Campo | Cosa contiene |
+| --- | --- |
+| `plugins` | Plugin caricati correttamente, con `name` e `path` |
+| `plugin_errors` | Errori di caricamento, con `plugin`, `type`, `message`. **La chiave è assente se non ci sono errori** |
+| `mcp_server_errors` | Voci di `--mcp-config` scartate dalla validazione, con `name`, `type`, `message`. Assente se non ci sono errori |
+| `capabilities` | Array di stringhe con i comportamenti di protocollo implementati — usalo per il feature detection invece di confrontare versioni |
+
+<Aside type="tip" title="Far fallire la CI su un plugin o server che non carica">
+`plugin_errors` e `mcp_server_errors` sono **assenti** quando va tutto bene. Un gate di CI può quindi
+fallire su un array non vuoto:
+
+```bash
+claude -p "..." --output-format stream-json --verbose \
+  | jq -e 'select(.type=="system" and .subtype=="init")
+           | (.plugin_errors // []) + (.mcp_server_errors // []) | length == 0' \
+  > /dev/null || { echo "estensioni non caricate" >&2; exit 1; }
+```
+
+Senza questo controllo il run **prosegue ed esce pulito** anche se un server MCP non è mai stato caricato:
+otterresti un risultato plausibile ma prodotto senza gli strumenti che ti aspettavi.
+</Aside>
+
+### L'evento `system/api_retry`
+
+| Campo | Tipo | Cosa contiene |
+| --- | --- | --- |
+| `attempt` | integer | Numero del tentativo, da 1 |
+| `max_retries` | integer | Retry totali permessi |
+| `retry_delay_ms` | integer | Millisecondi al prossimo tentativo |
+| `error_status` | integer or null | Stato HTTP, o `null` per errori di connessione |
+| `error` | string | Categoria: `authentication_failed`, `oauth_org_not_allowed`, `billing_error`, `rate_limit`, `overloaded`, `invalid_request`, `model_not_found`, `server_error`, `max_output_tokens`, `unknown` |
+
+<Aside type="note" title="Consumatori lenti">
+Se il tuo consumatore legge lo stream lentamente, Claude Code aspetta che l'output in coda si svuoti prima
+di uscire, scalando l'attesa con quanto è ancora in coda, **fino a 30 secondi**.
+</Aside>
+
+## Esempio guidato
+
+<Steps>
+
+1. **Vedi la differenza tra i tre formati.** Stesso prompt, tre volte:
+
+   ```bash
+   claude -p "list three benefits of code review, one per line"
+   ```
+
+   ```bash
+   claude -p "list three benefits of code review, one per line" --output-format json | jq -r '.result'
+   ```
+
+   ```bash
+   claude -p "list three benefits of code review, one per line" \
+     --output-format stream-json --verbose | jq -r '.type'
+   ```
+
+   L'ultimo ti mostra la sequenza degli eventi.
+
+2. **Estrai il costo di un'invocazione.**
+
+   ```bash
+   claude -p "explain what this project does" --output-format json \
+     | jq '{costo: .total_cost_usd, turni: .num_turns, secondi: (.duration_ms/1000)}'
+   ```
+
+3. **Ottieni dati strutturati invece di prosa.** Il salto di qualità:
+
+   ```bash
+   claude -p "List every TODO comment in src/ with its file and line" \
+     --allowedTools "Read,Grep,Glob" \
+     --output-format json \
+     --json-schema '{
+       "type": "object",
+       "properties": {
+         "todos": {
+           "type": "array",
+           "items": {
+             "type": "object",
+             "properties": {
+               "file": { "type": "string" },
+               "riga": { "type": "integer" },
+               "testo": { "type": "string" }
+             },
+             "required": ["file", "riga", "testo"]
+           }
+         }
+       },
+       "required": ["todos"]
+     }' \
+     | jq -r '.structured_output.todos[] | "\(.file):\(.riga)  \(.testo)"'
+   ```
+
+   Output atteso, nella forma:
+
+   ```text
+   src/api/users.js:42  handle pagination
+   src/lib/cache.js:17  invalidate on write
+   ```
+
+4. **Streaming del testo in tempo reale.**
+
+   ```bash
+   claude -p "Write a short poem about debugging" \
+     --output-format stream-json --verbose --include-partial-messages \
+     | jq -rj 'select(.type == "stream_event" and .event.delta.type? == "text_delta") | .event.delta.text'
+   ```
+
+5. **Segui cosa fa Claude, tool per tool.** Utile per capire dove si è impantanato:
+
+   ```bash
+   claude -p "Find and fix the failing test" \
+     --allowedTools "Read,Edit,Bash(npm test *)" \
+     --output-format stream-json --verbose \
+     | jq -r '
+       select(.type == "assistant")
+       | .message.content[]?
+       | select(.type == "tool_use")
+       | "→ \(.name)  \(.input | tostring | .[0:80])"
+     '
+   ```
+
+6. **Distingui i subagent dalla conversazione principale.**
+
+   ```bash
+   claude -p "Use a subagent to map the error handling in src/" \
+     --output-format stream-json --verbose --forward-subagent-text \
+     | jq -r 'select(.type=="assistant") | if .parent_tool_use_id == null then "[main]" else "[sub]" end'
+   ```
+
+7. **Un gate di CI completo.** Mette insieme validazione degli eventi di sistema e output strutturato:
+
+   ```bash title="ci-gate.sh"
+   #!/usr/bin/env bash
+   set -euo pipefail
+
+   OUT=$(git diff origin/main...HEAD | claude -p \
+     "Review this diff. Report only defects affecting correctness or security." \
+     --output-format json \
+     --json-schema '{"type":"object","properties":{"bloccanti":{"type":"array","items":{"type":"object","properties":{"file":{"type":"string"},"problema":{"type":"string"},"scenario":{"type":"string"}},"required":["file","problema","scenario"]}}},"required":["bloccanti"]}' \
+     --max-turns 10)
+
+   # 1. Il run è riuscito?
+   echo "$OUT" | jq -e '.is_error == false' >/dev/null || { echo "run fallito" >&2; exit 2; }
+
+   # 2. Ci sono stati permessi negati che hanno azzoppato la review?
+   NEGATI=$(echo "$OUT" | jq '.permission_denials | length')
+   [ "$NEGATI" -gt 0 ] && echo "attenzione: $NEGATI azioni negate dai permessi" >&2
+
+   # 3. Il verdetto
+   N=$(echo "$OUT" | jq '.structured_output.bloccanti | length')
+   echo "$OUT" | jq -r '.structured_output.bloccanti[] | "✘ \(.file): \(.problema)\n    → \(.scenario)"'
+
+   echo "costo: $(echo "$OUT" | jq -r '.total_cost_usd') USD"
+   [ "$N" -eq 0 ] && exit 0 || exit 1
+   ```
+
+   Il controllo su `permission_denials` è quello che quasi nessuno fa: se Claude non è riuscito a leggere
+   metà dei file, il "nessun problema trovato" non vuol dire niente.
+
+</Steps>
+
+## Esercizio
+
+Costruisci un report di progetto in JSON, consumabile da un altro programma.
+
+1. Fai produrre a Claude un inventario strutturato del progetto: linguaggi, entry point, comandi, rischi.
+2. Lo schema deve essere abbastanza stretto da rendere l'output usabile senza post-processing.
+3. Aggiungi al report i metadati del run: costo, durata, modello.
+4. Salva tutto in un unico file JSON valido.
+
+<details class="soluzione">
+<summary>Soluzione</summary>
+
+```bash title="inventario.sh"
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCHEMA='{
+  "type": "object",
+  "properties": {
+    "linguaggi": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "nome":  { "type": "string" },
+          "ruolo": { "type": "string", "enum": ["primario", "secondario", "tooling"] }
+        },
+        "required": ["nome", "ruolo"]
+      }
+    },
+    "entrypoint": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "file":       { "type": "string" },
+          "descrizione":{ "type": "string" }
+        },
+        "required": ["file", "descrizione"]
+      }
+    },
+    "comandi": {
+      "type": "object",
+      "properties": {
+        "install":   { "type": "string" },
+        "dev":       { "type": "string" },
+        "test":      { "type": "string" },
+        "build":     { "type": "string" }
+      },
+      "required": ["install", "test"]
+    },
+    "rischi": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "descrizione": { "type": "string" },
+          "prova":       { "type": "string" },
+          "gravita":     { "type": "string", "enum": ["alta", "media", "bassa"] }
+        },
+        "required": ["descrizione", "prova", "gravita"]
+      }
+    }
+  },
+  "required": ["linguaggi", "entrypoint", "comandi", "rischi"]
+}'
+
+RUN=$(claude -p "Produce an inventory of this project. For comandi, report the exact commands from the project config files, not what you would expect. For rischi, report only things you can point at concretely; prova must cite a file path." \
+  --allowedTools "Read,Grep,Glob" \
+  --output-format json \
+  --json-schema "$SCHEMA" \
+  --max-turns 15)
+
+# Unisce inventario e metadati del run in un solo documento.
+echo "$RUN" | jq '{
+  inventario: .structured_output,
+  run: {
+    modello:  (.modelUsage | keys | .[0]),
+    costo_usd: .total_cost_usd,
+    durata_ms: .duration_ms,
+    turni:     .num_turns,
+    negati:    (.permission_denials | length)
+  }
+}' > inventario.json
+
+jq -e . inventario.json > /dev/null && echo "✔ inventario.json scritto e valido"
+```
+
+Le scelte che rendono lo schema utile:
+
+| Scelta | Effetto |
+| --- | --- |
+| `enum` su `ruolo` e `gravita` | Elimina la variabilità: non otterrai "abbastanza importante" al posto di `media` |
+| `prova` obbligatoria nei rischi | Il modello deve citare un file: taglia le osservazioni generiche |
+| `comandi` come oggetto con chiavi fisse | Uno script può leggere `.comandi.test` senza cercare in un array |
+| `install` e `test` obbligatori, `dev` e `build` no | Non tutti i progetti li hanno: renderli obbligatori costringerebbe a inventarli |
+| L'istruzione *"the exact commands from the project config files"* | Lo schema garantisce la **forma**, non la **veridicità**: quella la chiedi nel prompt |
+
+L'ultimo punto è il più importante e il più frainteso: `--json-schema` garantisce che l'output sia
+strutturato, **non** che sia corretto. La verifica resta compito tuo — nel gate del
+[modulo 12](/automazione/cli-scripting/) era il test che passa o fallisce; qui è il campo `prova` che puoi
+controllare a campione.
+
+</details>
+
+## Errori comuni e troubleshooting
+
+| Sintomo | Causa | Soluzione |
+| --- | --- | --- |
+| `stream-json` non produce nulla di utile | Manca `--verbose` | È obbligatorio con `stream-json` |
+| Non vedi i token man mano che arrivano | Manca `--include-partial-messages` | Aggiungilo per ricevere gli eventi `stream_event` |
+| `Error: --json-schema is not a valid JSON Schema` | Schema malformato | La diagnostica del validatore segue il messaggio |
+| Uno schema con `"format": "email"` non valida le email | `format` è trattato come annotazione | Valida a valle, o usa `pattern` |
+| `structured_output` è assente | Non hai passato `--json-schema` | Senza schema, c'è solo `result` come testo |
+| `result` contiene JSON come stringa | È il comportamento previsto con `--json-schema` | L'oggetto parsato sta in `structured_output` |
+| La CI passa ma i risultati sono strani | Un server MCP o un plugin non si è caricato: il run **esce pulito** comunque | Controlla `plugin_errors` e `mcp_server_errors` in `system/init` |
+| La review "non trova nulla" ma non ha letto niente | Permessi negati durante il run | Controlla `permission_denials` nella risposta |
+| La fine di una risposta lunga viene tagliata | Consumatore lento | Claude Code attende lo svuotamento, fino a 30 s: leggi lo stream più rapidamente |
+| Non distingui i messaggi dei subagent | Serve il campo `parent_tool_use_id` | `null` = conversazione principale; con `--forward-subagent-text` arrivano anche testo e thinking |
+| I costi non tornano con la fattura | Sono **stime lato client** | Per i valori reali usa la dashboard di utilizzo |
+
+## Cheat-sheet
+
+**I tre formati**
+
+```bash
+claude -p "..."                                              # text
+claude -p "..." --output-format json                         # oggetto singolo
+claude -p "..." --output-format stream-json --verbose        # un oggetto per riga
+```
+
+**I campi che userai**
+
+| Campo | |
+| --- | --- |
+| `.result` | Il testo della risposta |
+| `.structured_output` | L'oggetto validato, con `--json-schema` |
+| `.session_id` | Per riprendere con `--resume` |
+| `.is_error` | Per far fallire uno script |
+| `.total_cost_usd` | Costo stimato |
+| `.permission_denials` | Azioni negate durante il run |
+| `.num_turns` | Turni agentici usati |
+
+**Ricette `jq`**
+
+```bash
+# Testo della risposta
+| jq -r '.result'
+
+# Output strutturato
+| jq '.structured_output'
+
+# Fallisce se il run è andato in errore
+| jq -e '.is_error == false' > /dev/null
+
+# Cattura l'ID di sessione
+sid=$(... | jq -r '.session_id')
+
+# Streaming del testo
+| jq -rj 'select(.type=="stream_event" and .event.delta.type?=="text_delta") | .event.delta.text'
+
+# Solo le chiamate a tool
+| jq -r 'select(.type=="assistant") | .message.content[]? | select(.type=="tool_use") | .name'
+
+# Gate: nessun errore di plugin o MCP
+| jq -e 'select(.type=="system" and .subtype=="init") | (.plugin_errors // []) + (.mcp_server_errors // []) | length == 0'
+```
+
+**Eventi di `stream-json`**
+
+```text
+system/init            → primo evento, metadati di sessione
+system/api_retry       → retry di una chiamata API
+system/plugin_install  → installazione plugin
+assistant, user        → messaggi (parent_tool_use_id = null → main)
+stream_event           → delta di testo (serve --include-partial-messages)
+rate_limit_event       → informazioni sui rate limit
+result/success         → ultimo evento, risposta finale e costi
+```
+
+## Fonti
+
+Pagine ufficiali consultate, verificate il **16 agosto 2026**:
+
+- [Run Claude Code programmatically](https://code.claude.com/docs/en/headless) — formati di output, `--json-schema`, eventi di stream, `system/init`, `api_retry`
+- [CLI reference](https://code.claude.com/docs/en/cli-reference) — `--output-format`, `--json-schema`, `--include-partial-messages`, `--forward-subagent-text`
+- [Agent SDK — structured outputs](https://code.claude.com/docs/en/agent-sdk/structured-outputs) — output strutturati nell'SDK
+- [Agent SDK — streaming output](https://code.claude.com/docs/en/agent-sdk/streaming-output) — streaming programmatico
+- [Cost tracking](https://code.claude.com/docs/en/agent-sdk/cost-tracking) — natura delle stime di costo
+- [JSON Schema](https://json-schema.org/) — lo standard degli schemi
+- [jq](https://jqlang.org/) — il parser usato negli esempi
+
+Gli schemi di risposta mostrati in questa pagina sono stati verificati eseguendo `claude --version 2.1.233`
+con `--output-format json` e `--output-format stream-json` il 16 agosto 2026.
