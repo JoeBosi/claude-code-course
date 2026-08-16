@@ -21,7 +21,7 @@ Ultimo aggiornamento: 2026-08-16
 ## Sezione 1 — Fondamenta
 
 - [x] 00 · Setup e installazione — `fondamenta/setup`
-- [ ] 01 · Claude negli IDE — `fondamenta/ide`
+- [x] 01 · Claude negli IDE — `fondamenta/ide`
 - [ ] 02 · Anatomia dei file — `fondamenta/anatomia-file`
 - [ ] 03 · Agentic Coding — `fondamenta/agentic-coding`
 - [ ] 04 · Memory & Context Engineering — `fondamenta/memoria-e-contesto`
