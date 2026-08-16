@@ -1,0 +1,100 @@
+---
+title: Claude Code Tutorial
+description: Corso completo e gratuito su Claude Code in italiano — CLI, estensione VS Code e app desktop, su macOS e Windows. Da zero al livello professionale, tutto verificato sui docs ufficiali.
+template: splash
+hero:
+  tagline: Da <code>npm install</code> ai workflow agentici di produzione. Venti moduli in italiano su Claude Code, ognuno verificato sulla documentazione ufficiale.
+  actions:
+    - text: Inizia dal modulo 0
+      link: /fondamenta/setup/
+      icon: right-arrow
+      variant: primary
+    - text: Docs ufficiali Claude Code
+      link: https://code.claude.com/docs/en/overview
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard, Badge } from '@astrojs/starlight/components';
+
+<p>
+	<Badge text="Fonti verificate il 16 agosto 2026" variant="success" size="medium" />
+	<Badge text="20 moduli" variant="note" size="medium" />
+	<Badge text="macOS e Windows" variant="note" size="medium" />
+</p>
+
+## Perché questo corso
+
+Claude Code non è un autocomplete: è un agente che legge il tuo codebase, esegue comandi, modifica file
+e chiude il ciclo da solo. Cambia il modo in cui scrivi software, e le abitudini dell'editor tradizionale
+non bastano più.
+
+Questo corso ti porta dalla prima installazione fino ai workflow che si usano davvero in produzione:
+memoria e contesto, `CLAUDE.md`, skills, MCP, hooks, subagent, automazione headless e boilerplate
+riusabili. Ogni comando e ogni percorso di file è stato verificato sulla documentazione ufficiale prima
+di finire in pagina — niente feature inventate, niente esempi che non girano.
+
+<CardGrid>
+	<Card title="Fondamenta" icon="rocket">
+		Setup su macOS e Windows, Claude negli IDE, anatomia dei file di configurazione, coding agentico,
+		gestione del contesto, `CLAUDE.md` e Plan Mode. **Moduli 0–6.**
+	</Card>
+	<Card title="Personalizzazione ed estensioni" icon="puzzle">
+		Slash command, skills, server MCP, hooks e subagent: come si adatta Claude Code al tuo progetto
+		e al tuo modo di lavorare. **Moduli 7–11.**
+	</Card>
+	<Card title="Automazione e integrazione" icon="setting">
+		Modalità headless con `claude -p`, output JSON, pipeline Unix e CI, sessioni remote e lavoro
+		asincrono. **Moduli 12–15.**
+	</Card>
+	<Card title="Livello professionale" icon="approve-check">
+		Ecosistema e valutazione delle fonti, scelta di stack e architetture, boilerplate agentici
+		scaricabili e workflow di team. **Moduli 16–19.**
+	</Card>
+</CardGrid>
+
+## Prerequisiti
+
+Ti serve poco, ma quel poco conta:
+
+- **Un account Claude con piano attivo** (Pro, Max o Team). Il corso usa sempre il login dell'account:
+  non serve, e non viene mai chiesta, una API key a pagamento.
+- **Familiarità con il terminale** — sai muoverti tra le cartelle, lanciare comandi, leggere un errore.
+- **Git installato** e le basi di commit, branch e diff.
+- **Node.js** per gli esempi pratici (alcuni moduli usano progetti JavaScript/TypeScript).
+- **macOS o Windows**: ogni comando è fornito in entrambe le versioni, zsh e PowerShell, con la scelta
+  del sistema operativo sincronizzata su tutte le pagine.
+
+Non serve invece nessuna esperienza pregressa con agenti AI o con Claude Code: si parte da zero.
+
+## Da dove iniziare
+
+<CardGrid>
+	<LinkCard
+		title="0 · Setup e installazione"
+		description="Installa la CLI e l'app desktop, fai login e apri il primo progetto."
+		href="/fondamenta/setup/"
+	/>
+	<LinkCard
+		title="2 · Anatomia dei file"
+		description="Se hai già installato tutto, parti da qui: dove vive davvero la configurazione."
+		href="/fondamenta/anatomia-file/"
+	/>
+	<LinkCard
+		title="18 · Boilerplate agentici"
+		description="Le tre cartelle-template scaricabili per avviare un progetto in pochi minuti."
+		href="/professionale/boilerplate/"
+	/>
+	<LinkCard
+		title="16 · Ecosistema e fonti"
+		description="Dove trovare skills, server MCP e plugin affidabili — e come valutarli."
+		href="/professionale/ecosistema/"
+	/>
+</CardGrid>
+
+## Come leggere i moduli
+
+Ogni modulo ha sempre la stessa struttura, così sai cosa aspettarti: tempo stimato e prerequisiti,
+obiettivi, concetti chiave, un esempio guidato passo-passo con l'output atteso, un esercizio con la
+soluzione in un blocco collassabile, errori comuni e troubleshooting, un cheat-sheet finale e le fonti
+ufficiali consultate con la data di verifica.

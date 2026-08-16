@@ -1,0 +1,27 @@
+---
+import Default from '@astrojs/starlight/components/Footer.astro';
+---
+
+<Default><slot /></Default>
+
+<div class="disclaimer">
+	<p>
+		Corso indipendente, non affiliato ad Anthropic o Google. Claude e Claude Code sono marchi di
+		Anthropic; Antigravity e Gemini sono marchi di Google.
+	</p>
+</div>
+
+<style>
+	.disclaimer {
+		margin-top: 1.5rem;
+		padding-top: 1rem;
+		border-top: 1px solid var(--sl-color-gray-5);
+	}
+
+	.disclaimer p {
+		margin: 0;
+		font-size: var(--sl-text-xs);
+		line-height: 1.5;
+		color: var(--sl-color-gray-3);
+	}
+</style>
