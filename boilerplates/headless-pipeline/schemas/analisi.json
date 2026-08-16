@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "titolo": {
+      "type": "string",
+      "description": "Titolo del report, una riga"
+    },
+    "sintesi": {
+      "type": "string",
+      "description": "Due o tre frasi: cosa è successo nel periodo. Se i dati erano incompleti, dillo qui"
+    },
+    "temi": {
+      "type": "array",
+      "description": "I raggruppamenti tematici di quello che è successo",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tema": { "type": "string" },
+          "cosa": { "type": "string" },
+          "riferimenti": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Identificatori verificabili nei dati grezzi"
+          }
+        },
+        "required": ["tema", "cosa", "riferimenti"],
+        "additionalProperties": false
+      }
+    },
+    "rilievi": {
+      "type": "array",
+      "description": "Cose che richiedono attenzione. Un array vuoto è una risposta valida",
+      "items": {
+        "type": "object",
+        "properties": {
+          "rilievo": { "type": "string" },
+          "prova": {
+            "type": "string",
+            "description": "Cosa nei dati in ingresso sostiene questo rilievo"
+          },
+          "gravita": { "type": "string", "enum": ["alta", "media", "bassa"] },
+          "azione": {
+            "type": "string",
+            "description": "Cosa fare, concretamente. Non 'monitorare'"
+          }
+        },
+        "required": ["rilievo", "prova", "gravita", "azione"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["titolo", "sintesi", "temi", "rilievi"],
+  "additionalProperties": false
+}

@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+dist/
+*.egg-info/
+
+.env
+chroma/
+
+.claude/settings.local.json
+CLAUDE.local.md
+
+.DS_Store

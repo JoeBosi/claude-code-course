@@ -1,0 +1,16 @@
+.env
+
+# I dati raccolti e prodotti non si versionano: sono grandi e rigenerabili.
+# Se ti serve conservarli, usa un artifact della CI o un bucket.
+data/raw/*
+data/out/*
+!data/raw/.gitkeep
+!data/out/.gitkeep
+
+logs/*
+!logs/.gitkeep
+
+.claude/settings.local.json
+CLAUDE.local.md
+
+.DS_Store

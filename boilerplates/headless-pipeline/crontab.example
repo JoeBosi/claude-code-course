@@ -1,0 +1,9 @@
+# Esempio di crontab. Installalo con:  crontab -e
+#
+# Due cose che fanno fallire silenziosamente le pipeline in cron:
+#   1. il PATH ridotto  → risolto dal source di .env dentro run.sh
+#   2. l'output perso   → per questo si redirige su un log
+#
+# Il percorso deve essere ASSOLUTO: cron non ha una working directory utile.
+
+0 7 * * * /percorso/assoluto/al/progetto/bin/run.sh >> /percorso/assoluto/al/progetto/logs/cron.log 2>&1

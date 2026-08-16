@@ -12,7 +12,20 @@ const SORGENTE = 'boilerplates';
 const DESTINAZIONE = 'public/downloads';
 
 // Non finiscono mai in uno zip consegnato all'utente.
-const ESCLUSI = ['*/node_modules/*', '*/.git/*', '*/dist/*', '*/.DS_Store', '*/__pycache__/*', '*/.venv/*'];
+const ESCLUSI = [
+	'*/node_modules/*',
+	'*/.git/*',
+	'*/dist/*',
+	'*/.next/*',
+	'*/.DS_Store',
+	'*/__pycache__/*',
+	'*/.pytest_cache/*',
+	'*/.mypy_cache/*',
+	'*/.ruff_cache/*',
+	'*/.venv/*',
+	'*/.env',
+	'*/chroma/*',
+];
 
 const cartelle = await readdir(SORGENTE, { withFileTypes: true })
 	.then((voci) => voci.filter((v) => v.isDirectory()).map((v) => v.name))

@@ -46,15 +46,15 @@ Ultimo aggiornamento: 2026-08-16
 ## Sezione 4 — Livello professionale
 
 - [x] 16 · Ecosistema e fonti — `professionale/ecosistema`
-- [ ] 17 · Stack, framework e architetture — `professionale/stack-architetture`
-- [ ] 18 · Boilerplate agentici riusabili — `professionale/boilerplate`
+- [x] 17 · Stack, framework e architetture — `professionale/stack-architetture`
+- [x] 18 · Boilerplate agentici riusabili — `professionale/boilerplate`
 - [ ] 19 · Workflow professionali — `professionale/workflow`
 
 ## Boilerplate scaricabili
 
-- [ ] `boilerplates/web-fullstack/`
-- [ ] `boilerplates/headless-pipeline/`
-- [ ] `boilerplates/agentic-rag/`
+- [x] `boilerplates/web-fullstack/`
+- [x] `boilerplates/headless-pipeline/`
+- [x] `boilerplates/agentic-rag/`
 
 ## Qualità finale
 

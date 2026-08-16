@@ -1,0 +1,42 @@
+# Copiare in .github/workflows/pipeline.yml
+#
+# Il segreto CLAUDE_CODE_OAUTH_TOKEN si genera una volta con `claude setup-token`
+# e si carica con `gh secret set CLAUDE_CODE_OAUTH_TOKEN`.
+
+name: Pipeline
+
+on:
+  schedule:
+    - cron: "0 7 * * *"
+  workflow_dispatch:        # per provarla senza aspettare domani
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0    # senza, `git log --since` non trova nulla
+
+      - name: Installa Claude Code
+        run: curl -fsSL https://claude.ai/install.sh | bash
+
+      - name: Esegui la pipeline
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_BIN: /home/runner/.local/bin/claude
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUBBLICA_SU_GITHUB: "1"
+        run: ./bin/run.sh
+
+      - name: Conserva gli artefatti
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-output
+          path: |
+            data/out/
+            logs/

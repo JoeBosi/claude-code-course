@@ -1,0 +1,35 @@
+[project]
+name = "{{PROJECT_NAME}}"
+description = "{{PROJECT_DESCRIPTION}}"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.141",
+    "uvicorn[standard]>=0.34",
+    "pydantic>=2.13",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.9",
+    "mypy>=1.14",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+
+[[tool.mypy.overrides]]
+# Il dominio è tipizzato in modo stretto senza eccezioni: è il suo valore.
+module = "src.domain.*"
+disallow_any_explicit = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

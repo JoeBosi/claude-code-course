@@ -1,10 +1,632 @@
 ---
 title: "18 · Boilerplate agentici riusabili"
-description: "Costruire una cartella-template agentica e riusarla per avviare ogni nuovo progetto in pochi minuti."
+description: "Costruire una cartella-template agentica una volta e riusarla per ogni progetto: anatomia file per file, tre boilerplate scaricabili, script di init, versionamento e manutenzione."
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Tabs, TabItem, Steps, Aside, FileTree, LinkCard, CardGrid } from '@astrojs/starlight/components';
 
-<Aside type="caution" title="Modulo in lavorazione">
-Questo modulo è in fase di scrittura e verifica sui docs ufficiali. Torna a breve.
+<div class="meta-modulo">
+	<span><strong>Tempo stimato:</strong> 70 minuti</span>
+	<span><strong>Prerequisiti:</strong> l'intera sezione <a href="/personalizzazione/slash-commands/">Personalizzazione</a> e il <a href="/professionale/stack-architetture/">modulo 17</a>.</span>
+</div>
+
+## Obiettivi
+
+- Sapere cosa mettere in un boilerplate agentico, file per file, e perché.
+- Scaricare e usare i tre boilerplate di questo corso.
+- Scrivere uno script di init che personalizza il template in un comando.
+- Distinguere cosa parametrizzare da cosa tenere fisso.
+- Mantenere un boilerplate nel tempo e propagare gli aggiornamenti ai progetti derivati.
+
+## Concetti chiave
+
+**Il valore di un boilerplate agentico non è il codice: è la configurazione.** Uno scaffold di framework
+te lo dà `npm create`. Quello che non ti dà è il `CLAUDE.md` che spiega le convenzioni, gli hook che
+impediscono gli errori, i comandi che incapsulano i tuoi workflow, i permessi già decisi. È quella parte
+che riscrivi ogni volta, ed è quella che vale la pena mettere in un template.
+
+**Il tempo che risparmi è quello delle prime tre ore, moltiplicato per ogni progetto.** Non è il tempo di
+scrivere `npm init`: è il tempo che passi a ripetere a Claude le stesse convenzioni, a scoprire di nuovo
+che ha modificato una migrazione già applicata, a riscrivere il comando che apre le PR nel formato del
+tuo team.
+
+**Un boilerplate che nessuno mantiene diventa un ostacolo.** Un template con dipendenze di un anno fa e
+convenzioni superate fa perdere più tempo di quanto ne faccia risparmiare. Il capitolo sulla manutenzione
+non è opzionale.
+
+**Parametrizza poco.** Ogni segnaposto è una cosa che può restare non sostituita. Il nome del progetto e
+la descrizione bastano quasi sempre: tutto il resto o è uguale in ogni progetto, o va deciso a mano.
+
+## Anatomia di un boilerplate
+
+<FileTree>
+
+- il-tuo-boilerplate/
+  - **CLAUDE.md** Convenzioni e regole — il cuore del template
+  - **README.md** Per gli umani: cosa contiene, cosa personalizzare, cosa non toccare
+  - **init.sh** Personalizza i segnaposto e si auto-rimuove
+  - **PLAN.md** Il piano corrente, scritto in Plan Mode
+  - **STATE.md** Stato di avanzamento, per riprendere dopo un'interruzione
+  - **.gitignore** Include `.claude/settings.local.json` e `CLAUDE.local.md`
+  - **.env.example** Ogni variabile documentata, `.env` mai committato
+  - **.mcp.json** Server MCP condivisi, con variabili al posto dei segreti
+  - .claude/
+    - **settings.json** Permessi (allow **e** deny) e registrazione degli hook
+    - commands/ I workflow che invochi con `/nome`
+    - skills/ Le convenzioni che si caricano su richiesta
+    - agents/ I subagent: chi esplora, chi implementa, chi rivede
+    - hooks/ Gli script: la rete di sicurezza
+
+</FileTree>
+
+### Cosa va in ciascun file
+
+**`CLAUDE.md`** — il pezzo che conta di più. Cinque sezioni, in quest'ordine:
+
+<Steps>
+
+1. **Comandi** che Claude non può indovinare, con l'indicazione di quali sono obbligatori.
+2. **Struttura**, in una tabella *"se stai scrivendo… → va in…"*.
+3. **Regole non negoziabili**: poche, concrete, verificabili.
+4. **Cosa NON fare senza discuterne** — la sezione che evita che un agente introduca una coda di messaggi
+   perché gli hai chiesto di "rendere più robusto" qualcosa.
+5. **Trappole** specifiche del progetto: quello che scopriresti solo sbagliando.
+
+</Steps>
+
+Sotto le 200 righe. Le regole settoriali vanno in `.claude/rules/` con `paths:`.
+
+**`.claude/settings.json`** — la `deny` list è più importante della `allow`. Un boilerplate serio nega la
+lettura dei file di ambiente e l'esecuzione dei comandi che toccano la produzione.
+
+**`.claude/hooks/`** — è quello che distingue un boilerplate da una cartella di appunti. Le istruzioni nel
+`CLAUDE.md` sono consigli; gli hook sono codice. Due categorie:
+
+| Tipo | Evento | Esempio |
+| --- | --- | --- |
+| **Difensivi** | `PreToolUse` | Blocca modifiche a migrazioni applicate, `.env`, lockfile |
+| **Correttivi** | `PostToolUse` | Lint, format e typecheck dopo ogni modifica, con gli errori che tornano a Claude |
+
+<Aside type="tip" title="Il campo che rende utile un blocco">
+In un hook difensivo, `permissionDecisionReason` **viene letta da Claude**. Scriverci *cosa fare invece*
+trasforma un blocco in un'indicazione, e nella pratica Claude corregge da solo al tentativo successivo:
+
+```text
+Le migrazioni applicate non si modificano. Modifica src/db/schema.ts e lancia
+`npm run db:generate` per creare una migrazione nuova.
+```
 </Aside>
+
+**`PLAN.md` e `STATE.md`** — la coppia che rende una sessione interrompibile. `PLAN.md` contiene il piano
+corrente, scritto in Plan Mode e corretto da te; `STATE.md` la checklist di avanzamento. Quando una
+sessione si interrompe, la ripresa parte da `STATE.md` invece che da zero.
+
+---
+
+## I tre boilerplate
+
+Coerenti con i tre esempi del [modulo 17](/professionale/stack-architetture/). Sono cartelle vere,
+provate: gli script passano `shellcheck`, i test di `agentic-rag` girano davvero, e ogni zip è stato
+estratto e inizializzato per verificare che funzioni.
+
+<CardGrid>
+	<LinkCard
+		title="⬇ web-fullstack.zip"
+		description="Next.js 16 + Supabase. MCP Supabase e Vercel, skill frontend, hook di protezione e lint+typecheck, comandi /review e /ship, subagent reviewer con memoria."
+		href="/downloads/web-fullstack.zip"
+	/>
+	<LinkCard
+		title="⬇ headless-pipeline.zip"
+		description="Bash + claude -p + cron. Quattro stadi di cui uno solo usa l'LLM, output validato con --json-schema, hook shellcheck e di logging, esempi per cron e GitHub Actions."
+		href="/downloads/headless-pipeline.zip"
+	/>
+	<LinkCard
+		title="⬇ agentic-rag.zip"
+		description="Python + FastAPI + architettura esagonale. Tre subagent, MCP filesystem e database, hook che difende il confine del dominio, 7 test che passano subito senza rete."
+		href="/downloads/agentic-rag.zip"
+	/>
+</CardGrid>
+
+### A · `web-fullstack`
+
+| Componente | Cosa contiene |
+| --- | --- |
+| `CLAUDE.md` | Convenzioni Next.js/Supabase, con la regola *ogni tabella ha una policy RLS* |
+| `.mcp.json` | Server MCP Supabase e Vercel, con il token da variabile d'ambiente |
+| `.claude/hooks/protect.sh` | **Blocca** modifiche a migrazioni applicate, `.env` e lockfile |
+| `.claude/hooks/lint-and-typecheck.sh` | Formatta con Prettier, poi ESLint e `tsc`: gli errori tornano a Claude |
+| `.claude/commands/review.md` | `/review` — solo correttezza e sicurezza, con scenario di fallimento obbligatorio |
+| `.claude/commands/ship.md` | `/ship` — verifica, commit, push, PR nel formato del team |
+| `.claude/skills/frontend/` | Server vs client component, la forma delle Server Action |
+| `.claude/agents/reviewer.md` | Sola lettura, Opus, `memory: project` |
+
+Il pezzo che vale la pena copiare anche se non usi questo stack è `/ship`: incapsula la sequenza
+verifica → commit → push → PR **fermandosi al primo passo che fallisce**, e senza correggere di sua
+iniziativa.
+
+### B · `headless-pipeline`
+
+| Componente | Cosa contiene |
+| --- | --- |
+| `bin/run.sh` | Orchestratore con `flock`, log per data, stadi che si fermano al primo errore |
+| `bin/01…04` | Quattro stadi. **Solo `02` chiama Claude** |
+| `schemas/analisi.json` | Il contratto dell'output, usato con `--json-schema` |
+| `.claude/skills/analizza/` | Il prompt, versionato invece che inline negli script |
+| `.claude/hooks/shellcheck.sh` | `shellcheck` dopo ogni modifica agli script |
+| `.claude/hooks/stato.sh` | `SessionStart`: inietta ultimo raw, ultimo output, ultima riga di log |
+| `crontab.example` · `.github-workflow.example.yml` | Le due strade per programmarla |
+
+Due dettagli nati da bug veri, trovati provando la pipeline:
+
+- **Scrittura su temporaneo e poi `mv`.** Una redirezione diretta lascia un file vuoto se `jq` fallisce, e
+  il run del giorno dopo lo scambia per dati già raccolti.
+- **Exit code distinti**: `1` = la pipeline ha fallito, `2` = lo strumento non ha funzionato. Il
+  monitoraggio deve poterli distinguere per svegliare la persona giusta.
+
+### C · `agentic-rag`
+
+| Componente | Cosa contiene |
+| --- | --- |
+| `src/domain/` | Modelli, tre porte come `Protocol`, due casi d'uso. **Zero import esterni** |
+| `tests/domain/test_no_external_imports.py` | La regola architetturale **come test eseguibile** |
+| `tests/adapters/` | Test di contratto: ogni adattatore della stessa porta supera gli stessi test |
+| `.claude/hooks/confine-dominio.sh` | Blocca gli import vietati **prima** che vengano scritti |
+| `.claude/agents/` | `researcher` (sola lettura), `coder`, `reviewer` (Opus, memoria) |
+| `.mcp.json` | Filesystem e database in sola lettura |
+
+Il pezzo trasferibile è la coppia **hook + test** sulla stessa regola: l'hook la difende prima, il test la
+verifica dopo. Una regola architetturale che vive solo nella documentazione non sopravvive a tre mesi di
+lavoro con un agente.
+
+<Aside type="note" title="Cosa è già implementato e cosa no">
+In `agentic-rag`, dominio e test sono **completi e passano** (7 test, offline). I tre adattatori sono
+`NotImplementedError` di proposito, e il messaggio di ciascuno dice cosa deve restituire: sono il punto in
+cui il template finisce e comincia il tuo progetto.
+</Aside>
+
+---
+
+## Riuso pratico
+
+### Lo script di init
+
+Tutti e tre i boilerplate hanno lo stesso `init.sh`. Fa quattro cose e poi si toglie di mezzo:
+
+```bash title="init.sh"
+#!/usr/bin/env bash
+set -euo pipefail
+
+NOME="${1:-}"
+DESCR="${2:-}"
+
+if [ -z "$NOME" ]; then
+  echo "Uso: ./init.sh <nome-progetto> [descrizione]" >&2
+  exit 1
+fi
+[ -z "$DESCR" ] && DESCR="$NOME"
+
+mapfile -t FILE < <(grep -rl '{{PROJECT_NAME}}\|{{PROJECT_DESCRIPTION}}' . \
+  --exclude-dir=node_modules --exclude-dir=.git 2>/dev/null || true)
+
+for f in "${FILE[@]}"; do
+  sed -i.bak \
+    -e "s|{{PROJECT_NAME}}|$NOME|g" \
+    -e "s|{{PROJECT_DESCRIPTION}}|$DESCR|g" "$f"
+  rm -f "$f.bak"
+  echo "  aggiornato  $f"
+done
+
+sed -i.bak "s|^Ultimo aggiornamento: —|Ultimo aggiornamento: $(date +%F)|" STATE.md && rm -f STATE.md.bak
+
+[ -d .git ] || { git init -q; echo "  git init"; }
+
+echo "✔ Progetto '$NOME' inizializzato."
+rm -- "$0"
+```
+
+Le due righe che fanno la differenza sono l'ultima e il `grep -rl`: lo script **si auto-rimuove**, così non
+resta nel repository a confondere chi arriva dopo; e cerca i segnaposto invece di avere una lista di file
+hardcoded, così aggiungere un file al template non richiede di ricordarsi di aggiornare l'init.
+
+### Cosa parametrizzare e cosa no
+
+| Parametrizza | Tieni fisso |
+| --- | --- |
+| Nome e descrizione del progetto | La struttura delle cartelle |
+| La data in `STATE.md` | Gli hook |
+| — | Il formato di `PLAN.md` e `STATE.md` |
+| — | I comandi `/review` e `/ship` |
+| — | Le regole non negoziabili del `CLAUDE.md` |
+
+Tutto ciò che è vagamente specifico del progetto — nomi di tabelle, endpoint, provider — **non va
+parametrizzato**: va lasciato come esempio realistico da modificare. Un template pieno di `{{TABLE_NAME}}`
+è illeggibile e produce progetti in cui metà dei segnaposto sono rimasti.
+
+### Come si usa
+
+<Tabs syncKey="os">
+<TabItem label="macOS" icon="apple">
+**Da zip:**
+
+```bash
+curl -O https://claude-tutorial.giuseppebosi.com/downloads/web-fullstack.zip
+unzip web-fullstack.zip && cd web-fullstack
+./init.sh "fatture-app" "Gestione fatture per studi professionali"
+```
+
+**Da template repo GitHub**, se hai messo il tuo su GitHub e l'hai marcato come template:
+
+```bash
+gh repo create fatture-app --template tuo-utente/boilerplate-web --private --clone
+cd fatture-app && ./init.sh "fatture-app" "Gestione fatture"
+```
+
+**Da degit**, se vuoi la cartella senza la storia git:
+
+```bash
+npx degit tuo-utente/boilerplate-web fatture-app
+cd fatture-app && ./init.sh "fatture-app" "Gestione fatture"
+```
+</TabItem>
+<TabItem label="Windows" icon="seti:windows">
+**Da zip:**
+
+```powershell
+Invoke-WebRequest -Uri "https://claude-tutorial.giuseppebosi.com/downloads/web-fullstack.zip" -OutFile web-fullstack.zip
+Expand-Archive web-fullstack.zip -DestinationPath .
+cd web-fullstack
+bash ./init.sh "fatture-app" "Gestione fatture per studi professionali"
+```
+
+**Da template repo GitHub:**
+
+```powershell
+gh repo create fatture-app --template tuo-utente/boilerplate-web --private --clone
+cd fatture-app; bash ./init.sh "fatture-app" "Gestione fatture"
+```
+
+`init.sh` è uno script bash: serve Git Bash o WSL. Se preferisci PowerShell nativo, riscrivilo — ma
+ricordati di mantenere l'auto-rimozione finale.
+</TabItem>
+</Tabs>
+
+---
+
+## Manutenzione
+
+È la parte che decide se il boilerplate sarà ancora utile fra un anno.
+
+### Versionamento
+
+Metti il boilerplate in un repository git e **tagga**. Un progetto derivato deve poter dire da quale
+versione è partito:
+
+```bash
+git tag -a v1.2.0 -m "hook di typecheck, comando /ship"
+git push --tags
+```
+
+E registralo nel progetto derivato, in una riga del `README.md`:
+
+```markdown
+Generato da [boilerplate-web](https://github.com/tuo-utente/boilerplate-web) v1.2.0
+```
+
+Senza questa riga, fra sei mesi non saprai quali aggiornamenti ti riguardano.
+
+### Changelog
+
+Un `CHANGELOG.md` nel boilerplate, con una colonna che i changelog normali non hanno: **serve una azione
+sui progetti esistenti?**
+
+```markdown title="CHANGELOG.md"
+# Changelog
+
+## v1.2.0 — 2026-08-16
+
+### Aggiunto
+- Hook `PostToolUse` che lancia `tsc --noEmit` dopo le modifiche TypeScript
+  → **Propagare**: copia `.claude/hooks/lint-and-typecheck.sh` e la voce in `settings.json`
+
+### Modificato
+- `/ship` ora si ferma al primo passo di verifica che fallisce, invece di correggere
+  → **Propagare** se usi `/ship`: sostituisci `.claude/commands/ship.md`
+
+### Corretto
+- `protect.sh` non bloccava i file `.env.production`
+  → **Propagare subito**: è una falla
+
+### Solo per i progetti nuovi
+- Bump di Next.js a 16.3
+  → Non propagare a un progetto in corso senza una ragione
+```
+
+### Propagare gli aggiornamenti
+
+Tre strategie, in ordine di sforzo:
+
+<Steps>
+
+1. **A mano, dal changelog.** Per un template usato su pochi progetti è la strada giusta: leggi le voci
+   marcate *Propagare*, copia i file, verifica. Sembra primitivo ed è il metodo con meno sorprese.
+
+2. **Con un comando dedicato.** Aggiungi al boilerplate un `/aggiorna-boilerplate` che fa il lavoro:
+
+   ```markdown title=".claude/commands/aggiorna-boilerplate.md"
+   ---
+   description: Confronta questo progetto con l'ultima versione del boilerplate e propone gli aggiornamenti da applicare.
+   disable-model-invocation: true
+   allowed-tools: Bash(git *), Bash(curl *), Read, Grep, Glob
+   ---
+
+   ## Versione di partenza di questo progetto
+
+   !`grep -o 'boilerplate-web) v[0-9.]*' README.md || echo "non registrata"`
+
+   ## Changelog del boilerplate
+
+   !`curl -sf https://raw.githubusercontent.com/tuo-utente/boilerplate-web/main/CHANGELOG.md`
+
+   ## Istruzioni
+
+   1. Individua la versione da cui parte questo progetto
+   2. Elenca **solo** le voci successive marcate "Propagare"
+   3. Per ciascuna, confronta il file corrispondente in questo progetto con quello
+      del boilerplate e dimmi cosa cambierebbe
+   4. **Non applicare niente.** Presenta un piano e fermati: le personalizzazioni
+      locali sono legittime e solo io so quali vanno tenute
+   ```
+
+   L'ultima riga è quella importante: un aggiornamento automatico che sovrascrive le personalizzazioni fa
+   più danni di un boilerplate vecchio.
+
+3. **Con un remote git.** Se il progetto è nato da un clone, puoi tenere il boilerplate come remote
+   aggiuntivo e fare merge selettivi:
+
+   ```bash
+   git remote add boilerplate https://github.com/tuo-utente/boilerplate-web.git
+   git fetch boilerplate
+   git diff HEAD boilerplate/main -- .claude/
+   git checkout boilerplate/main -- .claude/hooks/lint-and-typecheck.sh
+   ```
+
+   Funziona bene per `.claude/`, che raramente diverge, e male per il codice, che diverge sempre.
+
+</Steps>
+
+### Quando potare
+
+Un boilerplate cresce. Ogni sei mesi, tre domande su ogni componente:
+
+- **L'ho usato?** Un comando che non invochi da tre progetti va tolto.
+- **Costa contesto?** Skill e server MCP si pagano a ogni sessione. `/context` in un progetto derivato
+  dice quanto.
+- **La regola è ancora vera?** Una regola nel `CLAUDE.md` che descrive una convenzione abbandonata è
+  peggio di nessuna regola: manda Claude nella direzione sbagliata con sicurezza.
+
+---
+
+## Esempio guidato
+
+<Steps>
+
+1. **Scarica e apri il boilerplate più vicino al tuo lavoro.**
+
+   ```bash
+   curl -O https://claude-tutorial.giuseppebosi.com/downloads/agentic-rag.zip
+   unzip agentic-rag.zip && cd agentic-rag
+   ```
+
+2. **Leggi il `README.md` prima di tutto.** Ha due sezioni che valgono più del codice: *Da personalizzare*
+   e *Da lasciare com'è*.
+
+3. **Inizializza.**
+
+   ```bash
+   ./init.sh "kb-interna" "Base di conoscenza interna sui runbook"
+   ```
+
+4. **Verifica che parta.**
+
+   ```bash
+   uv sync
+   uv run pytest
+   ```
+
+   Output atteso:
+
+   ```text
+   7 passed
+   ```
+
+   Sette test che passano prima di aver scritto una riga: sono i test del dominio e quelli di contratto.
+
+5. **Prova l'hook difensivo.** Apri `claude` e chiedi qualcosa che viola la regola architetturale:
+
+   ```text
+   In src/domain/usecases/answer_question.py, call the Anthropic API directly with httpx
+   ```
+
+   L'hook blocca la scrittura e restituisce la ragione. Claude legge *"definisci un Protocol in
+   domain/ports.py, implementalo in adapters/"* e di norma corregge da solo. **È la differenza tra una
+   regola scritta e una regola applicata.**
+
+6. **Costruisci il tuo.** Parti da uno di questi e sostituisci ciò che è specifico:
+
+   ```bash
+   cp -r agentic-rag ~/boilerplate-mio && cd ~/boilerplate-mio
+   git init && git add -A && git commit -m "chore: fork dal boilerplate agentic-rag del corso"
+   git tag -a v1.0.0 -m "prima versione"
+   ```
+
+   Poi metti sul repository GitHub e marcalo come template: **Settings → Template repository**.
+
+</Steps>
+
+## Esercizio finale
+
+Costruisci il tuo boilerplate e avviaci due progetti, misurando quanto risparmi.
+
+1. Parti da uno dei tre e adattalo al tuo stack e alle tue convenzioni.
+2. **Misura il tempo** per avviare il primo progetto **senza** boilerplate.
+3. Misura il tempo per avviare il secondo **con** il boilerplate.
+4. Confronta, e sistema il boilerplate in base a cosa è mancato.
+
+<details class="soluzione">
+<summary>Soluzione</summary>
+
+**Passo 1 — cosa cambiare davvero.**
+
+La tentazione è cambiare tutto. In pratica, su un boilerplate di questo corso, quello che è tuo si conta
+sulle dita:
+
+| Cosa | Quanto è tuo |
+| --- | --- |
+| `CLAUDE.md` → sezioni *Regole* e *Trappole* | **Interamente tuo** |
+| `.claude/commands/ship.md` → formato della PR | Tuo: è la convenzione del tuo team |
+| `.claude/settings.json` → la `deny` list | Tuo: dipende da cosa non deve toccare |
+| `.mcp.json` | Tuo: i tuoi servizi |
+| Gli hook | **Quasi sempre riusabili così come sono** |
+| `PLAN.md` / `STATE.md` | Riusabili |
+| La struttura delle cartelle | Riusabile, se lo stack è lo stesso |
+
+**Passi 2–3 — misurare in modo onesto.**
+
+Cronometra la stessa cosa nei due casi: **dal primo comando al primo commit di una feature reale che
+funziona**. Non "fino a `npm run dev`" — quello è veloce comunque, e non è dove si perde tempo.
+
+Tieni un log grezzo:
+
+```markdown title="misura.md"
+## Progetto 1 — senza boilerplate
+
+| Attività | Minuti |
+| --- | --- |
+| Scaffold e dipendenze | 12 |
+| Configurare lint, format, typecheck | 25 |
+| Scrivere il CLAUDE.md | 40 |
+| Scoprire e correggere: Claude ha modificato una migrazione applicata | 20 |
+| Riscrivere a Claude la convenzione delle PR, tre volte | 15 |
+| Prima feature | 55 |
+| **Totale** | **167** |
+
+## Progetto 2 — con boilerplate
+
+| Attività | Minuti |
+| --- | --- |
+| `init.sh` + `npm install` | 4 |
+| Adattare CLAUDE.md al dominio specifico | 12 |
+| Prima feature | 40 |
+| **Totale** | **56** |
+```
+
+**Passo 4 — la parte che conta.**
+
+Il numero non è il risultato dell'esercizio. Il risultato è la lista di **cosa è mancato** nel secondo
+progetto, che diventa la v1.1 del boilerplate.
+
+Da un giro reale, il tipo di cose che emergono:
+
+| Cosa è mancato | Cosa aggiungere |
+| --- | --- |
+| «Ho rispiegato tre volte come si chiamano i branch» | Una riga in *Etichetta del repository* nel `CLAUDE.md` |
+| «Claude ha creato un file di documentazione che non volevo» | *"Non creare file di documentazione se non richiesti"* nelle regole |
+| «Ho dovuto configurare a mano i permessi per il test runner» | La voce in `permissions.allow` |
+| «Il comando `/ship` assumeva `main`, qui il branch base è `develop`» | Parametrizzarlo, o leggerlo da git |
+| «Nessuno ha aggiornato `STATE.md`» | Ricordarlo nel `CLAUDE.md`, o un hook `Stop` che lo verifica |
+
+Nota la penultima riga: è un caso in cui **la parametrizzazione serve davvero**, e si scopre solo usando il
+template su un secondo progetto. È esattamente il motivo per cui l'esercizio chiede **due** progetti e non
+uno.
+
+Chiudi il ciclo:
+
+```bash
+cd ~/boilerplate-mio
+# applica le correzioni
+git commit -am "feat: convenzioni branch, permessi test runner, /ship legge il branch base da git"
+git tag -a v1.1.0 -m "correzioni dal secondo progetto"
+git push --tags
+```
+
+E aggiorna il `CHANGELOG.md` marcando quali voci vanno propagate ai due progetti già avviati.
+
+</details>
+
+## Errori comuni e troubleshooting
+
+| Sintomo | Causa | Soluzione |
+| --- | --- | --- |
+| Restano segnaposto `{{...}}` nel progetto nuovo | `init.sh` non ha coperto quel file | Cerca i segnaposto invece di elencare i file: `grep -rl '{{PROJECT_'` |
+| `init.sh` è ancora nel repository dopo settimane | Non si auto-rimuove | Ultima riga: `rm -- "$0"` |
+| Gli hook non partono nel progetto nuovo | Il bit di esecuzione si perde in alcuni trasferimenti | `chmod +x .claude/hooks/*.sh`, e verificalo estraendo lo zip |
+| Un hook funziona per te e non per i colleghi | Percorso assoluto della tua macchina | `${CLAUDE_PROJECT_DIR}` |
+| Un hook legge stdin vuoto | Due `jq` in pipeline sullo stesso stdin: il primo lo consuma | Leggi stdin **una volta** in una variabile |
+| Il boilerplate è enorme e nessuno lo usa | Contiene tutto quello che poteva servire | Pota: se non l'hai usato in tre progetti, non serve |
+| I progetti derivati divergono e non si aggiornano più | Nessuna versione registrata | Tagga il boilerplate e registra la versione nel `README.md` del derivato |
+| Un aggiornamento automatico ha sovrascritto le personalizzazioni | Il comando applicava invece di proporre | Un comando di aggiornamento deve **fermarsi al piano** |
+| I file dentro `.claude/` non finiscono nello zip | Molti tool di archiviazione saltano i file nascosti | Verifica sempre con `unzip -l` che i dotfile ci siano |
+| Il `CLAUDE.md` del boilerplate è cresciuto oltre le 200 righe | Ci hai messo anche le regole settoriali | Spostale in `.claude/rules/` con `paths:` |
+| Nei test finiscono file di cache nello zip | `__pycache__`, `.pytest_cache`, `node_modules` | Escludili nello script di packaging |
+
+## Cheat-sheet
+
+**L'anatomia minima**
+
+```text
+CLAUDE.md          convenzioni · struttura · regole · cosa NON fare · trappole
+README.md          cosa personalizzare / cosa lasciare com'è
+init.sh            sostituisce i segnaposto e si auto-rimuove
+PLAN.md STATE.md   piano corrente e avanzamento
+.gitignore         include settings.local.json e CLAUDE.local.md
+.env.example       ogni variabile documentata
+.mcp.json          server MCP, segreti da variabili
+.claude/
+  settings.json    permessi (allow E deny) + registrazione hook
+  commands/        i tuoi workflow, invocabili con /nome
+  skills/          convenzioni caricate su richiesta
+  agents/          researcher · coder · reviewer
+  hooks/           difensivi (PreToolUse) e correttivi (PostToolUse)
+```
+
+**Parametrizza / tieni fisso**
+
+```text
+Parametrizza:  nome del progetto, descrizione, data
+Tieni fisso:   struttura, hook, formato di PLAN/STATE, comandi, regole
+Non toccare:   esempi realistici — meglio da modificare che da riempire
+```
+
+**Manutenzione**
+
+| Cosa | Come |
+| --- | --- |
+| Versionare | `git tag -a v1.2.0`, e registra la versione nel `README.md` del derivato |
+| Changelog | Con una colonna *serve propagare?* |
+| Propagare | A mano dal changelog · un comando che **propone** · `git remote` per `.claude/` |
+| Potare | Ogni sei mesi: l'ho usato? costa contesto? la regola è ancora vera? |
+
+**Le tre righe che rendono un boilerplate utile invece che decorativo**
+
+```text
+1. Un hook che blocca, con permissionDecisionReason che dice cosa fare invece
+2. Una regola architetturale scritta come test eseguibile
+3. Una sezione "Cosa NON fare senza discuterne" nel CLAUDE.md
+```
+
+## Fonti
+
+Documentazione ufficiale consultata, verificata il **16 agosto 2026**:
+
+- [Explore the .claude directory](https://code.claude.com/docs/en/claude-directory) — cosa mettere in `.claude/` e cosa si committa
+- [Best practices](https://code.claude.com/docs/en/best-practices) — `CLAUDE.md` efficace, hook, skill, subagent
+- [Hooks reference](https://code.claude.com/docs/en/hooks) — eventi, `permissionDecisionReason`, `${CLAUDE_PROJECT_DIR}`
+- [Extend Claude with skills](https://code.claude.com/docs/en/skills) — struttura di `SKILL.md` e frontmatter
+- [Subagents](https://code.claude.com/docs/en/sub-agents) — definizione degli agenti e memoria persistente
+- [Settings](https://code.claude.com/docs/en/settings) — permessi, scope e precedenza
+- [Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp) — `.mcp.json` ed espansione delle variabili
+- [Run Claude Code programmatically](https://code.claude.com/docs/en/headless) — `--bare`, `--json-schema` e `--max-turns` usati dalla pipeline
+
+I tre boilerplate sono stati provati end-to-end il 16 agosto 2026: `shellcheck` pulito su tutti gli script,
+7 test verdi in `agentic-rag`, e ogni zip estratto e inizializzato con `init.sh` per verificare che non
+restino segnaposto.

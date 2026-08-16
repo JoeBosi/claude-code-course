@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "${DOCS_DIR:-./docs}"]
+    },
+    "db": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@bytebase/dbhub", "--dsn", "${DATABASE_URL_RO}"]
+    }
+  }
+}
