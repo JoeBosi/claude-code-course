@@ -1,10 +1,509 @@
 ---
 title: "16 · Ecosistema e fonti"
-description: "Dove trovare skills, server MCP e plugin di qualita, e come valutarli prima di installarli."
+description: "Le directory di server MCP a confronto, dove trovare skills e plugin affidabili, una checklist di valutazione prima di installare e un workflow end-to-end da cerco a testo."
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
 
-<Aside type="caution" title="Modulo in lavorazione">
-Questo modulo è in fase di scrittura e verifica sui docs ufficiali. Torna a breve.
+<div class="meta-modulo">
+	<span><strong>Tempo stimato:</strong> 50 minuti</span>
+	<span><strong>Prerequisiti:</strong> i moduli <a href="/personalizzazione/mcp/">9</a> e <a href="/personalizzazione/skills/">8</a>. Per l'esempio finale serve un Postgres raggiungibile.</span>
+</div>
+
+## Obiettivi
+
+- Sapere quale directory MCP consultare in base a cosa stai cercando.
+- Distinguere la fonte di verità dalle directory che la indicizzano.
+- Trovare skills e plugin di qualità, e capire chi li ha validati e quanto.
+- Valutare un'estensione **prima** di installarla, con una checklist ripetibile.
+- Percorrere il ciclo completo: cerco, valuto, installo, testo.
+
+## Concetti chiave
+
+**Una sola fonte di verità, molte vetrine.** Il **MCP Registry ufficiale**
+([registry.modelcontextprotocol.io](https://registry.modelcontextprotocol.io)) è il registro canonico del
+protocollo, con un'API pubblica. Tutte le altre directory — Glama, mcp.so, Smithery, PulseMCP, Docker —
+sono cataloghi che indicizzano, arricchiscono e a volte ospitano. Sono utilissime per **scoprire**, ma
+quando devi decidere *qual è davvero il server ufficiale di un vendor*, la risposta sta nel registry o sul
+sito del vendor.
+
+**Nessuno fa un audit di sicurezza dei server MCP.** La documentazione è esplicita: Anthropic revisiona i
+connettori contro i propri criteri di listing prima di aggiungerli all'Anthropic Directory, ma **non
+esegue audit di sicurezza né gestisce alcun server MCP**. Il numero di stelle su GitHub non è una
+certificazione. Il badge "official" su una directory dice che il publisher è verificato, non che il codice
+sia sicuro.
+
+**La regola che risolve la maggior parte dei casi:** se il vendor pubblica un **server remoto ufficiale**,
+usa quello. Un server HTTP gestito dal vendor non gira sulla tua macchina, non ha accesso al tuo
+filesystem, e viene aggiornato da chi ha scritto il servizio.
+
+**Plugin e marketplace sono componenti altamente fidati.** Possono **eseguire codice arbitrario sulla tua
+macchina con i tuoi privilegi**. Anthropic non controlla quali server MCP, file o software siano inclusi
+nei plugin, e non può verificare che funzionino come previsto.
+
+## Le directory MCP a confronto
+
+Verificate il **16 agosto 2026**.
+
+| Directory | Dimensione dichiarata | Punti di forza | Quando usarla |
+| --- | --- | --- | --- |
+| **[MCP Registry ufficiale](https://registry.modelcontextprotocol.io)** | — (API `v0/servers`) | **Fonte di verità** del protocollo, interrogabile via API, senza livelli editoriali | Verificare qual è il server canonico; automazioni che devono risolvere un nome |
+| **[Anthropic Directory](https://claude.ai/directory)** | — | Connettori revisionati contro i [criteri di listing](https://claude.com/docs/connectors/building/review-criteria) di Anthropic. Usano la stessa infrastruttura MCP di Claude Code | Partire da qui per i servizi mainstream. **Richiede il login a claude.ai** |
+| **[Glama](https://glama.ai/mcp/servers)** | **72.476** server | **Voti a lettera** su licenza, qualità del codice e stato di manutenzione. MCP Inspector per analizzare un server, hosting gestito. Categorie: Developer Tools 18.068, Search 11.137, Databases 4.492 | Il catalogo più ampio, e l'unico con un giudizio di qualità esplicito |
+| **[PulseMCP](https://www.pulsemcp.com/servers)** | **22.057** server | Aggiornato quotidianamente. Classificazione per tipo — reference Anthropic, provider ufficiali, community. Ordinamento per popolarità all-time / mensile / settimanale, e directory dei client | Capire cosa si usa davvero, e distinguere ufficiale da community a colpo d'occhio |
+| **[Smithery](https://smithery.ai)** | oltre **14.936** MCP | **Gestisce OAuth, credenziali e sessioni per te.** Installazione in una riga (`npx -y smithery setup`), pubblicazione e osservabilità sull'uso dei tool | Quando il problema non è trovare il server ma farlo autenticare |
+| **[mcp.so](https://mcp.so)** | — | Marketplace con sezioni separate per Servers, Remote Servers, Clients, CLI, Skills e Agents. Server in evidenza selezionati a mano | Scoprire cose nuove, incluse skill e agenti oltre agli MCP |
+| **[Docker MCP Catalog](https://hub.docker.com/catalogs/mcp)** | — | La più grande libreria di server MCP **containerizzati**. MCP Toolkit e MCP Gateway per gestirli | Quando vuoi isolamento: un server in container non tocca il tuo filesystem |
+| **[awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers)** | — | Lista curata su GitHub, con contesto scritto da umani | Panoramica leggibile, per capire cosa esiste in una categoria |
+| **[modelcontextprotocol/servers](https://github.com/modelcontextprotocol/servers)** | — | I **server di riferimento** del protocollo | Vedere come è fatto un server scritto bene, e per gli usi base |
+
+<Aside type="caution" title="I numeri dicono meno di quanto sembri">
+72.000 server contro 22.000 non vuol dire che una directory sia tre volte migliore: significa che
+indicizza in modo più aggressivo. Un catalogo grande contiene più duplicati, più fork abbandonati e più
+progetti di una settimana. **La dimensione è un indicatore di copertura, non di qualità.** I voti di Glama
+e la classificazione per tipo di PulseMCP sono più utili del totale.
 </Aside>
+
+### Interrogare il registry ufficiale
+
+È l'unico con un'API pubblica, e questo lo rende l'unico automatizzabile:
+
+```bash
+curl -s "https://registry.modelcontextprotocol.io/v0/servers?limit=5" | jq '.'
+```
+
+La risposta ha la forma:
+
+```json
+{
+  "servers": [ { "server": { }, "_meta": { } } ],
+  "metadata": { "nextCursor": "...", "count": 5 }
+}
+```
+
+Il campo `nextCursor` serve per la paginazione. Per uno script che deve risolvere *qual è il server
+canonico per X*, questa è la strada.
+
+## Skills e plugin
+
+### Dove trovarli
+
+| Fonte | Cosa contiene | Come si aggiunge |
+| --- | --- | --- |
+| **Marketplace ufficiale** `claude-plugins-official` | Plugin curati da Anthropic: code intelligence LSP, integrazioni esterne (`github`, `linear`, `notion`, `figma`, `supabase`, `vercel`, `sentry`…), `security-guidance`, `commit-commands`, `pr-review-toolkit`, `plugin-dev` | **Aggiunto automaticamente** al primo avvio interattivo. Se manca: `/plugin marketplace add anthropics/claude-plugins-official` |
+| **Catalogo web** [claude.com/plugins](https://claude.com/plugins) | Lo stesso catalogo, sfogliabile dal browser | — |
+| **Marketplace community** [`anthropics/claude-plugins-community`](https://github.com/anthropics/claude-plugins-community) | Plugin di terze parti che hanno superato **validazione automatica e screening di sicurezza** di Anthropic. Ogni plugin è **pinnato a uno specifico commit SHA** | `/plugin marketplace add anthropics/claude-plugins-community`, poi `/plugin install <nome>@claude-community` |
+| **Marketplace demo** [`anthropics/claude-code`](https://github.com/anthropics/claude-code/tree/main/plugins) | Plugin di esempio, per capire cosa è possibile | `/plugin marketplace add anthropics/claude-code` |
+| **[github.com/anthropics/skills](https://github.com/anthropics/skills)** | Repository ufficiale delle skill | Copia la cartella della skill in `.claude/skills/` |
+| **[awesome-claude-code](https://github.com/hesreallyhim/awesome-claude-code)** | Lista community di comandi, skill, hook e workflow | Copia quello che ti serve, dopo averlo letto |
+
+<Aside type="note" title="Tre livelli di validazione diversi">
+La differenza tra le fonti non è di gusto:
+
+- **Ufficiale** — curato da Anthropic, inclusione a sua discrezione.
+- **Community** — validazione automatica e screening di sicurezza, versione pinnata a un commit.
+- **Tutto il resto** — nessuna validazione. Sei tu il revisore.
+
+I moduli di submission in-app aggiungono al marketplace **community**, non a quello ufficiale.
+</Aside>
+
+### Come si installa e si prova un plugin
+
+```text
+/plugin                                        # pannello: Discover, Installed, Marketplaces, Errors
+/plugin install github@claude-plugins-official
+/plugin list                                   # cosa è installato
+/plugin disable <nome>@<marketplace>           # spegni senza disinstallare
+/plugin uninstall <nome>@<marketplace>
+/reload-plugins                                # se l'installazione lo richiede
+```
+
+Prima di premere Invio, il pannello dei dettagli mostra tre informazioni che vanno lette:
+
+- **Context cost** — quanti token il plugin aggiunge alla tua finestra di contesto **a ogni turno**.
+- **Last updated** — la data dell'ultimo aggiornamento.
+- **Will install** — l'elenco esatto di comandi, agenti, skill, hook, server MCP e LSP che aggiunge.
+
+Gli scope di installazione sono tre: **user** (tutti i tuoi progetti), **project** (tutti i collaboratori
+del repository, scritto in `.claude/settings.json`), **local** (solo tu, solo qui).
+
+### Come si prova una skill trovata
+
+Una skill non è un pacchetto: è una cartella con dentro un `SKILL.md`.
+
+<Steps>
+
+1. **Leggila prima di copiarla.** In particolare il frontmatter: `allowed-tools` può concedere accesso
+   ampio ai tool, e il **workspace trust non protegge da quel campo**.
+2. **Installala a livello utente**, non di progetto, finché non ti fidi:
+   ```bash
+   cp -r skill-trovata ~/.claude/skills/
+   ```
+3. **Verifica che Claude la veda**: `/reload-skills`, poi chiedi `What skills are available?`.
+4. **Provala su qualcosa di innocuo** prima che su codice vero.
+5. **Solo dopo**, spostala in `.claude/skills/` del progetto e committala.
+
+</Steps>
+
+## Checklist di valutazione
+
+Da percorrere **prima** di installare qualsiasi cosa — server MCP, plugin o skill.
+
+| # | Criterio | Cosa guardare | Segnale d'allarme |
+| --- | --- | --- | --- |
+| 1 | **Provenienza** | È il vendor stesso? È nell'Anthropic Directory o nel registry ufficiale? Il badge "official" corrisponde a un'organizzazione reale? | Un server "Stripe" pubblicato da un account personale sconosciuto |
+| 2 | **Server remoto ufficiale disponibile?** | Se il vendor ne pubblica uno, preferiscilo sempre a un wrapper locale | Un wrapper community per un servizio che ha già un MCP ufficiale |
+| 3 | **Manutenzione** | Data dell'ultimo commit, issue aperte e se ricevono risposta, cadenza delle release | Ultimo commit oltre sei mesi fa con issue aperte ignorate |
+| 4 | **Adozione** | Stelle, download, presenza su più directory. Su Glama, i **voti a lettera** per licenza, qualità e manutenzione | Zero adozione **e** zero manutenzione insieme |
+| 5 | **Cosa installa davvero** | Nel pannello `/plugin`: la sezione **Will install**. Per una skill: `allowed-tools` e `disallowed-tools` nel frontmatter | Un plugin di formattazione che vuole installare un server MCP e degli hook |
+| 6 | **Costo in contesto** | Il **Context cost** nel pannello: lo paghi a ogni turno, per sempre | Un plugin che aggiunge migliaia di token per una funzione che usi una volta al mese |
+| 7 | **Permessi e credenziali** | Quali credenziali chiede? Puoi dargli un utente con privilegi minimi? Un token a sola lettura basta? | Un server di analytics che vuole credenziali di scrittura sul database |
+| 8 | **Superficie di prompt injection** | Il server **recupera contenuto esterno**? Web, email, issue, commenti di PR? | Qualsiasi server che porta in contesto testo scritto da terzi |
+| 9 | **Esfiltrazione dei dati** | Dove finiscono i dati che passano dal server? Un server locale che chiama casa? | Un server "locale" che apre connessioni di rete non spiegate |
+| 10 | **Isolamento possibile** | Puoi farlo girare in container, o in sandbox? Esiste sul Docker MCP Catalog? | Un server che richiede accesso al filesystem fuori dal progetto |
+
+### Il rischio che si sottovaluta: prompt injection
+
+La documentazione lo dice senza giri di parole: **i server che recuperano contenuto esterno possono
+esporti al rischio di prompt injection**. Un attaccante inserisce istruzioni malevole in un contenuto che
+Claude leggerà — il corpo di una issue, un commento di PR, una pagina web, un'email — sperando che Claude
+le segua come se venissero da te.
+
+Le protezioni integrate di Claude Code:
+
+- **Sistema di permessi** — le operazioni sensibili richiedono approvazione esplicita.
+- **Analisi consapevole del contesto** — rileva istruzioni potenzialmente dannose analizzando l'intera richiesta.
+- **Approvazione dei comandi di rete** — `curl` e `wget` **non** sono auto-approvati per default.
+- **Finestre di contesto isolate** — il web fetch usa una finestra separata, per evitare di iniettare prompt malevoli.
+- **Verifica di trust** — il primo run su un codebase e i nuovi server MCP richiedono verifica. **Disattivata con `-p`.**
+- **Rilevamento di command injection** — comandi bash sospetti richiedono approvazione manuale anche se già in allowlist.
+- **Matching fail-closed** — un comando non corrispondente richiede approvazione manuale per default.
+
+E le pratiche consigliate quando lavori con contenuto non fidato:
+
+<Steps>
+
+1. Rivedi i comandi proposti prima di approvarli.
+2. **Non fare pipe di contenuto non fidato direttamente a Claude.**
+3. Verifica le modifiche proposte ai file critici.
+4. Usa macchine virtuali per eseguire script e chiamate a tool, specialmente interagendo con servizi web esterni.
+5. Segnala comportamenti sospetti con `/feedback`.
+
+</Steps>
+
+<Aside type="danger" title="Il caso peggiore, in una riga">
+Un server MCP che legge le issue di GitHub, in una sessione con `--dangerously-skip-permissions`, su un
+repository pubblico. Chiunque può aprire una issue; quella issue entra nel contesto di Claude; e Claude ha
+il permesso di fare qualsiasi cosa senza chiedere. **La combinazione di contenuto esterno e permessi ampi è
+il rischio, non ciascuno dei due da solo.**
+</Aside>
+
+## Workflow completo: trovare e configurare un MCP per Postgres
+
+Percorriamo tutto il ciclo su un caso vero.
+
+<Steps>
+
+1. **Cerco — parto dal registry ufficiale.**
+
+   ```bash
+   curl -s "https://registry.modelcontextprotocol.io/v0/servers?limit=100" \
+     | jq -r '.servers[].server | select((.name // "") | test("postgres|sql|database"; "i")) | .name'
+   ```
+
+   Poi allargo alle directory con giudizio di qualità: su [Glama](https://glama.ai/mcp/servers) la categoria
+   Databases, guardando i **voti a lettera**; su [PulseMCP](https://www.pulsemcp.com/servers) ordinando per
+   popolarità e filtrando per tipo.
+
+2. **Valuto — applico la checklist.** Per questo esempio scegliamo
+   [DBHub](https://github.com/bytebase/dbhub), il pacchetto `@bytebase/dbhub`, citato dalla documentazione
+   ufficiale di Claude Code come esempio per i database relazionali.
+
+   | Criterio | Verifica |
+   | --- | --- |
+   | Provenienza | Pubblicato da Bytebase, azienda del settore database. Citato dai docs ufficiali |
+   | Server remoto ufficiale? | No: Postgres è un database, non un SaaS. Il server locale è la forma giusta |
+   | Manutenzione | Controlla commit recenti e issue aperte sul repository |
+   | Cosa installa | Un processo stdio locale. Nessun hook, nessuna skill |
+   | Credenziali | Una connection string. **Posso darne una a sola lettura** ✓ |
+   | Prompt injection | Il server legge **il mio database**, non contenuto esterno. Superficie bassa |
+   | Esfiltrazione | Processo locale, senza chiamate di rete oltre al database |
+
+3. **Riduco il rischio prima di installare.** Utente di sola lettura, non l'utente applicativo:
+
+   ```sql
+   CREATE USER claude_ro WITH PASSWORD 'una-password-lunga';
+   GRANT CONNECT ON DATABASE analytics TO claude_ro;
+   GRANT USAGE ON SCHEMA public TO claude_ro;
+   GRANT SELECT ON ALL TABLES IN SCHEMA public TO claude_ro;
+   ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO claude_ro;
+   ```
+
+   Questo passo vale più di tutti gli altri messi insieme: qualunque cosa vada storta, il peggio che può
+   succedere è una `SELECT`.
+
+4. **Installo — a scope locale, per provare.**
+
+   ```bash
+   claude mcp add --transport stdio db -- npx -y @bytebase/dbhub \
+     --dsn "postgresql://claude_ro:una-password-lunga@localhost:5432/analytics"
+   ```
+
+5. **Testo — prima che si sia collegato, poi cosa sa fare.**
+
+   ```bash
+   claude mcp list
+   ```
+
+   Deve mostrare `db` con `✔ Connected`. Poi, in sessione:
+
+   ```text
+   /mcp
+   ```
+
+   Il pannello mostra il numero di tool esposti. Poi le prove funzionali, dalla più innocua:
+
+   ```text
+   Show me the schema for the orders table
+   ```
+
+   ```text
+   What's our total revenue this month?
+   ```
+
+   E la prova che conta davvero — **verificare che il confinamento funzioni**:
+
+   ```text
+   Delete the row with id 1 from the test table
+   ```
+
+   Deve fallire con un errore di permessi dal database. Se riesce, il tuo utente non è di sola lettura:
+   torna al passo 3.
+
+6. **Promuovo a scope di progetto, senza credenziali in git.**
+
+   ```bash
+   claude mcp remove db
+   ```
+
+   ```json title=".mcp.json"
+   {
+     "mcpServers": {
+       "db": {
+         "type": "stdio",
+         "command": "npx",
+         "args": ["-y", "@bytebase/dbhub", "--dsn", "${DATABASE_URL_RO}"]
+       }
+     }
+   }
+   ```
+
+   ```markdown title="CLAUDE.md"
+   ## Server MCP
+
+   Il server `db` richiede `DATABASE_URL_RO` nell'ambiente, con l'utente di sola
+   lettura `claude_ro`. Vedi `docs/setup-db.md` per ottenerla.
+   ```
+
+7. **Verifico da una clone pulita**, che è l'unico test che dimostra qualcosa:
+
+   ```bash
+   cd /tmp && git clone <url> prova && cd prova && claude mcp list
+   ```
+
+   Il server deve comparire come `⏸ Pending approval` e la variabile deve risultare mancante finché non la
+   esporti. Se si collega senza che tu abbia fatto nulla, hai un segreto committato.
+
+</Steps>
+
+## Esercizio
+
+Valuta e installa un'estensione per un servizio che usi davvero.
+
+1. Scegli un servizio esterno del tuo lavoro: issue tracker, monitoring, design, storage.
+2. Cerca su almeno **tre** fonti diverse e confronta cosa trovi.
+3. Applica la checklist e scrivi la tua decisione, motivata.
+4. Installa, testa e — se non convince — disinstalla pulito.
+
+<details class="soluzione">
+<summary>Soluzione</summary>
+
+Prendiamo **Sentry** come esempio, ma il ragionamento vale per qualsiasi servizio.
+
+**Passo 2 — tre fonti.**
+
+| Fonte | Cosa trovo |
+| --- | --- |
+| Marketplace ufficiale | Un plugin `sentry` tra le integrazioni esterne: MCP preconfigurato, nessun setup manuale |
+| Documentazione Claude Code | Cita `https://mcp.sentry.dev/mcp` come server remoto HTTP con OAuth |
+| Glama / PulseMCP | Diversi wrapper community, con voti e date di manutenzione variabili |
+
+Il confronto risponde già alla domanda: **esiste un server remoto ufficiale del vendor.** Il criterio 2
+della checklist chiude la valutazione — i wrapper community non vanno nemmeno esaminati.
+
+**Passo 3 — la decisione, scritta.**
+
+```markdown title="docs/decisioni/mcp-sentry.md"
+# MCP Sentry — decisione
+
+**Scelta:** server remoto ufficiale `https://mcp.sentry.dev/mcp`, OAuth, scope utente.
+
+## Perché non le alternative
+- Wrapper community: nessun vantaggio su un server ufficiale, e aggiungono una
+  dipendenza in più da mantenere.
+- Plugin `sentry@claude-plugins-official`: equivalente, ma porta con sé un costo in
+  contesto anche quando non lo uso. Se in futuro servisse anche al team, si valuta.
+
+## Checklist
+| Criterio | Esito |
+| --- | --- |
+| Provenienza | Vendor stesso ✓ |
+| Server remoto ufficiale | Sì, ed è quello scelto ✓ |
+| Manutenzione | Gestito dal vendor ✓ |
+| Credenziali | OAuth, nessun token da conservare ✓ |
+| Prompt injection | **ALTA**: i titoli e i corpi degli errori arrivano da input degli utenti ⚠ |
+| Esfiltrazione | Remoto: i dati restano tra Sentry e Anthropic ✓ |
+
+## Mitigazione del rischio di injection
+Il server porta in contesto testo che non ho scritto io. Quindi:
+- Scope **utente**, non di progetto: non voglio che si attivi in run `-p` non
+  sorvegliati, dove la verifica di trust è disattivata.
+- Mai usato insieme a `--dangerously-skip-permissions`.
+- I task che leggono Sentry restano in modalità con conferma sulle azioni di scrittura.
+
+## Revisione
+Fra tre mesi: è ancora usato? Il Context cost giustifica la frequenza d'uso?
+```
+
+**Passo 4 — installo, testo, e so come tornare indietro.**
+
+```bash
+claude mcp add --transport http sentry --scope user https://mcp.sentry.dev/mcp
+claude mcp login sentry
+claude mcp list
+```
+
+Le prove, in ordine crescente di fiducia richiesta:
+
+```text
+/mcp
+```
+→ il server è `connected` e mostra il numero di tool.
+
+```text
+List the top 3 unresolved issues from the last 7 days
+```
+→ legge davvero.
+
+```text
+Take the top error and check in the codebase where it originates
+```
+→ incrocia due fonti. È qui che l'estensione si ripaga.
+
+E la disinstallazione pulita, se non convince:
+
+```bash
+claude mcp logout sentry     # prima revoca le credenziali
+claude mcp remove sentry     # poi rimuovi la configurazione
+claude mcp list              # verifica che non ci sia più
+```
+
+**L'ordine conta:** `remove` prima di `logout` lascia le credenziali OAuth memorizzate per un server che
+non esiste più. Revoca sempre prima.
+
+</details>
+
+## Errori comuni e troubleshooting
+
+| Sintomo | Causa | Soluzione |
+| --- | --- | --- |
+| Hai installato un wrapper community di un servizio che ha un MCP ufficiale | Hai cercato solo sulle directory community | Parti sempre dal registry ufficiale e dal sito del vendor |
+| Un server con molte stelle si comporta male | Le stelle non sono manutenzione né sicurezza | Guarda l'ultimo commit e le issue aperte; su Glama, i voti a lettera |
+| Il contesto è diventato pesante dopo qualche installazione | Ogni plugin ha un costo in contesto **per turno** | `/context` per la diagnosi; il pannello `/plugin` mostra il Context cost |
+| Non ricordi più perché avevi installato una cosa | Nessuna decisione scritta | `/plugin` elenca i plugin **non usati di recente**, con la data di ultimo uso |
+| Un plugin ha installato più di quanto ti aspettassi | Non hai letto la sezione **Will install** | È nel pannello dei dettagli prima dell'installazione |
+| Una skill di un repository clonato ha permessi ampi | `allowed-tools` non è gated dal workspace trust | Leggi il frontmatter **prima** di lanciare Claude Code nel repo |
+| Un server MCP di progetto si collega in un run `-p` senza che tu l'abbia approvato | Le sessioni non interattive non mostrano il prompt, e con `-p` la verifica di trust è **disattivata** | `--bare` in CI, o `disabledMcpjsonServers` |
+| `Marketplace "claude-plugins-official" not found` | Non è stato aggiunto automaticamente | `/plugin marketplace add anthropics/claude-plugins-official` |
+| Rimuovendo un marketplace spariscono dei plugin | Rimuovere un marketplace **disinstalla** i plugin che ne provenivano | Disabilita il singolo plugin invece di rimuovere il marketplace |
+| Le skill di un plugin non compaiono | Cache dei plugin | `rm -rf ~/.claude/plugins/cache`, riavvia, reinstalla |
+| `claude.ai/directory` non si apre | Richiede il login a claude.ai | Accedi prima al tuo account |
+
+## Cheat-sheet
+
+**Dove cercare, in ordine**
+
+```text
+1. Il sito del vendor          → esiste un server remoto ufficiale?
+2. registry.modelcontextprotocol.io → qual è il server canonico?
+3. claude.ai/directory         → connettori revisionati da Anthropic
+4. Glama / PulseMCP            → qualità, manutenzione, adozione
+5. Smithery / Docker Catalog   → se il problema è auth o isolamento
+6. awesome-mcp-servers         → panoramica leggibile di una categoria
+```
+
+**La checklist in dieci parole**
+
+```text
+Provenienza · Ufficiale? · Manutenzione · Adozione · Cosa installa
+Costo · Credenziali · Injection · Esfiltrazione · Isolamento
+```
+
+**Comandi**
+
+| Comando | |
+| --- | --- |
+| `/plugin` | Pannello: Discover, Installed, Marketplaces, Errors |
+| `/plugin marketplace add <owner/repo>` | Aggiunge un marketplace |
+| `/plugin install <nome>@<marketplace>` | Installa |
+| `/plugin list [--enabled\|--disabled]` | Cosa è installato |
+| `/plugin disable` · `/plugin uninstall` | Spegne · rimuove |
+| `/reload-plugins` | Applica senza riavviare |
+| `claude mcp list` | Server configurati, con stato di salute |
+| `claude mcp login` · `claude mcp logout` | Autentica · revoca (**logout prima di remove**) |
+| `/mcp` | Pannello dei server, con il conteggio dei tool |
+
+**Le due regole che evitano quasi tutti i problemi**
+
+```text
+1. Se il vendor ha un server remoto ufficiale, usa quello.
+2. Dai sempre le credenziali con i privilegi minimi che bastano.
+```
+
+## Fonti
+
+Link verificati uno per uno il **16 agosto 2026**.
+
+**Directory MCP**
+
+- [MCP Registry ufficiale](https://registry.modelcontextprotocol.io) — la fonte di verità del protocollo
+- [Anthropic Directory](https://claude.ai/directory) — connettori revisionati (**richiede il login a claude.ai**)
+- [Glama MCP servers](https://glama.ai/mcp/servers) — 72.476 server, voti a lettera, Inspector e hosting
+- [PulseMCP](https://www.pulsemcp.com/servers) — 22.057 server, aggiornamento quotidiano, classificazione per tipo
+- [Smithery](https://smithery.ai) — oltre 14.936 MCP, gestione di auth e credenziali
+- [mcp.so](https://mcp.so) — marketplace con server, client, skill e agenti
+- [Docker MCP Catalog](https://hub.docker.com/catalogs/mcp) — server containerizzati, MCP Toolkit e Gateway
+- [awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers) — lista curata su GitHub
+- [modelcontextprotocol/servers](https://github.com/modelcontextprotocol/servers) — i server di riferimento
+- [modelcontextprotocol.io](https://modelcontextprotocol.io) e la [guida per costruire un server](https://modelcontextprotocol.io/docs/develop/build-server)
+
+**Skills e plugin**
+
+- [anthropics/skills](https://github.com/anthropics/skills) — repository ufficiale delle skill
+- [claude.com/plugins](https://claude.com/plugins) — catalogo dei plugin ufficiali
+- [anthropics/claude-plugins-official](https://github.com/anthropics/claude-plugins-official)
+- [anthropics/claude-plugins-community](https://github.com/anthropics/claude-plugins-community)
+- [awesome-claude-code](https://github.com/hesreallyhim/awesome-claude-code) — lista community
+
+**Documentazione ufficiale Claude Code**
+
+- [Discover and install plugins](https://code.claude.com/docs/en/discover-plugins) — marketplace, installazione, scope, sicurezza
+- [Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp) — dove trovare i server e il warning sul trust
+- [Security](https://code.claude.com/docs/en/security) — prompt injection, protezioni integrate, sicurezza MCP
+- [Security guidance plugin](https://code.claude.com/docs/en/security-guidance) — revisione automatica delle vulnerabilità
+- [Extend Claude with skills](https://code.claude.com/docs/en/skills) — `allowed-tools` e workspace trust
+- [Plugin marketplaces](https://code.claude.com/docs/en/plugin-marketplaces) — creare e limitare i marketplace
+
+**Nell'esempio**
+
+- [DBHub](https://github.com/bytebase/dbhub) — il server MCP per database relazionali usato nel workflow

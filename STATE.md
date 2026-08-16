@@ -45,7 +45,7 @@ Ultimo aggiornamento: 2026-08-16
 
 ## Sezione 4 — Livello professionale
 
-- [ ] 16 · Ecosistema e fonti — `professionale/ecosistema`
+- [x] 16 · Ecosistema e fonti — `professionale/ecosistema`
 - [ ] 17 · Stack, framework e architetture — `professionale/stack-architetture`
 - [ ] 18 · Boilerplate agentici riusabili — `professionale/boilerplate`
 - [ ] 19 · Workflow professionali — `professionale/workflow`
@@ -63,5 +63,5 @@ Ultimo aggiornamento: 2026-08-16
 - [x] `README.md` con dev locale e deploy
 - [ ] `npm run build` verde + link interni validati
 - [ ] Pagefind verificato su build di produzione
-- [ ] Ri-verifica dei link esterni del modulo 16
+- [x] Ri-verifica dei link esterni del modulo 16 (2026-08-16)
 - [ ] Deploy produzione + dominio custom + checklist DNS
