@@ -14,13 +14,13 @@ Ultimo aggiornamento: 2026-08-16
 - [x] `astro.config.mjs` con sidebar a 4 sezioni, SEO/OG, footer override
 - [x] `src/components/Footer.astro` con disclaimer di non affiliazione
 - [x] `src/styles/custom.css`
-- [ ] `scripts/zip-boilerplates.mjs` + hook `prebuild`
-- [ ] Repo git + push su GitHub (`JoeBosi/claude-tutorial`)
-- [ ] Progetto Vercel `claude-tutorial` collegato + primo deploy
+- [x] `scripts/zip-boilerplates.mjs` + hook `prebuild`
+- [x] Repo git + push su GitHub (`JoeBosi/claude-tutorial`) — repo **privato**
+- [x] Progetto Vercel `claude-tutorial` collegato + primo deploy → https://claude-tutorial-ten.vercel.app
 
 ## Sezione 1 — Fondamenta
 
-- [ ] 00 · Setup e installazione — `fondamenta/setup`
+- [x] 00 · Setup e installazione — `fondamenta/setup`
 - [ ] 01 · Claude negli IDE — `fondamenta/ide`
 - [ ] 02 · Anatomia dei file — `fondamenta/anatomia-file`
 - [ ] 03 · Agentic Coding — `fondamenta/agentic-coding`
@@ -58,9 +58,9 @@ Ultimo aggiornamento: 2026-08-16
 
 ## Qualità finale
 
-- [ ] Homepage (pitch, indice, prerequisiti, badge data verifica)
+- [x] Homepage (pitch, indice, prerequisiti, badge data verifica)
 - [ ] SEO per pagina + sitemap + Open Graph
-- [ ] `README.md` con dev locale e deploy
+- [x] `README.md` con dev locale e deploy
 - [ ] `npm run build` verde + link interni validati
 - [ ] Pagefind verificato su build di produzione
 - [ ] Ri-verifica dei link esterni del modulo 16
