@@ -22,7 +22,7 @@ Ultimo aggiornamento: 2026-08-16
 
 - [x] 00 · Setup e installazione — `fondamenta/setup`
 - [x] 01 · Claude negli IDE — `fondamenta/ide`
-- [ ] 02 · Anatomia dei file — `fondamenta/anatomia-file`
+- [x] 02 · Anatomia dei file — `fondamenta/anatomia-file`
 - [ ] 03 · Agentic Coding — `fondamenta/agentic-coding`
 - [ ] 04 · Memory & Context Engineering — `fondamenta/memoria-e-contesto`
 - [ ] 05 · Il file CLAUDE.md — `fondamenta/claude-md`
