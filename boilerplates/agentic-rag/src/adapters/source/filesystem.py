@@ -1,8 +1,8 @@
 """Adattatore DocumentSource che legge dal filesystem locale."""
 
 import pathlib
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 from ...domain.models import Document
 

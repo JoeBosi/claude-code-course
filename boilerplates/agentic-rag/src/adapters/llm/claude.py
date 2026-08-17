@@ -4,8 +4,8 @@ Qui dentro le dipendenze esterne sono benvenute: è il punto del progetto in cui
 si parla col mondo. Il dominio non sa che questo file esiste.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 from ...domain.models import Answer, Chunk, Citation, Query
 

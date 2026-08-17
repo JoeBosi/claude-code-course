@@ -20,6 +20,12 @@ niente `anthropic`, niente `fastapi`. Solo la standard library e i modelli del d
 È verificata da `tests/domain/test_no_external_imports.py`. Se quel test fallisce, il
 problema è il design, non il test: **non aggiungere eccezioni alla lista consentita**.
 
+## Convenzione linguistica
+
+Codice, nomi e docstring di API pubbliche in **inglese**; commenti didattici, messaggi
+di errore rivolti all'utente e documentazione in **italiano**. È la convenzione di
+questo template: mantienila in ciò che aggiungi.
+
 ## Dove va cosa
 
 | Se stai scrivendo… | Va in |

@@ -1,7 +1,7 @@
 """Adattatore VectorStore su ChromaDB."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 from ...domain.models import Chunk, Query
 

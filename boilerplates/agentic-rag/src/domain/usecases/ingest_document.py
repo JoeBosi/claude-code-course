@@ -10,6 +10,12 @@ from ..ports import DocumentSource, VectorStore
 class IngestDocument:
     source: DocumentSource
     store: VectorStore
+    # chunk_size = quanti caratteri per pezzo ("chunk") di documento.
+    # overlap = di quanti caratteri due chunk consecutivi si SOVRAPPONGONO:
+    # senza sovrapposizione, una frase tagliata esattamente sul confine tra
+    # due chunk non sarebbe intera in nessuno dei due, e la ricerca potrebbe
+    # non trovarla. 150 caratteri di margine costano poco spazio in più e
+    # garantiscono che ogni frase viva intera in almeno un chunk.
     chunk_size: int = 1200
     overlap: int = 150
 
@@ -21,6 +27,9 @@ class IngestDocument:
             chunks.extend(self._split(doc.uri, doc.text))
 
         if chunks:
+            # upsert = UPdate + inSERT: inserisci il chunk se è nuovo,
+            # aggiornalo se esiste già. Re-indicizzare lo stesso documento
+            # due volte non crea doppioni.
             self.store.upsert(chunks)
         return len(chunks)
 

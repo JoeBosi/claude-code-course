@@ -6,11 +6,19 @@ set -euo pipefail
 DATA="${1:-$(date +%F)}"
 SRC="data/raw/${DATA}.json"
 DEST="data/out/${DATA}.json"
+mkdir -p "$(dirname "$DEST")"   # ogni stadio è eseguibile da solo, anche senza run.sh
 CLAUDE="${CLAUDE_BIN:-$(command -v claude || true)}"
 
 [ -f "$SRC" ]     || { echo "manca $SRC: esegui prima 01-fetch.sh" >&2; exit 1; }
 [ -n "$CLAUDE" ]  || { echo "claude non trovato: imposta CLAUDE_BIN in .env" >&2; exit 2; }
 
+# IL PUNTO CONCETTUALE CHIAVE di questo stadio, da leggere due volte:
+#   - il file raw NON è un argomento: entra da stdin (l'ultimo "< $SRC"),
+#     e Claude lo riceve come contenuto su cui lavorare;
+#   - "/analizza" È il prompt: invoca la skill versionata in
+#     .claude/skills/analizza/SKILL.md, dove vivono le vere istruzioni.
+# Dati da stdin + istruzioni dalla skill = niente prompt inline negli script.
+#
 # --bare      → risultato identico su ogni macchina
 # --json-schema → l'output è dato, non prosa
 # --max-turns → nessuno sta guardando

@@ -7,9 +7,15 @@ Aggiungere una porta è una decisione architetturale: prima di farlo, verifica c
 caso non sia coperto da un adattatore nuovo di una porta esistente.
 """
 
-from typing import Protocol, Sequence
+from collections.abc import Sequence
+from typing import Protocol
 
 from .models import Answer, Chunk, Document, Query
+
+# Un Protocol è un'interfaccia "strutturale": qualunque classe che abbia questi
+# metodi con queste firme È un'implementazione valida, senza doverlo dichiarare
+# con l'ereditarietà. Il corpo dei metodi è "..." (Ellipsis) di proposito:
+# qui si dichiara solo la forma, il come vive negli adattatori.
 
 
 class LLMGateway(Protocol):

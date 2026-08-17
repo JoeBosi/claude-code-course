@@ -6,6 +6,11 @@ Solo standard library. Nessun import da fuori: la regola è verificata da
 
 from dataclasses import dataclass, field
 
+# Tutti i modelli sono @dataclass(frozen=True): "frozen" = immutabile, una
+# volta creato l'oggetto i suoi campi non si possono più cambiare. Un dato che
+# non può cambiare sotto i piedi è un dato di cui ci si può fidare ovunque
+# venga passato — e Python solleva un errore a chi ci prova.
+
 
 @dataclass(frozen=True)
 class Document:
