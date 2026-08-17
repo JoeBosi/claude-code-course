@@ -4,11 +4,21 @@ description: "Le directory di server MCP a confronto, dove trovare skills e plug
 ---
 
 import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
+import Zero from '@/components/Zero.astro';
 
 <div class="meta-modulo">
 	<span><strong>Tempo stimato:</strong> 50 minuti</span>
-	<span><strong>Prerequisiti:</strong> i moduli <a href="/personalizzazione/mcp/">9</a> e <a href="/personalizzazione/skills/">8</a>. Per l'esempio finale serve un Postgres raggiungibile.</span>
+	<span><strong>Prerequisiti:</strong> i moduli <a href="/personalizzazione/mcp/">9</a> e <a href="/personalizzazione/skills/">8</a>. Il workflow finale usa un database Postgres: se non ne hai uno, seguilo in lettura — il metodo è identico per qualsiasi servizio.</span>
 </div>
+
+Ripasso in tre righe delle tre cose che questo modulo insegna a *trovare*: le
+[skill](/glossario/#skill) sono istruzioni confezionate ([modulo 8](/personalizzazione/skills/)), i
+server [MCP](/glossario/#mcp) collegano Claude a servizi esterni
+([modulo 9](/personalizzazione/mcp/)), i [plugin](/glossario/#plugin) impacchettano skill + agenti +
+server in un'unica installazione. Là hai imparato a costruirli; qui impari il mestiere complementare:
+**trovarli fatti da altri, e decidere di quali fidarti**. Perché installare l'estensione sbagliata non
+è come installare un'app scadente: è dare a qualcun altro le mani sul tuo progetto — e questo modulo è
+la cassetta degli attrezzi per non farlo mai alla cieca.
 
 ## Obiettivi
 
@@ -20,18 +30,19 @@ import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
 
 ## Concetti chiave
 
-**Una sola fonte di verità, molte vetrine.** Il **MCP Registry ufficiale**
-([registry.modelcontextprotocol.io](https://registry.modelcontextprotocol.io)) è il registro canonico del
-protocollo, con un'API pubblica. Tutte le altre directory — Glama, mcp.so, Smithery, PulseMCP, Docker —
+**Una sola fonte di verità, molte vetrine.** "Fonte di verità" (*source of truth*) è il posto che fa
+fede quando le versioni della stessa informazione non coincidono. Per i server MCP quel posto è il
+**Registry ufficiale** ([registry.modelcontextprotocol.io](https://registry.modelcontextprotocol.io)):
+il registro canonico del protocollo, con un'API pubblica. Tutte le altre directory — Glama, mcp.so, Smithery, PulseMCP, Docker —
 sono cataloghi che indicizzano, arricchiscono e a volte ospitano. Sono utilissime per **scoprire**, ma
 quando devi decidere *qual è davvero il server ufficiale di un vendor*, la risposta sta nel registry o sul
 sito del vendor.
 
 **Nessuno fa un audit di sicurezza dei server MCP.** La documentazione è esplicita: Anthropic revisiona i
 connettori contro i propri criteri di listing prima di aggiungerli all'Anthropic Directory, ma **non
-esegue audit di sicurezza né gestisce alcun server MCP**. Il numero di stelle su GitHub non è una
-certificazione. Il badge "official" su una directory dice che il publisher è verificato, non che il codice
-sia sicuro.
+esegue audit di sicurezza né gestisce alcun server MCP**. Le "stelle" su GitHub — il pollice in su
+con cui gli utenti segnano i progetti che apprezzano — misurano la popolarità, non la sicurezza. E il
+badge "official" su una directory dice che chi pubblica è verificato, non che il codice sia sicuro.
 
 **La regola che risolve la maggior parte dei casi:** se il vendor pubblica un **server remoto ufficiale**,
 usa quello. Un server HTTP gestito dal vendor non gira sulla tua macchina, non ha accesso al tuo
@@ -158,7 +169,7 @@ Da percorrere **prima** di installare qualsiasi cosa — server MCP, plugin o sk
 | 5 | **Cosa installa davvero** | Nel pannello `/plugin`: la sezione **Will install**. Per una skill: `allowed-tools` e `disallowed-tools` nel frontmatter | Un plugin di formattazione che vuole installare un server MCP e degli hook |
 | 6 | **Costo in contesto** | Il **Context cost** nel pannello: lo paghi a ogni turno, per sempre | Un plugin che aggiunge migliaia di token per una funzione che usi una volta al mese |
 | 7 | **Permessi e credenziali** | Quali credenziali chiede? Puoi dargli un utente con privilegi minimi? Un token a sola lettura basta? | Un server di analytics che vuole credenziali di scrittura sul database |
-| 8 | **Superficie di prompt injection** | Il server **recupera contenuto esterno**? Web, email, issue, commenti di PR? | Qualsiasi server che porta in contesto testo scritto da terzi |
+| 8 | **Superficie di [prompt injection](/glossario/#prompt-injection)** — l'attacco spiegato per bene due sezioni più sotto | Il server **recupera contenuto esterno**? Web, email, issue, commenti di PR? | Qualsiasi server che porta in contesto testo scritto da terzi |
 | 9 | **Esfiltrazione dei dati** | Dove finiscono i dati che passano dal server? Un server locale che chiama casa? | Un server "locale" che apre connessioni di rete non spiegate |
 | 10 | **Isolamento possibile** | Puoi farlo girare in container, o in sandbox? Esiste sul Docker MCP Catalog? | Un server che richiede accesso al filesystem fuori dal progetto |
 
@@ -207,8 +218,14 @@ Percorriamo tutto il ciclo su un caso vero.
 1. **Cerco — parto dal registry ufficiale.**
 
    ```bash
+   # scarica i primi 100 server dal registry (curl -s = senza barre di progresso)
    curl -s "https://registry.modelcontextprotocol.io/v0/servers?limit=100" \
-     | jq -r '.servers[].server | select((.name // "") | test("postgres|sql|database"; "i")) | .name'
+     | jq -r '.servers[].server
+              | select((.name // "") | test("postgres|sql|database"; "i"))
+              | .name'
+   # il filtro jq, pezzo per pezzo: per ogni server, tieni solo quelli il cui
+   # nome contiene "postgres", "sql" o "database" — test() confronta con una
+   # regex, la "i" finale = ignora maiuscole/minuscole — e stampane il nome
    ```
 
    Poi allargo alle directory con giudizio di qualità: su [Glama](https://glama.ai/mcp/servers) la categoria
@@ -229,7 +246,10 @@ Percorriamo tutto il ciclo su un caso vero.
    | Prompt injection | Il server legge **il mio database**, non contenuto esterno. Superficie bassa |
    | Esfiltrazione | Processo locale, senza chiamate di rete oltre al database |
 
-3. **Riduco il rischio prima di installare.** Utente di sola lettura, non l'utente applicativo:
+3. **Riduco il rischio prima di installare.** Un utente del database di **sola lettura**, non
+   l'utente applicativo — è lo stesso setup del [modulo 9](/personalizzazione/mcp/), dove ogni riga
+   SQL è commentata; il succo: crea l'utente `claude_ro` e dagli il permesso di *leggere* tutte le
+   tabelle, presenti e future, e nient'altro.
 
    ```sql
    CREATE USER claude_ro WITH PASSWORD 'una-password-lunga';
@@ -249,13 +269,22 @@ Percorriamo tutto il ciclo su un caso vero.
      --dsn "postgresql://claude_ro:una-password-lunga@localhost:5432/analytics"
    ```
 
-5. **Testo — prima che si sia collegato, poi cosa sa fare.**
+5. **Testo, in due tempi: prima la connessione, poi le capacità.**
 
    ```bash
    claude mcp list
    ```
 
-   Deve mostrare `db` con `✔ Connected`. Poi, in sessione:
+   Deve mostrare `db` con `✔ Connected`.
+
+   <Aside type="note" title="Tre 'schema' diversi, una parola sola">
+   In questo workflow la parola "schema" compare con tre significati: lo **schema JSON** (la forma di
+   un dato, modulo 13), lo **schema del database** (l'insieme delle sue tabelle — quello che chiederai
+   con *"show me the schema"*), e `SCHEMA public` nell'SQL sopra (lo "spazio dei nomi" di Postgres in
+   cui vivono le tabelle). Il contesto dice sempre quale dei tre è in gioco.
+   </Aside>
+
+   Poi, in sessione:
 
    ```text
    /mcp

@@ -12,7 +12,7 @@ import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
 
 ## Obiettivi
 
-- Usare il TDD come **meccanismo di verifica** per un agente, non come rituale.
+- Usare il TDD (*Test-Driven Development*, sviluppo guidato dai test) come **meccanismo di verifica** per un agente, non come rituale.
 - Comporre i quattro livelli di code review disponibili, sapendo quale usare quando.
 - Isolare sessioni parallele con i git worktree e capire cosa Claude Code blocca dentro un worktree.
 - Sapere quando un agent team batte i subagent, e quando è solo più costoso.
@@ -36,7 +36,14 @@ Confondere le due cose porta a usare un agent team dove bastava un worktree, pag
 lo ha chiamato. Un agent team costa molto e i membri si parlano tra loro. Se il lavoro è sequenziale o
 tocca gli stessi file, il parallelismo è solo overhead.
 
-## TDD assistito dall'AI
+## TDD (Test-Driven Development) assistito dall'AI
+
+L'idea del TDD, per chi non l'ha mai praticato, è controintuitiva ma semplice: **scrivi prima il test,
+poi il codice che lo fa passare**. È come scrivere il collaudo prima del pezzo: decidi *come
+verificherai* che la maniglia funzioni — si apre, si chiude, regge dieci chili — e solo dopo la
+costruisci. Finché il collaudo fallisce, il lavoro non è finito; quando passa, lo è per definizione.
+Con un agente questo ordine smette di essere una scelta di stile e diventa il meccanismo che chiude il
+ciclo del [modulo 3](/fondamenta/agentic-coding/): il test è la verifica che l'agente esegue da solo.
 
 ### Il ciclo
 
@@ -55,8 +62,18 @@ tocca gli stessi file, il parallelismo è solo overhead.
    for the right reason.
    ```
 
-   L'ultima frase è la parte che quasi tutti saltano. Un test che fallisce con `ModuleNotFoundError` non
-   sta verificando niente: fallisce perché il file non esiste, non perché il comportamento è sbagliato.
+   *(= "Scrivi dei test che falliscono per il flusso di reset password: un token valido resetta la
+   password e invalida il token; un token scaduto restituisce 410 senza cambiarla; il token di un
+   utente cancellato dà 404; riusare due volte un token valido: il secondo tentativo dà 410. Non
+   scrivere ancora l'implementazione. Esegui i test e mostrami che falliscono per la ragione
+   giusta.")* — attenzione alla parola **token**, che qui non c'entra con i
+   [token](/glossario/#token) del modello: è il codice usa-e-getta dentro il link "reimposta la
+   password" delle email. Stessa parola, terzo significato ancora nel passo 2 dell'esempio guidato più
+   sotto, dove indica i token di *autenticazione*. Il contesto disambigua, ma va notato.
+
+   L'ultima frase del prompt è la parte che quasi tutti saltano. Un test che fallisce con
+   `ModuleNotFoundError` non sta verificando niente: fallisce perché il file non esiste, non perché il
+   comportamento è sbagliato.
 
 2. **Leggi i test prima di far scrivere il codice.** È il vero momento di revisione: correggere un caso
    di test costa una riga, correggere l'implementazione costa una sessione.
@@ -131,7 +148,8 @@ Il comando che userai di più:
 
 Rivede i commit del branch avanti rispetto al suo upstream, più le modifiche non committate. Per rivedere
 altro, passa un bersaglio: un percorso, un numero di PR, un branch, o un intervallo come
-`main...my-feature`.
+`main...my-feature` — i tre puntini sono la notazione di git per "tutto ciò che il branch ha in più
+rispetto a `main`", la stessa vista nel [modulo 7](/personalizzazione/slash-commands/).
 
 I flag:
 
@@ -163,7 +181,9 @@ compare un avviso tipo `Reusing high effort, the level you typed last time`.
 
 ### Il pattern Writer/Reviewer
 
-Il pattern che rende la revisione davvero indipendente: due sessioni separate.
+Il pattern che rende la revisione davvero indipendente: due sessioni separate — una scrive (*Writer*),
+l'altra rivede (*Reviewer*). La tabella si legge **dall'alto in basso come una linea del tempo**: ogni
+riga è un momento, la cella piena dice chi agisce, la cella vuota chi sta fermo.
 
 | Sessione A — Writer | Sessione B — Reviewer |
 | --- | --- |
@@ -176,6 +196,12 @@ Un contesto fresco migliora la review perché **Claude non è di parte verso cod
 Lo stesso vale con i test: una sessione scrive i test, un'altra scrive il codice che li fa passare.
 
 ### Governare la review su PR
+
+Prima, il gergo delle review — due parole che vedrai in ogni commento generato. **Important** (🔴) è
+un rilievo bloccante: qualcosa che, se ignorato, rompe il comportamento o espone dati. **Nit** (da
+*nitpick*, "pignoleria") è l'opposto: un'osservazione minore — stile, nomi, un refactoring possibile —
+che non blocca niente. La battaglia di questa sezione è tutta qui: tenere gli Important veri e
+impedire ai nit di seppellirli.
 
 Il servizio gestito legge due file dal repository, con pesi diversi:
 
@@ -328,8 +354,10 @@ Tre cose, ed è un bene:
 
 ## Agent teams
 
-Coordinano **più istanze di Claude Code**. Una sessione fa da team lead, i compagni lavorano in modo
-indipendente, ciascuno con la sua finestra di contesto, e **si parlano direttamente tra loro**.
+Coordinano **più istanze di Claude Code**: una sessione fa da *team lead* (il caposquadra) e le altre
+sono i *teammate* — la documentazione li chiama così, qui li chiameremo **compagni**. Ogni compagno
+lavora in modo indipendente, con la sua finestra di contesto, e — la differenza vera con i subagent —
+**i compagni si parlano direttamente tra loro**.
 
 <Aside type="caution" title="Sperimentali e disattivati per default">
 Si abilitano con `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`, nell'ambiente o nei settings:
@@ -342,8 +370,8 @@ Si abilitano con `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`, nell'ambiente o nei s
 }
 ```
 
-**Attenzione a un effetto collaterale:** con i team attivi, un subagent a cui Claude dà un nome parte come
-**teammate**, non come subagent. Un flusso che aspetta il risultato di un subagent può bloccarsi, perché la
+**Attenzione a un effetto collaterale:** con i team attivi, un subagent a cui Claude dà un nome parte
+come **compagno di team**, non come subagent. Un flusso che aspetta il risultato di un subagent può bloccarsi, perché la
 notifica di idle di un teammate **non porta il suo output**. Se ti succede, riporta la variabile a `0`.
 </Aside>
 
@@ -371,8 +399,14 @@ each other to try to disprove each other's theories, like a scientific
 debate. Update the findings doc with whatever consensus emerges.
 ```
 
-Il meccanismo è **il dibattito**. Un'indagine sequenziale soffre di *anchoring*: esplorata una teoria,
-tutto il resto viene interpretato alla sua luce. Con investigatori indipendenti che cercano attivamente di
+*(= "Gli utenti segnalano che l'app esce dopo un messaggio invece di restare connessa. Lancia 5
+compagni per indagare ipotesi diverse. Falli parlare tra loro per provare a smontare le teorie degli
+altri, come in un dibattito scientifico. Aggiorna il documento dei rilievi con il consenso che
+emerge.")*
+
+Il meccanismo è **il dibattito**. Un'indagine sequenziale soffre di *anchoring* (in italiano
+"ancoraggio": la prima idea che ti formi fa da àncora, e trascina verso di sé tutto quello che
+osservi dopo): esplorata una teoria, tutto il resto viene interpretato alla sua luce. Con investigatori indipendenti che cercano attivamente di
 smentirsi, la teoria che sopravvive ha molte più probabilità di essere la causa vera.
 
 ### Dimensionare
@@ -439,12 +473,18 @@ Mettiamo insieme tutto su un caso realistico.
    Also look at how we send transactional email. Don't propose anything yet.
    ```
 
+   *(= "Leggi src/auth/ e capisci come vengono emessi e validati i token di autenticazione. Guarda
+   anche come mandiamo le email transazionali. Non proporre ancora niente.")*
+
 3. **Fatti fare il piano, e correggilo.**
 
    ```text
    I want to add a password reset flow. What files need to change?
    What are the failure modes? Create a plan.
    ```
+
+   *(= "Voglio aggiungere il flusso di reset password. Quali file vanno cambiati? Quali sono i modi
+   in cui può fallire? Fai un piano.")*
 
    `Ctrl+G` per aprirlo nell'editor. Aggiungi in fondo la sezione di verifica, se manca.
 
@@ -477,6 +517,9 @@ Mettiamo insieme tutto su un caso realistico.
    requirement is implemented, the listed edge cases have tests, and nothing
    outside src/auth/ changed.
    ```
+
+   *(= "rivedi la diff rispetto a PLAN.md: ogni requisito è implementato, i casi limite elencati
+   hanno un test, e niente fuori da src/auth/ è cambiato.")*
 
 8. **Spedisci.** Se usi il boilerplate del [modulo 18](/professionale/boilerplate/):
 
@@ -571,7 +614,9 @@ dal nome di una funzione invece che dal suo corpo, che sono la fonte principale 
 /goal npm test passes with zero failures and npm run typecheck is clean
 ```
 
-*Gradino 3 — hook `Stop`.* Blocca la fine del turno finché il controllo non passa:
+*Gradino 3 — hook `Stop`.* Blocca la fine del turno finché il controllo non passa. La registrazione
+usa la solita struttura a due livelli del [modulo 10](/personalizzazione/hooks/) — il livello esterno
+dice *quando* (l'evento `Stop`), quello interno *cosa eseguire*:
 
 ```json title=".claude/settings.json"
 {
@@ -594,15 +639,22 @@ dal nome di una funzione invece che dal suo corpo, che sono la fonte principale 
 ```bash title=".claude/hooks/gate.sh"
 #!/usr/bin/env bash
 # Impedisce la fine del turno se i test non passano.
+# set -uo (senza -e): un comando che fallisce NON deve uccidere lo script,
+# perché il fallimento è proprio il caso che vogliamo gestire noi.
 set -uo pipefail
 
 # Solo se qualcosa è cambiato: un hook Stop che lancia la suite dopo
-# ogni domanda è insopportabile.
+# ogni domanda è insopportabile. git diff --quiet esce con 0 se non ci
+# sono modifiche (--cached = quelle già in staging): se entrambi dicono
+# "niente di nuovo", usciamo subito con 0 = via libera.
 git diff --quiet && git diff --cached --quiet && exit 0
 
+# Lancia i test catturando tutto l'output nella variabile OUT
 if ! OUT=$(npm test --silent 2>&1); then
+  # Test falliti: rimanda a Claude le ultime 30 righe dell'output
+  # (>&2 = sul canale degli errori, quello che gli hook riportano)
   printf '%s\n' "$OUT" | tail -30 >&2
-  exit 2
+  exit 2   # exit 2 su un hook Stop = "non chiudere il turno, continua a lavorare"
 fi
 ```
 
@@ -668,7 +720,7 @@ I compagni toccano gli stessi file? → non parallelizzare, o worktree separati
 | Un task del team resta bloccato | Un compagno non l'ha marcato come completato | Aggiornalo a mano, o di' al lead di sollecitare |
 | Il lead si mette a implementare invece di aspettare | Comportamento noto | *"Wait for your teammates to complete their tasks before proceeding"* |
 | Il consumo di token esplode con un team | Ogni compagno è un'istanza a sé, e il costo scala linearmente | 3–5 compagni; per il lavoro senza discussione usa i subagent |
-| Un hook `Stop` intrappola la sessione | — | Claude Code lo scavalca dopo **8 blocchi consecutivi** |
+| Un hook `Stop` intrappola la sessione | Il controllo non può mai riuscire (suite rotta, comando assente) | Claude Code lo scavalca da solo dopo **8 blocchi consecutivi**; poi sistemi il controllo |
 
 ## Cheat-sheet
 

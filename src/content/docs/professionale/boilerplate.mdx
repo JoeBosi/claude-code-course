@@ -10,6 +10,15 @@ import { Tabs, TabItem, Steps, Aside, FileTree, LinkCard, CardGrid } from '@astr
 	<span><strong>Prerequisiti:</strong> l'intera sezione <a href="/personalizzazione/slash-commands/">Personalizzazione</a> e il <a href="/professionale/stack-architetture/">modulo 17</a>.</span>
 </div>
 
+Prima di tutto, la parola del titolo. Un **[boilerplate](/glossario/#boilerplate)** è un progetto
+modello: una cartella già pronta con struttura, configurazione e convenzioni, che copi ogni volta che
+inizi un progetto nuovo — come un modulo prestampato, dove i campi da riempire sono pochi e tutto il
+resto è già scritto giusto. (Attenzione: nel [modulo 14](/automazione/pipeline-locali/) hai incontrato
+la stessa parola nell'altro suo senso, "codice ripetitivo da scrivere per forza". Qui è il primo:
+*template di progetto*.) Un boilerplate **agentico** è un progetto modello in cui la parte già pronta
+non è tanto il codice, quanto tutto ciò che questo corso ti ha insegnato a configurare: `CLAUDE.md`,
+hook, comandi, permessi, subagent.
+
 ## Obiettivi
 
 - Sapere cosa mettere in un boilerplate agentico, file per file, e perché.
@@ -142,7 +151,69 @@ estratto e inizializzato per verificare che funzioni.
 
 Il pezzo che vale la pena copiare anche se non usi questo stack è `/ship`: incapsula la sequenza
 verifica → commit → push → PR **fermandosi al primo passo che fallisce**, e senza correggere di sua
-iniziativa.
+iniziativa. Eccolo per intero (la sintassi — frontmatter, `` !`comando` ``, `$ARGUMENTS` — è quella
+del [modulo 7](/personalizzazione/slash-commands/)):
+
+<details>
+<summary>Il comando <code>/ship</code> completo</summary>
+
+```markdown title=".claude/commands/ship.md"
+---
+description: Prepara la modifica corrente per il rilascio: verifica, commit, push e apertura della PR.
+argument-hint: "[descrizione della modifica]"
+disable-model-invocation: true
+allowed-tools: Bash(git *), Bash(npm run typecheck), Bash(npm run lint*), Bash(npm test*), Bash(gh pr *)
+---
+
+## Stato corrente
+
+!`git status --short`
+
+## Commit sul branch
+
+!`git log --oneline origin/main..HEAD`
+
+## Istruzioni
+
+Porta questa modifica fino alla pull request, **fermandoti al primo passo che fallisce**.
+
+1. **Verifica.** Nell'ordine: `npm run typecheck`, `npm run lint`, `npm test`.
+   Se uno fallisce, **fermati e riporta l'errore**. Non correggere di tua iniziativa:
+   la correzione è una decisione dell'utente.
+
+2. **Branch.** Se sei su `main`, crea un branch prima di committare.
+   Nome: `tipo/descrizione-breve`, per esempio `feat/billing-webhook`.
+
+3. **Commit.** Conventional commit, in inglese, minuscolo dopo il prefisso.
+   Il corpo spiega **perché**, non cosa: il cosa si legge dalla diff.
+
+4. **Push** con `-u` se il branch è nuovo.
+
+5. **Pull request** con `gh pr create`. Corpo in italiano, con esattamente queste sezioni:
+
+   ### Cosa cambia
+   Due o tre bullet, dal punto di vista di chi usa il prodotto.
+
+   ### Perché
+   Una frase. Se c'è una issue collegata, linkala.
+
+   ### Come verificarlo
+   Passi concreti che il revisore può eseguire.
+
+   ### Rischi
+   Cosa può rompersi. Se niente, scrivi "nessuno noto" e spiega perché.
+
+6. **Riporta l'URL della PR.**
+
+Contesto aggiuntivo dall'utente: $ARGUMENTS
+```
+
+I due `` !`comando` `` in cima iniettano nel prompt lo stato reale del repository al momento
+dell'invocazione; le istruzioni sono numerate perché l'ordine **è** il contratto — e la riga in
+grassetto del punto 1 è il motivo per cui questo comando è affidabile: un `/ship` che "corregge e
+riprova" da solo finirebbe per committare correzioni che non hai mai visto.
+
+</details>
 
 ### B · `headless-pipeline`
 
@@ -194,21 +265,31 @@ Tutti e tre i boilerplate hanno lo stesso `init.sh`. Fa quattro cose e poi si to
 
 ```bash title="init.sh"
 #!/usr/bin/env bash
-set -euo pipefail
+set -euo pipefail   # fermati al primo errore, su variabili non definite, e negli errori dentro le pipe
 
+# $1 e $2 sono il primo e secondo argomento; ${1:-} = "il primo argomento,
+# o stringa vuota se manca" (senza :-, con set -u lo script morirebbe qui)
 NOME="${1:-}"
 DESCR="${2:-}"
 
-if [ -z "$NOME" ]; then
-  echo "Uso: ./init.sh <nome-progetto> [descrizione]" >&2
+if [ -z "$NOME" ]; then   # -z = "è vuoto?"
+  echo "Uso: ./init.sh <nome-progetto> [descrizione]" >&2   # >&2 = sul canale degli errori
   exit 1
 fi
-[ -z "$DESCR" ] && DESCR="$NOME"
+[ -z "$DESCR" ] && DESCR="$NOME"   # senza descrizione, usa il nome
 
+# Trova tutti i file che contengono i segnaposto.
+#   grep -rl  = cerca ricorsivamente (-r) e stampa solo i nomi dei file (-l)
+#   < <(...)  = "process substitution": dà l'output del grep in pasto a mapfile
+#   mapfile -t FILE = carica quelle righe nell'array FILE, una per elemento
 mapfile -t FILE < <(grep -rl '{{PROJECT_NAME}}\|{{PROJECT_DESCRIPTION}}' . \
   --exclude-dir=node_modules --exclude-dir=.git 2>/dev/null || true)
 
 for f in "${FILE[@]}"; do
+  # sed sostituisce i segnaposto dentro il file, sul posto.
+  #   -i.bak  = modifica il file, tenendo una copia .bak (serve perché il sed di
+  #             macOS rifiuta -i senza suffisso; la copia si cancella subito dopo)
+  #   s|A|B|g = sostituisci A con B, ovunque nella riga (g = global)
   sed -i.bak \
     -e "s|{{PROJECT_NAME}}|$NOME|g" \
     -e "s|{{PROJECT_DESCRIPTION}}|$DESCR|g" "$f"
@@ -216,17 +297,28 @@ for f in "${FILE[@]}"; do
   echo "  aggiornato  $f"
 done
 
+# Data di oggi in STATE.md ($(date +%F) = 2026-08-17)
 sed -i.bak "s|^Ultimo aggiornamento: —|Ultimo aggiornamento: $(date +%F)|" STATE.md && rm -f STATE.md.bak
 
+# Se la cartella non è già un repository git, inizializzalo (-q = senza output)
 [ -d .git ] || { git init -q; echo "  git init"; }
 
 echo "✔ Progetto '$NOME' inizializzato."
-rm -- "$0"
+rm -- "$0"   # lo script cancella SÉ STESSO: $0 è il suo percorso, -- protegge dai nomi che iniziano per -
 ```
 
 Le due righe che fanno la differenza sono l'ultima e il `grep -rl`: lo script **si auto-rimuove**, così non
 resta nel repository a confondere chi arriva dopo; e cerca i segnaposto invece di avere una lista di file
 hardcoded, così aggiungere un file al template non richiede di ricordarsi di aggiornare l'init.
+
+<Aside type="caution" title="Il rovescio della ricerca ricorsiva">
+Quel `grep -rl` tocca **ogni** file che contiene il segnaposto — inclusi quelli a cui non stavi
+pensando: uno zip di esempio, un'immagine con dentro quella sequenza di byte, una cartella di build.
+Le `--exclude-dir` coprono i casi comuni; se aggiungi al template cartelle generate o file binari,
+aggiungile alle esclusioni. E lancia l'init **una volta sola, appena estratto**: rieseguirlo dopo non
+trova più i segnaposto (bene), ma su un repository con storia riscriverebbe anche file che nel
+frattempo hai modificato tu.
+</Aside>
 
 ### Cosa parametrizzare e cosa no
 
@@ -246,9 +338,10 @@ parametrizzato**: va lasciato come esempio realistico da modificare. Un template
 
 <Tabs syncKey="os">
 <TabItem label="macOS" icon="apple">
-**Da zip:**
+**Da zip** — oppure scaricalo cliccando la card qui sopra:
 
 ```bash
+# se leggi il corso da un altro indirizzo, usa quello al posto del dominio
 curl -O https://claude-tutorial.giuseppebosi.com/downloads/web-fullstack.zip
 unzip web-fullstack.zip && cd web-fullstack
 ./init.sh "fatture-app" "Gestione fatture per studi professionali"
@@ -269,9 +362,10 @@ cd fatture-app && ./init.sh "fatture-app" "Gestione fatture"
 ```
 </TabItem>
 <TabItem label="Windows" icon="seti:windows">
-**Da zip:**
+**Da zip** — oppure scaricalo cliccando la card qui sopra:
 
 ```powershell
+# se leggi il corso da un altro indirizzo, usa quello al posto del dominio
 Invoke-WebRequest -Uri "https://claude-tutorial.giuseppebosi.com/downloads/web-fullstack.zip" -OutFile web-fullstack.zip
 Expand-Archive web-fullstack.zip -DestinationPath .
 cd web-fullstack
@@ -298,8 +392,11 @@ ricordati di mantenere l'auto-rimozione finale.
 
 ### Versionamento
 
-Metti il boilerplate in un repository git e **tagga**. Un progetto derivato deve poter dire da quale
-versione è partito:
+Metti il boilerplate in un repository git e **tagga** — un tag è un'etichetta fissata su un commit
+preciso, il modo di git per dire "questa è la versione 1.2.0". I numeri seguono il **semver**
+(*semantic versioning*), la convenzione `MAGGIORE.MINORE.PATCH`: alzi il primo numero quando il
+cambiamento rompe la compatibilità con i progetti derivati, il secondo quando aggiungi qualcosa, il
+terzo quando correggi. Un progetto derivato deve poter dire da quale versione è partito:
 
 ```bash
 git tag -a v1.2.0 -m "hook di typecheck, comando /ship"
@@ -316,8 +413,10 @@ Senza questa riga, fra sei mesi non saprai quali aggiornamenti ti riguardano.
 
 ### Changelog
 
-Un `CHANGELOG.md` nel boilerplate, con una colonna che i changelog normali non hanno: **serve una azione
-sui progetti esistenti?**
+Il *changelog* è il diario delle versioni: cosa è cambiato, versione per versione. La convenzione più
+diffusa ([Keep a Changelog](https://keepachangelog.com/it-IT/)) raggruppa le voci in *Aggiunto /
+Modificato / Corretto* — ed è quella usata qui sotto. Per un boilerplate serve però una cosa in più che
+i changelog normali non hanno: per ogni voce, **serve un'azione sui progetti già derivati?**
 
 ```markdown title="CHANGELOG.md"
 # Changelog
@@ -384,11 +483,18 @@ Tre strategie, in ordine di sforzo:
    aggiuntivo e fare merge selettivi:
 
    ```bash
+   # registra il repo del boilerplate come secondo "remote" e scaricane lo stato
    git remote add boilerplate https://github.com/tuo-utente/boilerplate-web.git
    git fetch boilerplate
+   # guarda le differenze nella cartella .claude/ prima di toccare qualcosa
    git diff HEAD boilerplate/main -- .claude/
+   # prendi UN file dalla versione del boilerplate
    git checkout boilerplate/main -- .claude/hooks/lint-and-typecheck.sh
    ```
+
+   Attenzione all'ultimo comando: `git checkout <ref> -- <file>` **sovrascrive la tua copia del file
+   senza chiedere niente** — le modifiche locali non committate a quel file spariscono. Per questo il
+   `git diff` viene prima: guarda, poi sovrascrivi.
 
    Funziona bene per `.claude/`, che raramente diverge, e male per il codice, che diverge sempre.
 
@@ -410,9 +516,10 @@ Un boilerplate cresce. Ogni sei mesi, tre domande su ogni componente:
 
 <Steps>
 
-1. **Scarica e apri il boilerplate più vicino al tuo lavoro.**
+1. **Scarica e apri il boilerplate più vicino al tuo lavoro** — dalla card di inizio pagina, o:
 
    ```bash
+   # stesso dominio da cui stai leggendo il corso
    curl -O https://claude-tutorial.giuseppebosi.com/downloads/agentic-rag.zip
    unzip agentic-rag.zip && cd agentic-rag
    ```
@@ -426,7 +533,9 @@ Un boilerplate cresce. Ogni sei mesi, tre domande su ogni componente:
    ./init.sh "kb-interna" "Base di conoscenza interna sui runbook"
    ```
 
-4. **Verifica che parta.**
+4. **Verifica che parta.** `uv` è il gestore di pacchetti Python usato dal boilerplate (l'equivalente
+   di `npm` per Python, molto veloce — [istruzioni di installazione](https://docs.astral.sh/uv/)):
+   `uv sync` installa le dipendenze, `uv run pytest` lancia i test nell'ambiente giusto.
 
    ```bash
    uv sync

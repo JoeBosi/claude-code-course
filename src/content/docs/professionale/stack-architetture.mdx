@@ -4,11 +4,20 @@ description: "Scegliere stack e architettura in base al tipo di applicazione, co
 ---
 
 import { Tabs, TabItem, Steps, Aside, FileTree } from '@astrojs/starlight/components';
+import Zero from '@/components/Zero.astro';
 
 <div class="meta-modulo">
 	<span><strong>Tempo stimato:</strong> 60 minuti</span>
 	<span><strong>Prerequisiti:</strong> i moduli <a href="/fondamenta/claude-md/">5</a>, <a href="/fondamenta/plan-mode/">6</a> e <a href="/automazione/cli-scripting/">12</a>.</span>
 </div>
+
+Le tre parole del titolo, prima di tutto. Lo **stack** è l'insieme delle tecnologie su cui costruisci
+— linguaggio, framework, database: gli "ingredienti". Un **framework** è un'impalcatura di codice già
+pronta che dà forma all'applicazione: ti porta l'80% della struttura, tu scrivi ciò che è tuo.
+L'**architettura** è come organizzi le stanze dell'edificio: cosa sta dove, e chi può parlare con chi.
+Questo modulo è per il momento "foglio bianco" — quando il progetto è nuovo e le scelte sbagliate
+costano mesi — e ha un'idea di fondo: **le scelte si fanno con criteri espliciti, non per moda**,
+e Claude può aiutarti a farle, se glieli dai.
 
 ## Obiettivi
 
@@ -37,25 +46,57 @@ vive il contratto che tiene insieme la struttura.
 
 ## Tabella decisionale
 
+<Zero title="Come leggere questa tabella (piena di nomi propri)">
+Ogni riga è un *tipo* di applicazione; le colonne dicono con cosa costruirla. I ~40 nomi propri sono
+tecnologie: **non serve conoscerle** — serve sapere che esistono e cosa sono a grandi linee. Le
+famiglie: *framework web* (Next.js, SvelteKit, Nuxt, Astro: l'impalcatura di un sito o app), *librerie
+UI* (React, Svelte, Vue: i mattoni dell'interfaccia), *linguaggi* (TypeScript, Python, Go, Rust),
+*database e dintorni* (Postgres, Supabase, Drizzle, Prisma), *server web* (Hono, Fastify, Express,
+FastAPI), *mobile* (React Native, Flutter, Swift, Kotlin). Usa la tabella così: trova la riga del tuo
+progetto, leggi la prima colonna di scelte, e chiedi a Claude di spiegarti le voci che non conosci —
+è esattamente il tipo di domanda su cui rende.
+</Zero>
+
 Versioni verificate su npm e PyPI il **16 agosto 2026**.
 
 | Tipo di applicazione | Stack consigliato | Alternative | Quando evitarlo |
 | --- | --- | --- | --- |
-| **Web app full-stack** | Next.js 16 + React 19 + TypeScript 7 + Postgres (Supabase o Neon) + Drizzle | SvelteKit 2 + Svelte 5 · Nuxt 4 · Rails · Django | Se non ti serve rendering server-side o SEO: una SPA con Vite 8 è più semplice e più veloce da capire |
-| **Sito di contenuti o documentazione** | **Astro 7** + Starlight | Docusaurus · VitePress · MkDocs Material | Se il sito è per il 90% interattivo: stai combattendo contro il modello a isole |
+| **Web app full-stack** | Next.js 16 + React 19 + TypeScript 7 + Postgres (Supabase o Neon) + Drizzle | SvelteKit 2 + Svelte 5 · Nuxt 4 · Rails · Django | Se non ti servono pagine generate dal server né visibilità sui motori di ricerca (SEO): una SPA — un'app che vive tutta nel browser — con Vite 8 è più semplice |
+| **Sito di contenuti o documentazione** | **Astro 7** + Starlight | Docusaurus · VitePress · MkDocs Material | Se il sito è per il 90% interattivo: Astro è pensato per pagine statiche con "isole" di interattività, e lo staresti usando controcorrente |
 | **API backend** | Hono 4 (edge e portabilità) o Fastify 5 (Node maturo) + TypeScript | FastAPI 0.141 se l'ecosistema è Python · Go se conta la latenza | Express 5 su un progetto nuovo: funziona, ma i tipi e i middleware moderni sono migliori altrove |
 | **CLI tool** | TypeScript + Bun o Node · oppure Go per un binario singolo | Rust se conta la performance · Python con Typer per script interni | Node se la distribuzione deve essere un binario che l'utente scarica |
-| **Automazione e pipeline dati** | Python 3.12+ con Pydantic 2 · oppure Bash e `claude -p` per orchestrazione | Airflow o Dagster se le dipendenze sono molte · GitHub Actions per il pochi-e-semplici | Un framework di orchestrazione per tre task in sequenza: cron e uno script bastano |
+| **Automazione e pipeline dati** | Python 3.12+ con Pydantic 2 · oppure Bash e `claude -p` per orchestrazione | Airflow o Dagster se i passaggi e le dipendenze sono molti · GitHub Actions quando i job sono pochi e semplici | Un framework di orchestrazione per tre task in sequenza: cron e uno script bastano |
 | **App mobile** | React Native con Expo, se il team è già React | Flutter se il team non ha una preferenza web · Swift/Kotlin nativi per app che vivono di piattaforma | Il cross-platform se l'app dipende in modo pesante da API native |
 | **Sistema agentic o RAG** | Python + FastAPI + architettura esagonale + Claude Agent SDK | TypeScript con l'SDK se lo stack è già Node · LangChain 1.3 solo se ne usi davvero le astrazioni | I framework RAG "batteria inclusa" per un caso semplice: 200 righe tue sono più leggibili e debuggabili |
 
 <Aside type="caution" title="Il rischio delle astrazioni RAG">
-LangChain e LlamaIndex risolvono problemi reali su sistemi complessi. Su un RAG con una sorgente e un
+**RAG** (*Retrieval-Augmented Generation*, "generazione aumentata dal recupero") significa: prima di far
+rispondere il modello, un sistema *recupera* i documenti pertinenti dai tuoi dati e glieli mette nel
+contesto — così risponde su ciò che sai tu, non solo su ciò che sapeva lui. LangChain e LlamaIndex
+risolvono problemi reali su sistemi RAG complessi. Su un RAG con una sorgente e un
 modello, aggiungono più concetti di quanti ne tolgano — e quando qualcosa non funziona, stai debuggando
 l'astrazione invece del tuo problema. Comincia senza, e introducili quando senti il dolore che risolvono.
 </Aside>
 
 ## Architetture di riferimento
+
+Le quattro che coprono la stragrande maggioranza dei progetti, ciascuna in due frasi:
+
+- **Monolite modulare** — un'unica applicazione, un unico deploy, ma organizzata dentro in moduli con
+  confini chiari (fatturazione, utenti, notifiche…). È il punto di partenza giusto quasi sempre: la
+  semplicità di una cosa sola, con l'ordine che permette di estrarre un pezzo se un giorno servirà.
+- **Hexagonal / clean architecture** — il cuore dell'applicazione (la logica di business) non conosce
+  il mondo esterno: parla solo con delle **porte** (interfacce astratte: "qualcosa che sa salvare",
+  "qualcosa che sa rispondere"), e degli **adattatori** collegano ogni porta a una tecnologia concreta
+  (quel database, quel modello AI). Cambi tecnologia = cambi adattatore, il cuore non si tocca.
+- **Event-driven** — i componenti non si chiamano a vicenda: pubblicano *eventi* ("ordine creato") su
+  una coda, e chi è interessato li consuma quando può. Disaccoppia e assorbe i picchi, ma il flusso
+  diventa molto più difficile da seguire e debuggare.
+- **Serverless** — niente server tuo acceso h24: carichi funzioni che il cloud esegue *a richiesta* e
+  paghi per esecuzione. Perfetto per carichi irregolari; scomodo per connessioni persistenti, job
+  lunghi, e prevedibilità dei costi a regime.
+
+E in tabella, quando sì e quando no:
 
 | Architettura | Conviene quando | Non conviene quando |
 | --- | --- | --- |
@@ -76,7 +117,15 @@ Negli esempi qui sotto la porta c'è **solo** nel terzo, dove X = "Claude", Y = 
 
 ## Esempio A · SaaS dashboard
 
-Next.js 16 + Supabase. Multi-tenant, autenticazione, dati per organizzazione.
+Next.js 16 + Supabase. **Multi-tenant** vuol dire che più organizzazioni-clienti usano la stessa
+applicazione e lo stesso database, ognuna vedendo solo i propri dati — e per garantirlo lo schema si
+appoggia alla **Row Level Security (RLS)** di Postgres: regole scritte *nel database* che filtrano ogni
+riga in base a chi sta chiedendo, così anche una query sbagliata nell'app non può far trapelare i dati
+di un altro cliente.
+
+Il diagramma mostra chi parla con chi. I colori: **blu** = ciò che gira nel browser dell'utente,
+**verde** = ciò che gira sui tuoi server, **ambra** = servizi esterni. Le frecce sono chiamate: si
+leggono "A usa B".
 
 ```mermaid
 flowchart TD
@@ -175,11 +224,22 @@ Next.js 16 (App Router) · React 19 · TypeScript 7 · Supabase Postgres · Driz
   in ogni action, non solo nel layout
 ```
 
+Tre voci di questo file meritano una riga di traduzione. **Zod** è una libreria che verifica che un
+dato abbia la forma attesa ("questo campo è una email, questo un numero positivo") prima di usarlo. La
+**service role key** è la chiave di Supabase che *scavalca* la RLS: in mano al posto sbagliato annulla
+tutta la protezione, per questo è confinata ai webhook. E le due "trappole" finali sono comportamenti
+reali di Supabase che sorprendono chiunque la prima volta: sono nel `CLAUDE.md` proprio perché Claude
+— e il collega nuovo — non li scoprano a spese dell'utente.
+
 ---
 
 ## Esempio B · Pipeline dati headless
 
 `claude -p` + output JSON + cron. Nessun server, nessuna UI: uno schedulatore, degli script e dei file.
+È l'architettura costruita per intero nel [modulo 14](/automazione/pipeline-locali/) — qui la guardi
+dall'alto. Nel diagramma: **verde** = stadi deterministici (stesso input → stesso output), **ambra** =
+l'unico stadio che usa l'LLM, **blu** = i file su disco tra uno stadio e l'altro. La freccia
+tratteggiata è il percorso d'errore: se l'analisi fallisce, log e notifica.
 
 ```mermaid
 flowchart LR
@@ -269,11 +329,23 @@ rivedibile in diff.
 - Se l'API è lenta, `02` può superare la finestra dello slot: c'è un lock in `logs/.lock`
 ```
 
+Le tre "trappole", tradotte: `cron` lancia gli script con un ambiente quasi vuoto, quindi i comandi che
+in un terminale normale "ci sono" (incluso `claude`) per lui non esistono — da qui il PATH esplicito e
+il percorso assoluto. E il **lock** (un file che dice "sto già girando") evita che l'esecuzione delle
+7:00, se ancora in corso, si scontri con quella successiva.
+
 ---
 
 ## Esempio C · Sistema agentic / RAG locale
 
-Architettura esagonale con gateway LLM. È l'unico dei tre in cui le porte si ripagano.
+Architettura esagonale con **gateway LLM** — un adattatore unico attraverso cui passa ogni chiamata al
+modello, così cambiare modello significa cambiare quel solo file. È l'unico dei tre esempi in cui le
+porte si ripagano: qui X = "Claude", Y = "un modello locale", Z = "la logica di retrieval".
+
+Come leggere il diagramma: al centro (**verde**) il dominio, che parla solo con le tre porte
+(**ambra**, forma esagonale); intorno (**blu**) gli adattatori. Le frecce piene sono i collegamenti
+attivi nella configurazione di default; quelle **tratteggiate** sono gli adattatori alternativi già
+previsti — per attivarli si cambia una riga in `config.py`, non il dominio.
 
 ```mermaid
 flowchart TD
@@ -410,6 +482,13 @@ problema è il design, non il test: **non aggiungere eccezioni**.
 - I chunk di documenti scansionati arrivano senza punteggiatura: il chunker non può assumere frasi
 ```
 
+Anche qui le "trappole" chiedono una traduzione. **Chroma** è il database vettoriale dell'esempio, e
+"persiste su disco" = i dati scritti da un test resterebbero lì a sporcare i successivi. Il **rate
+limit per chiave** significa che il limite di richieste al modello vale per l'account, non per ogni
+processo: dieci processi paralleli si dividono lo stesso budget. E i **chunk** sono i pezzi in cui un
+documento viene tagliato prima di essere indicizzato — il boilerplate del
+[modulo 18](/professionale/boilerplate/) costruisce esattamente questo sistema, commentato.
+
 ---
 
 ## Far decidere Claude Code
@@ -456,6 +535,14 @@ web.
    Do not recommend something because it is popular. Say when two options are
    genuinely equivalent for my case.
    ```
+
+   *(= "Devo scegliere lo stack per un progetto nuovo. Cerca sul web prima di rispondere — non fidarti
+   della tua memoria su versioni e stato di manutenzione. **Contesto:** cosa fa, chi lo usa, team,
+   vincoli, tempi. **Criteri, in quest'ordine di peso:** maturità, ecosistema, affinità col team,
+   resa con un agente, operabilità in produzione. **Cosa voglio:** tre stack candidati, una tabella
+   con i punteggi e le prove, per ciascuno cosa me lo farebbe rimpiangere tra 18 mesi, e la tua
+   raccomandazione in un paragrafo. Non consigliare per popolarità; dimmi quando due opzioni sono
+   equivalenti per il mio caso.")* — le parentesi quadre sono i punti da riempire col tuo progetto.
 
 3. **Contesta la risposta.** Il valore vero arriva al secondo giro:
 
