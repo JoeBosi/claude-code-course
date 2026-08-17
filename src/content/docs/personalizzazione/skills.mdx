@@ -4,11 +4,20 @@ description: "La struttura di SKILL.md, il riferimento completo del frontmatter,
 ---
 
 import { Tabs, TabItem, Steps, Aside, FileTree } from '@astrojs/starlight/components';
+import Zero from '@/components/Zero.astro';
 
 <div class="meta-modulo">
 	<span><strong>Tempo stimato:</strong> 60 minuti</span>
 	<span><strong>Prerequisiti:</strong> il <a href="/personalizzazione/slash-commands/">modulo 7</a> e il <a href="/fondamenta/memoria-e-contesto/">modulo 4</a>.</span>
 </div>
+
+Il modulo 7 si è chiuso con "`commands/` è la forma breve, `skills/` è la forma completa": questo
+modulo è quella forma completa. Una [skill](/glossario/#skill) è un'istruzione confezionata — una
+cartella con dentro un file `SKILL.md` — che Claude carica **solo quando serve**: come le schede di un
+ricettario, che consulti solo quando cucini quel piatto. La differenza rispetto a un semplice comando:
+una skill può portarsi dietro file di supporto, può decidere chi la invoca (tu, Claude, o entrambi), e
+può attivarsi **da sola** quando la richiesta la riguarda. È il meccanismo con cui insegni a Claude il
+tuo mestiere senza pagarlo in contesto a ogni sessione.
 
 ## Obiettivi
 
@@ -100,8 +109,17 @@ viene re-iniettata mantenendo i **primi 5.000 token**: le istruzioni importanti 
 
 ## Riferimento del frontmatter
 
-Tutti i campi sono opzionali. Solo `description` è consigliato, perché è ciò che permette a Claude di
-capire quando usare la skill.
+<Zero title="Frontmatter e YAML in trenta secondi">
+Il [frontmatter](/glossario/#frontmatter) è il blocchetto di opzioni racchiuso tra due righe `---`
+in cima al file. È scritto in [YAML](/glossario/#yaml): righe `chiave: valore`, e l'indentazione
+(gli spazi a inizio riga) fa da struttura. Due regole d'oro quando lo copi: non toccare gli spazi,
+e non usare il Tab — solo spazi. Tutto quello che sta **sotto** il secondo `---` è il contenuto
+normale del file.
+</Zero>
+
+Tutti i campi sono opzionali, con una precisazione: se ometti `description`, viene usato il primo
+paragrafo del contenuto — quindi **qualcosa** che descriva la skill c'è sempre. Scriverla
+esplicitamente resta la scelta giusta, perché è il testo su cui Claude decide quando attivarla.
 
 ```yaml
 ---
@@ -152,15 +170,22 @@ oltre a `true` e `false`.
 | `background` | Solo con `context: fork`. `false` aspetta il risultato nel turno che ha invocato la skill, invece di farlo girare in background. Default: `true` |
 | `hooks` | Hook che Claude Code registra quando la skill viene invocata, e che restano attivi per il resto della sessione |
 
+La sintassi dei valori di `allowed-tools` merita una riga, perché ricorre in tutto il corso:
+`Read` da solo pre-approva un tool intero; **`Bash(git add *)`** pre-approva il tool Bash **solo per i
+comandi che iniziano con `git add`** — il pattern tra parentesi restringe, e l'asterisco è il jolly.
+Lo spazio prima di `*` conta: `Bash(git add *)` approva `git add src/`, non `git addqualcosa`.
+
 <Aside type="caution" title="`allowed-tools` non restringe, allarga">
 `allowed-tools` **pre-approva**, non limita: tutti i tool restano chiamabili, e le tue impostazioni di
 permessi continuano a governare quelli non elencati. Per restringere davvero servono `disallowed-tools` o
 delle deny rule nei permessi.
 
-E soprattutto: **il workspace trust non protegge da questo campo.** Claude Code applica l'`allowed-tools`
-di una skill di progetto ogni volta che viene invocata, anche in un run `-p` in una cartella di cui non ti
-sei mai fidato. Una skill può concedersi accesso ampio ai tool: **rivedi l'`allowed-tools` delle skill
-committate in un repo prima di lanciarci Claude Code**.
+E soprattutto: **il "workspace trust" non protegge da questo campo.** Il workspace trust è il dialogo
+"ti fidi di questa cartella?" che Claude Code mostra la prima volta che lo avvii in un progetto — la
+protezione contro il codice altrui. Ma l'`allowed-tools` di una skill di progetto viene applicato
+ogni volta che la skill è invocata, **anche** in una cartella di cui non ti sei mai fidato. Una skill
+può concedersi accesso ampio ai tool: **rivedi l'`allowed-tools` delle skill committate in un repo
+prima di lanciarci Claude Code**.
 </Aside>
 
 ## Due tipi di contenuto
@@ -169,7 +194,7 @@ committate in un repo prima di lanciarci Claude Code**.
 guide di stile, conoscenza di dominio. Gira inline, così Claude la usa insieme al contesto della
 conversazione.
 
-```yaml
+```markdown
 ---
 name: api-conventions
 description: API design patterns for this codebase
@@ -184,7 +209,7 @@ When writing API endpoints:
 **Contenuto di task** — istruzioni passo-passo per un'azione specifica: deploy, commit, generazione di
 codice. Di solito lo invochi tu con `/nome` invece di lasciare decidere a Claude.
 
-```yaml
+```markdown
 ---
 name: deploy
 description: Deploy the application to production
@@ -319,9 +344,14 @@ salvare. Le skill dei plugin **non** sono influenzate da `skillOverrides`: si ge
 
    Se la skill non è in elenco, controlla il percorso e lancia `/reload-skills`.
 
-5. **Aggiungi un file di supporto.** Le istruzioni lunghe non devono stare in `SKILL.md`:
+5. **Aggiungi un file di supporto.** Le istruzioni lunghe non devono stare in `SKILL.md`. Il comando
+   qui sotto usa un **heredoc**, una sintassi di bash per scrivere un file di più righe in un colpo
+   solo: tutto ciò che sta tra `<<'EOF'` e la riga `EOF` finisce nel file. In alternativa puoi
+   semplicemente creare il file con un editor di testo qualsiasi — il risultato è identico, ed è la
+   strada su Windows.
 
    ```bash
+   # scrive il file rischi.md con tutto il testo fino alla riga "EOF"
    cat > ~/.claude/skills/summarize-changes/rischi.md <<'EOF'
    # Catalogo dei rischi da cercare
 
@@ -423,6 +453,11 @@ Rilascia la versione $ARGUMENTS.
 
 Fermati e chiedi conferma prima del passo 5. Non procedere se il passo 2 fallisce.
 ```
+
+*I termini del mestiere dentro la skill, per chi non li mastica: "la CI è verde" = i controlli
+automatici del repository passano; il **CHANGELOG** è il file che elenca cosa cambia a ogni versione;
+il "**bump**" è l'incremento del numero di versione; il **tag** è l'etichetta git che marca il punto
+esatto di una release (e `--follow-tags` la spedisce su GitHub insieme al commit).*
 
 Nota due scelte deliberate: `disable-model-invocation: true`, perché un rilascio non deve partire perché
 Claude ha ritenuto pertinente; e le due frasi finali, scritte come **istruzioni permanenti** — restano in

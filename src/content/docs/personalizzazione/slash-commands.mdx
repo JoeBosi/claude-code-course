@@ -4,11 +4,18 @@ description: "I comandi slash integrati di Claude Code, le skill bundled come /c
 ---
 
 import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
+import Zero from '@/components/Zero.astro';
 
 <div class="meta-modulo">
 	<span><strong>Tempo stimato:</strong> 40 minuti</span>
 	<span><strong>Prerequisiti:</strong> la sezione <a href="/fondamenta/setup/">Fondamenta</a> completata.</span>
 </div>
+
+I comandi slash sono le scorciatoie di Claude Code: digiti `/` più un nome, ed esegui una funzione o
+un prompt confezionato. La parte interessante non sono quelli integrati — quelli si imparano usandoli —
+ma il fatto che puoi **crearne di tuoi**: ogni prompt che ti ritrovi a riscrivere diventa un file di
+testo, e da quel momento è un comando. È il primo gradino della personalizzazione, e il più
+sottovalutato: cinque minuti per scriverne uno, risparmiati per sempre.
 
 ## Obiettivi
 
@@ -37,14 +44,18 @@ La conseguenza pratica: **`commands/` è la forma breve, `skills/` è la forma c
 file solo, senza opzioni particolari? `commands/`. Serve altro? `skills/`, che vediamo nel
 [modulo 8](/personalizzazione/skills/).
 
-**Puoi concatenarne fino a sei.** Digitando `/write-tests /fix-issue 123` carichi entrambe le skill e passi
+**Puoi concatenarne fino a sei in un solo messaggio** (la prima più altre cinque). Digitando
+`/write-tests /fix-issue 123` carichi entrambe le skill e passi
 il testo finale `123` come argomento a ciascuna. Claude Code espande la prima skill più altre cinque.
-L'espansione si ferma al primo token che non è una skill inline invocabile dall'utente: quel token e tutto
+L'espansione si ferma alla prima parola che non è una skill inline invocabile dall'utente: quella parola e tutto
 ciò che segue diventa il testo degli argomenti.
 
 ## I comandi integrati
 
-Non serve impararli tutti. Questi sono quelli che useresti davvero, raggruppati per quando ti servono.
+Le tabelle che seguono sono **materiale di consultazione, non di studio**: scorrile una volta per
+sapere cosa esiste, e torna qui quando ti serve. Molti comandi toccano funzioni che il corso spiega in
+moduli successivi — dove è così, la tabella lo dice. Il modo più rapido per scoprirli resta comunque
+digitare `/` in una sessione: si apre il menu completo con la ricerca.
 
 ### Ogni giorno
 
@@ -105,17 +116,23 @@ Non serve impararli tutti. Questi sono quelli che useresti davvero, raggruppati 
 
 ### Lavoro parallelo e asincrono
 
+Questi comandi appartengono ai temi dei moduli [11](/personalizzazione/agents-subagents/) (più agenti
+che collaborano) e [15](/automazione/sessioni-remote/) (sessioni che continuano senza di te): qui
+bastano i nomi, lì il come e il perché.
+
 | Comando | Cosa fa |
 | --- | --- |
-| `/background` (`/bg`) | Stacca la sessione come agente in background |
-| `/fork` | Copia la conversazione in una sessione di background |
-| `/branch` | Crea un ramo della conversazione |
-| `/goal` | Imposta un obiettivo verso cui Claude continua a lavorare |
-| `/loop` (`/proactive`) | Esegue un prompt a intervalli |
-| `/batch` | Orchestra modifiche parallele su larga scala |
-| `/remote-control` | Avvia una sessione Remote Control |
-| `/desktop` (`/app`) | Continua nell'app desktop |
-| `/list-agents` (`/peers`) | Elenca gli agenti a cui puoi mandare messaggi |
+| `/background` (`/bg`) | Manda la sessione a lavorare da sola in sottofondo, mentre tu fai altro |
+| `/fork` | Ne crea una copia indipendente che prosegue in sottofondo |
+| `/branch` | Crea un "ramo" della conversazione: provi una strada senza perdere l'altra |
+| `/subtask` | Delega un compito a un aiutante che eredita tutta la conversazione ([modulo 11](/personalizzazione/agents-subagents/)) |
+| `/goal` | Fissa un traguardo: Claude continua a lavorare finché non è raggiunto |
+| `/loop` (`/proactive`) | Ripete un prompt a intervalli regolari |
+| `/batch` | Orchestra la stessa modifica su molti file in parallelo |
+| `/remote-control` | Rende la sessione visibile da browser e telefono ([modulo 15](/automazione/sessioni-remote/)) |
+| `/desktop` (`/app`) | Continua la conversazione nell'app desktop |
+| `/list-agents` (`/peers`) | Elenca gli agenti attivi a cui puoi mandare messaggi |
+| `/statusline` | Personalizza la barra di stato del terminale |
 
 ### Skill bundled
 
@@ -258,6 +275,14 @@ L'alias non segue l'override. Se sostituisci `/code-review` e poi digiti `/revie
 eseguendo un comando diverso da quello che credi.
 </Aside>
 
+<Aside type="note" title="Attenzione: quest'ordine è l'OPPOSTO di quello dei settings">
+Nel [modulo 2](/fondamenta/anatomia-file/) hai visto che per le **impostazioni** vince il livello più
+vicino al progetto (`settings.local.json` batte il settings condiviso, che batte quello utente). Per le
+**skill** è il contrario: la tua skill personale batte quella del progetto. Sono due meccanismi diversi
+con due logiche diverse — le impostazioni si *fondono* e vince il più specifico; le skill si *scelgono*
+per nome, e la tua ha la precedenza. Non cercare di dedurre l'uno dall'altro.
+</Aside>
+
 ## Esempio guidato
 
 Costruiamo due comandi che si usano davvero: uno personale, uno di progetto.
@@ -279,6 +304,11 @@ Costruiamo due comandi che si usano davvero: uno personale, uno di progetto.
    </TabItem>
    </Tabs>
 
+   Prima, una parola sul comando git usato qui dentro: lo **staging** è l'"anticamera" del commit —
+   con `git add` metti in staging le modifiche che intendi salvare, e `git diff --staged` mostra
+   esattamente quelle. È il momento perfetto per un ultimo controllo: stai guardando **ciò che sta
+   per entrare nella storia del progetto**, niente di più e niente di meno.
+
    ```markdown title="~/.claude/commands/pre-commit.md"
    ## Diff da rivedere
 
@@ -293,13 +323,15 @@ Costruiamo due comandi che si usano davvero: uno personale, uno di progetto.
    Rivedi la diff in staging cercando **solo** questi problemi:
 
    - Segreti, chiavi o credenziali finiti nel codice
-   - `console.log`, `print`, `dd()` e simili dimenticati
+   - Stampe di debug dimenticate (`console.log`, `print` e simili)
    - `TODO` o `FIXME` aggiunti in questa diff
    - File che non c'entrano con il resto della modifica
 
    Per ciascun problema indica file e riga. Se non trovi nulla, rispondi
    esattamente `OK` e nient'altro. Non commentare lo stile.
    ```
+
+   *(I due comandi tra `` !`…` `` girano prima che Claude legga: la diff arriva già dentro il prompt.)*
 
 2. **Provalo.** Metti qualcosa in staging e lancia:
 
@@ -313,14 +345,22 @@ Costruiamo due comandi che si usano davvero: uno personale, uno di progetto.
    OK
    ```
 
-3. **Comando di progetto: aprire una PR con la convenzione del team.** Questo si committa.
+3. **Comando di progetto: aprire una [PR](/glossario/#pr-pull-request) con la convenzione del team.**
+   Questo si committa, così tutto il team apre le PR nello stesso formato. Usa `gh`, la CLI ufficiale
+   di GitHub (si installa da [cli.github.com](https://cli.github.com), poi `gh auth login`): è il
+   ponte tra il terminale e GitHub, e Claude la sa usare bene.
+
+   Dentro ci sono due notazioni git che vale la pena distinguere una volta per tutte:
+   **`origin/main..HEAD`** (due punti) = "i commit che ho io e main non ha" — la lista dei tuoi
+   commit; **`origin/main...HEAD`** (tre punti, nel contesto di `git diff`) = "le differenze rispetto
+   al punto in cui mi sono staccato da main" — la diff complessiva del tuo lavoro.
 
    ```markdown title=".claude/commands/pr.md"
-   ## Branch e commit
+   ## Commit di questo branch
 
    !`git log --oneline origin/main..HEAD`
 
-   ## Diff completa
+   ## Riepilogo delle modifiche
 
    !`git diff origin/main...HEAD --stat`
 
@@ -328,8 +368,11 @@ Costruiamo due comandi che si usano davvero: uno personale, uno di progetto.
 
    Apri una pull request per il branch corrente con `gh pr create`.
 
-   Titolo: conventional commit, in inglese, minuscolo dopo il prefisso.
-   Corpo, in italiano, con esattamente queste sezioni:
+   Se l'utente ha passato del testo dopo il comando, è il titolo da usare: $ARGUMENTS
+   Altrimenti componi tu il titolo: conventional commit, in inglese, minuscolo
+   dopo il prefisso (es. "feat: add password reset flow").
+
+   Corpo in italiano, con esattamente queste sezioni:
 
    ### Cosa cambia
    Due o tre bullet, dal punto di vista di chi usa il software.
@@ -341,7 +384,7 @@ Costruiamo due comandi che si usano davvero: uno personale, uno di progetto.
    Passi concreti che il revisore può eseguire.
 
    Se ci sono meno di due commit sul branch, fermati e chiedi conferma prima
-   di aprire la PR. Titolo aggiuntivo se ci sono argomenti: $ARGUMENTS
+   di aprire la PR.
    ```
 
 4. **Provalo con un argomento.**
@@ -381,6 +424,11 @@ Crea un comando che risolva un fastidio reale del tuo lavoro.
 
 Un esempio realistico: il comando che spiega perché un test fallisce, invece di farti incollare l'output
 a mano ogni volta.
+
+Una nota sul comando iniettato: `2>&1` significa "manda anche gli **errori** nello stesso flusso
+dell'output normale" — i test che falliscono scrivono proprio sul canale degli errori
+([stderr](/glossario/#stdin--stdout--stderr)), e senza questa aggiunta Claude vedrebbe solo la parte
+tranquilla. `| tail -60` tiene le ultime 60 righe: quelle dove stanno i fallimenti.
 
 ```markdown title=".claude/commands/perche-fallisce.md"
 ## Esito dei test

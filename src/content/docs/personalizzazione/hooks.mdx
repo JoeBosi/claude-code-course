@@ -4,11 +4,28 @@ description: "Gli eventi degli hook di Claude Code, il formato in settings.json,
 ---
 
 import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
+import Zero from '@/components/Zero.astro';
 
 <div class="meta-modulo">
 	<span><strong>Tempo stimato:</strong> 60 minuti</span>
 	<span><strong>Prerequisiti:</strong> i moduli <a href="/fondamenta/anatomia-file/">2</a> e <a href="/personalizzazione/skills/">8</a>. Serve <code>jq</code> installato per gli esempi shell.</span>
 </div>
+
+Un [hook](/glossario/#hook) ("gancio") è uno script tuo che Claude Code esegue **automaticamente** a
+un momento preciso: prima di ogni comando, dopo ogni modifica a un file, a fine risposta. L'analogia
+giusta è l'antifurto: non devi ricordarti di attivarlo — scatta da solo, ogni volta, quando succede la
+cosa per cui l'hai montato. È il salto di qualità rispetto a tutto quello che hai visto finora: le
+istruzioni nel `CLAUDE.md` sono *consigli* che Claude quasi sempre segue; un hook è una *regola* che
+viene applicata sempre, perché non passa dal giudizio del modello. Formattare il codice dopo ogni
+modifica, bloccare i comandi pericolosi, ricevere una notifica quando un task lungo finisce: tutte
+cose da hook.
+
+<Zero title="Questo modulo è il più 'da programmatori' del corso">
+Gli hook sono script di shell, e il modulo li mostra riga per riga con i commenti. Se bash non è il
+tuo pane: leggi i commenti (dicono cosa fa ogni riga), copia i blocchi così come sono, e — soprattutto
+— sappi che al primo passo dell'esempio guidato c'è la scorciatoia legittima: **farsi scrivere gli
+hook da Claude stesso**. Capire *cosa* vuoi automatizzare conta più che saper scrivere lo script.
+</Zero>
 
 ## Obiettivi
 
@@ -64,9 +81,25 @@ Non ti serviranno tutti. Questi sono quelli che coprono il 95% dei casi reali:
 | `PermissionRequest` | Quando una chiamata a tool richiede una decisione sui permessi | No — usa il campo JSON `decision` |
 | `PermissionDenied` | Quando la modalità auto nega una chiamata | No |
 
-Esistono anche `Setup`, `UserPromptExpansion`, `PostToolBatch`, `StopFailure`, `TaskCreated`,
-`TaskCompleted`, `TeammateIdle`, `MessageDisplay`, `ConfigChange`, `CwdChanged`, `DirectoryAdded`,
-`WorktreeCreate`, `WorktreeRemove`, `Elicitation` ed `ElicitationResult`.
+<details class="soluzione">
+<summary>Gli altri 16 eventi, per completezza (apri solo se ti servono)</summary>
+
+| Evento | Quando scatta |
+| --- | --- |
+| `Setup` | Nei run non interattivi avviati con i flag di inizializzazione |
+| `UserPromptExpansion` | Quando un comando slash viene espanso nel prompt |
+| `PostToolBatch` | Dopo un gruppo di chiamate a tool eseguite in parallelo |
+| `StopFailure` | Quando un turno termina per un errore dell'API |
+| `TaskCreated` / `TaskCompleted` | Quando un task della lista condivisa viene creato / completato |
+| `TeammateIdle` | Quando un membro di un agent team sta per fermarsi |
+| `MessageDisplay` | Mentre il testo di una risposta viene mostrato |
+| `ConfigChange` | Quando un file di configurazione cambia durante la sessione |
+| `CwdChanged` | Quando la directory di lavoro cambia |
+| `DirectoryAdded` | Quando aggiungi una directory con `/add-dir` |
+| `WorktreeCreate` / `WorktreeRemove` | Alla creazione / rimozione di un worktree |
+| `Elicitation` / `ElicitationResult` | Quando un server MCP chiede un input all'utente / riceve la risposta |
+
+</details>
 
 ```mermaid
 flowchart TD
@@ -101,21 +134,24 @@ flowchart TD
 | `hooks/hooks.json` di un plugin | Dove il plugin è abilitato | Sì |
 | Frontmatter di skill e subagent | Durata della sessione / del subagent | Sì |
 
-Formato base:
+Il formato di configurazione va letto **dall'esterno verso l'interno**, e la struttura — che a prima
+vista confonde, con `hooks` che compare due volte — ha una logica: per ogni **evento** (`PreToolUse`)
+puoi avere più **gruppi**, ognuno con il suo filtro (`matcher`: a quali tool si applica), e ogni
+gruppo può eseguire più **script** (la lista `hooks` interna). Quindi: evento → gruppi filtrati →
+script da eseguire.
 
 ```json title=".claude/settings.json"
 {
   "hooks": {
-    "PreToolUse": [
+    "PreToolUse": [            // ← l'evento: prima di ogni chiamata a tool...
       {
-        "matcher": "Bash",
-        "hooks": [
+        "matcher": "Bash",     // ← ...se il tool è Bash...
+        "hooks": [             // ← ...esegui questi script:
           {
             "type": "command",
-            "if": "Bash(rm *)",
+            "if": "Bash(rm *)",  // filtro fine: solo comandi che iniziano con "rm"
             "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/block-rm.sh",
-            "args": [],
-            "timeout": 30
+            "timeout": 30        // secondi a disposizione dello script
           }
         ]
       }
@@ -123,6 +159,9 @@ Formato base:
   }
 }
 ```
+
+*(I commenti `//` qui sono solo didattici: il JSON vero non li ammette — toglili se copi a mano.
+I blocchi degli esempi più sotto sono già pronti da copiare.)*
 
 ### I matcher
 
@@ -224,7 +263,24 @@ Dentro un subagent ci sono anche `agent_id` e `agent_type`.
 
 ## Esempio guidato
 
-Tre automazioni che si usano davvero, dalla più semplice alla più utile.
+Tre automazioni che si usano davvero, dalla più semplice alla più utile. E prima di tutto, la
+scorciatoia legittima:
+
+<Aside type="tip" title="Il modo più rapido: farli scrivere a Claude">
+Claude sa scrivere i propri hook, ed è il metodo consigliato anche dalla documentazione ufficiale.
+Descrivi cosa vuoi che succeda, e lui produce script e configurazione:
+
+```text
+Write a hook that blocks any write to the migrations/ folder,
+and one that runs `npm run typecheck` after every TypeScript edit.
+```
+
+*(= "scrivi un hook che blocchi ogni scrittura nella cartella migrations/, e uno che esegua il
+controllo dei tipi dopo ogni modifica a un file TypeScript")*
+
+I passi che seguono li scriviamo a mano lo stesso — capire com'è fatto un hook ti serve per
+correggerli e per fidarti di quelli che Claude genera.
+</Aside>
 
 <Steps>
 
@@ -267,9 +323,15 @@ Tre automazioni che si usano davvero, dalla più semplice alla più utile.
 
    ```bash title=".claude/hooks/lint.sh"
    #!/usr/bin/env bash
+   # set -euo pipefail = modalità "prudente" di bash: fermati al primo
+   # errore (-e), tratta le variabili inesistenti come errori (-u), e non
+   # nascondere i fallimenti dentro le pipe (pipefail)
    set -euo pipefail
 
+   # Claude Code passa all'hook un JSON su stdin; jq estrae il percorso
+   # del file modificato ("// empty" = se manca, stringa vuota)
    FILE=$(jq -r '.tool_input.file_path // empty')
+   # nessun file nel payload? niente da fare: esci senza errore
    [ -z "$FILE" ] && exit 0
 
    # Formatta in silenzio, poi controlla. Se eslint trova problemi,
@@ -331,6 +393,11 @@ Tre automazioni che si usano davvero, dalla più semplice alla più utile.
    ```
    </TabItem>
    <TabItem label="Windows" icon="seti:windows">
+   Il JSON qui è **diverso** da quello macOS, e non per errore: su Windows Claude può eseguire i
+   comandi sia col tool Bash (se hai Git for Windows) sia col tool PowerShell, quindi il `matcher`
+   copre entrambi, e servono **due** voci `if` — una per la sintassi di cancellazione di ciascuna
+   shell (`rm` e `Remove-Item`).
+
    ```json title=".claude/settings.json"
    {
      "hooks": {
@@ -405,20 +472,29 @@ Tre automazioni che si usano davvero, dalla più semplice alla più utile.
    <TabItem label="macOS" icon="apple">
    ```bash title=".claude/hooks/notify.sh"
    #!/usr/bin/env bash
+   # prende il nome della cartella di lavoro dal JSON dell'evento,
+   # per usarlo come titolo della notifica
    PROGETTO=$(basename "$(jq -r '.cwd')")
+   # osascript esegue AppleScript: è il modo standard di mostrare
+   # una notifica di sistema su macOS (con suono "Glass")
    osascript -e "display notification \"Claude ha finito\" with title \"$PROGETTO\" sound name \"Glass\""
    ```
    </TabItem>
    <TabItem label="Windows" icon="seti:windows">
    ```powershell title=".claude/hooks/notify.ps1"
+   # legge il JSON dell'evento da stdin e lo trasforma in oggetto
    $callInput = [Console]::In.ReadToEnd() | ConvertFrom-Json
+   # il nome della cartella di lavoro fara da titolo
    $progetto = Split-Path -Leaf $callInput.cwd
+   # Windows non ha un comando semplice per le notifiche: si passa
+   # dalle librerie .NET (per questo le righe che seguono sono verbose)
    [System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null
    $balloon = New-Object System.Windows.Forms.NotifyIcon
    $balloon.Icon = [System.Drawing.SystemIcons]::Information
    $balloon.BalloonTipTitle = $progetto
    $balloon.BalloonTipText = 'Claude ha finito'
    $balloon.Visible = $true
+   # mostra il fumetto per 5000 millisecondi (5 secondi)
    $balloon.ShowBalloonTip(5000)
    ```
    </TabItem>
@@ -435,20 +511,20 @@ Tre automazioni che si usano davvero, dalla più semplice alla più utile.
    Apre un browser in sola lettura di tutti gli hook, per evento, matcher, tipo e file di origine.
    È il primo posto in cui guardare quando qualcosa non scatta.
 
-6. **Fai scrivere gli hook a Claude.** Non è barare, è il modo consigliato:
-
-   ```text
-   Write a hook that blocks any write to the migrations/ folder,
-   and one that runs `npm run typecheck` after every TypeScript edit.
-   ```
-
 </Steps>
 
 ## Hook nelle skill e nei subagent
 
-Un hook può essere dichiarato nel frontmatter, invece che nei settings.
+Un hook può essere dichiarato anche nel frontmatter di una skill o di un subagent, invece che nei
+settings. **Attenzione: la sintassi è identica nei due casi** — quello che cambia è *quanto a lungo*
+l'hook resta attivo, e dipende solo da dove lo dichiari:
 
-**In una skill** — viene registrato quando la skill è invocata e resta per il **resto della sessione**:
+| Dichiarato in | L'hook vive… |
+| --- | --- |
+| Frontmatter di una **skill** | Da quando la skill viene invocata fino alla **fine della sessione** |
+| Frontmatter di un **subagent** | **Solo** mentre il subagent gira: rimosso quando finisce |
+
+La forma, uguale per entrambi:
 
 ```yaml
 ---
@@ -462,34 +538,18 @@ hooks:
 ---
 ```
 
-**In un subagent** — gira **solo** mentre il subagent gira, e viene rimosso quando finisce:
-
-```yaml
----
-name: my-subagent
-hooks:
-  PreToolUse:
-    - matcher: "Bash"
-      hooks:
-        - type: command
-          command: "./scripts/check.sh"
----
-```
-
 Nel frontmatter delle skill è disponibile anche l'opzione `once: true`, che esegue l'hook una volta per
 sessione e poi lo rimuove.
 
 ## Timeout
 
-| Tipo | Default |
-| --- | --- |
-| `command`, `http`, `mcp_tool` | 600 secondi |
-| `prompt` | 30 secondi |
-| `agent` | 60 secondi |
+I default per tipo di handler sono nella tabella dei [Concetti chiave](#concetti-chiave) (600 s per
+`command`/`http`/`mcp_tool`, 30 s per `prompt`, 60 s per `agent`). Alcuni eventi li abbassano:
+`UserPromptSubmit` a 30 s, `MessageDisplay` a 10 s.
 
-Alcuni eventi abbassano il default: `UserPromptSubmit` a 30 s, `MessageDisplay` a 10 s. `SessionEnd` ha un
-budget **condiviso di 1,5 secondi** tra tutti i suoi hook, alzabile fino a 60 s se il timeout individuale è
-maggiore.
+`SessionEnd` è un caso a parte, e la regola va letta con attenzione: di norma **tutti** i suoi hook
+insieme hanno 1,5 secondi (la sessione sta chiudendo, non può aspettare); ma se a un hook hai dato
+esplicitamente un `timeout` più alto, il budget si allarga fino a quel valore, con un tetto di 60 s.
 
 Allo scadere del timeout l'hook viene annullato e l'output scartato. Su `PreToolUse` **non blocca**: si
 prosegue con il normale flusso dei permessi.
@@ -595,6 +655,10 @@ tentativo successivo.
 
 ```bash title=".claude/hooks/test.sh"
 #!/usr/bin/env bash
+# Nota: qui manca la "-e" (fermati al primo errore) che c'era in lint.sh,
+# ed e VOLUTO: i test che falliscono fanno "fallire" npm, ma vogliamo
+# gestire noi quel fallimento (leggerne l'output e rimandarlo a Claude),
+# non far morire lo script a meta.
 set -uo pipefail
 
 FILE=$(jq -r '.tool_input.file_path // empty')
@@ -613,12 +677,22 @@ contesto di Claude.
 
 **3. Contesto all'avvio.**
 
+Nota il prerequisito in più di questo hook: la terza riga usa `gh`, la CLI di GitHub, che deve essere
+installata e autenticata (`gh auth login`) — altrimenti quella voce risulterà "sconosciuto", senza
+rompere nulla (è il senso dei vari `|| echo ...`: "se il comando fallisce, usa questo ripiego").
+
 ```bash title=".claude/hooks/context.sh"
 #!/usr/bin/env bash
+# il nome del branch corrente (o "non-git" fuori da un repository)
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "non-git")
+# quanti file risultano modificati: git status in formato compatto,
+# contato con wc -l (tr toglie gli spazi dal numero)
 SPORCO=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+# esito dell'ultimo run di CI su GitHub, letto con gh
 CI=$(gh run list --limit 1 --json conclusion --jq '.[0].conclusion' 2>/dev/null || echo "sconosciuto")
 
+# costruisce il JSON di risposta: additionalContext è il testo che
+# Claude Code inietta nel contesto della sessione appena avviata
 jq -n --arg b "$BRANCH" --arg s "$SPORCO" --arg c "$CI" '{
   hookSpecificOutput: {
     hookEventName: "SessionStart",
@@ -653,8 +727,9 @@ Test funzionali:
 | `test` | Rompi un test, poi fai modificare un file in `src/` | Claude vede il fallimento e lo corregge da solo |
 | `context` | Avvia una sessione nuova e chiedi `"su che branch siamo?"` | Risponde senza eseguire `git` |
 
-Se uno script non parte, il sospetto numero uno è il **bit di esecuzione**; il numero due è `jq` non
-installato. Lancia con `--debug` per vedere l'errore vero.
+Se uno script non parte, il sospetto numero uno è il **bit di esecuzione** — il "permesso di essere
+eseguito" che ogni file deve avere e che si dà con `chmod +x` (per questo il passo inizia proprio da
+lì); il numero due è `jq` non installato. Lancia con `--debug` per vedere l'errore vero.
 
 </details>
 

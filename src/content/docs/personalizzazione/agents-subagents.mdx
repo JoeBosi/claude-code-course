@@ -4,11 +4,21 @@ description: "Definire subagent con il loro contesto e i loro tool, delegare ric
 ---
 
 import { Tabs, TabItem, Steps, Aside, FileTree } from '@astrojs/starlight/components';
+import Zero from '@/components/Zero.astro';
 
 <div class="meta-modulo">
 	<span><strong>Tempo stimato:</strong> 55 minuti</span>
 	<span><strong>Prerequisiti:</strong> i moduli <a href="/fondamenta/memoria-e-contesto/">4</a>, <a href="/personalizzazione/skills/">8</a> e <a href="/personalizzazione/hooks/">10</a>.</span>
 </div>
+
+Un [subagent](/glossario/#subagent) è un aiutante che Claude lancia per delegare un compito: un
+"secondo Claude" con la sua memoria di lavoro separata, che fa il suo pezzo e riporta solo il
+risultato. L'analogia è il capocantiere che manda un operaio a fare un sopralluogo: l'operaio si
+guarda tutto, e al capo torna **il rapporto**, non l'intera visita. Due i motivi per usarli, ed è
+importante distinguerli: il **risparmio** (le letture pesanti restano nella memoria dell'aiutante,
+non nella tua — il tema del modulo 4) e la **qualità** (un revisore con la memoria pulita giudica il
+lavoro senza esserne affezionato). Questo modulo insegna a usare gli aiutanti pronti, a costruirne
+di tuoi, e a combinarli.
 
 ## Obiettivi
 
@@ -44,7 +54,7 @@ Prima di definirne uno tuo, controlla se ti basta uno di questi:
 
 | Tipo | Modello | Tool | A cosa serve |
 | --- | --- | --- | --- |
-| **`Explore`** | Eredita dalla conversazione principale (con tetto a Opus sull'API Claude) | **Solo lettura**: `Write` ed `Edit` negati | Scoperta di file, ricerca nel codice, esplorazione del codebase |
+| **`Explore`** | Lo stesso della conversazione principale (al massimo Opus: se usi un modello superiore, l'agente scala a Opus) | **Solo lettura**: `Write` ed `Edit` negati | Scoperta di file, ricerca nel codice, esplorazione del codebase |
 | **`Plan`** | Eredita | Solo lettura | Ricerca nel codebase per la pianificazione, in Plan Mode |
 | **`general-purpose`** | Eredita | Tutti quelli disponibili ai subagent | Task complessi multi-step che richiedono sia esplorazione sia azione |
 | `claude` | Eredita | Tutti | Catch-all quando il task non rientra in un agente specializzato |
@@ -67,7 +77,8 @@ All'avvio, un subagent (non-fork) ha:
 3. **I file `CLAUDE.md`** di ogni livello della gerarchia — tranne per `Explore` e `Plan`.
 4. **Lo stato git** — snapshot preso all'avvio della sessione padre; anche questo saltato da `Explore` e `Plan`.
 5. **Le skill precaricate** — contenuto completo delle skill elencate nel campo `skills`.
-6. **L'elenco dei fratelli** — la lista di `main` e degli agenti con un nome.
+6. **L'elenco degli altri agenti attivi** — la conversazione principale (`main`) e gli agenti con un
+   nome, così il subagent sa a chi può mandare messaggi.
 
 E soprattutto, cosa **non** arriva:
 
@@ -120,7 +131,10 @@ I file vanno in `agents/`, scoperti **ricorsivamente** — puoi organizzarli in 
 
 </FileTree>
 
-Le posizioni, dalla priorità più alta alla più bassa:
+Le posizioni, dalla priorità più alta alla più bassa. (Noterai che qui i **managed settings** e il
+flag di sessione stanno sopra tutto, e il progetto sopra l'utente: l'ordine è **diverso** da quello
+delle skill del modulo 7, dove la tua skill personale batte quella di progetto. Ogni meccanismo ha la
+sua tabella: quando serve la certezza, guarda quella giusta invece di andare a memoria.)
 
 | Posizione | Portata |
 | --- | --- |
@@ -224,11 +238,16 @@ Tre modi, in ordine crescente di forza:
    Use the test-runner subagent to fix failing tests
    ```
 
-2. **@-menzione** — **garantisce** che il subagent giri per quel task:
+2. **@-menzione** — **garantisce** che il subagent giri per quel task. La sintassi va copiata
+   esatta: `@` apre la menzione, le virgolette servono perché il nome contiene uno spazio, e il
+   suffisso `(agent)` distingue l'agente da un file con lo stesso nome. Scrivendo `@` nel prompt,
+   l'autocomplete te la compone da solo:
 
    ```text
    @"code-reviewer (agent)" look at the auth changes
    ```
+
+   *(= "code-reviewer, guarda le modifiche all'autenticazione")*
 
 3. **Default di sessione** — tutta la sessione usa quell'agente:
 
@@ -255,7 +274,11 @@ descrizione incoraggia Claude a delegare senza che tu lo chieda.
 
 ## Memoria persistente
 
-Con il campo `memory`, un subagent accumula conoscenza tra le conversazioni:
+Nel [modulo 4](/fondamenta/memoria-e-contesto/) hai visto l'**auto memory**: gli appunti che il Claude
+principale si prende tra una sessione e l'altra. I subagent **non la ereditano** — e possono però
+averne **una propria**, separata, attivata dal campo `memory`: stessa idea (appunti che sopravvivono),
+directory diversa, per agente. Così il tuo revisore ricorda i falsi positivi che gli hai contestato,
+senza mescolarli con la memoria della conversazione principale:
 
 ```yaml
 ---
@@ -382,8 +405,9 @@ Costruiamo una coppia che si usa insieme: un ricercatore in sola lettura e un re
    viene respinto, annotalo.
    ```
 
-   Tre scelte da notare: `model: opus` ed `effort: high`, perché la revisione è il punto in cui vale la
-   pena spendere; `disallowedTools: Write, Edit`, perché un revisore che corregge non è più un revisore; e
+   Tre scelte da notare: `model: opus` ed `effort: high` — Opus è il modello più capace e più
+   "costoso" in consumo del piano, e la revisione è esattamente il punto in cui quel consumo extra
+   rende; `disallowedTools: Write, Edit`, perché un revisore che corregge non è più un revisore; e
    `memory: project`, che lo rende progressivamente meno rumoroso.
 
 4. **Usali in sequenza.**
@@ -420,7 +444,7 @@ Costruiamo una coppia che si usa insieme: un ricercatore in sola lettura e un re
 
 </Steps>
 
-<Aside type="caution" title="Il revisore troverà sempre qualcosa">
+<Aside type="caution" title="Il revisore troverà sempre qualcosa (l'avviso promesso al modulo 3)">
 Un revisore a cui chiedi di trovare lacune ne troverà, anche quando il lavoro è solido: è ciò che gli hai
 chiesto. Inseguirle tutte porta a over-engineering — livelli di astrazione in più, codice difensivo, test
 per casi impossibili. È il motivo per cui nel prompt del `revisore` c'è la riga *"un rilievo senza scenario

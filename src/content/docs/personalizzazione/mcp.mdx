@@ -4,11 +4,19 @@ description: "Model Context Protocol in Claude Code: i quattro trasporti, i tre 
 ---
 
 import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
+import Zero from '@/components/Zero.astro';
 
 <div class="meta-modulo">
 	<span><strong>Tempo stimato:</strong> 60 minuti</span>
-	<span><strong>Prerequisiti:</strong> il <a href="/fondamenta/anatomia-file/">modulo 2</a> e il <a href="/fondamenta/memoria-e-contesto/">modulo 4</a>. Per l'esempio con Postgres serve Node.js.</span>
+	<span><strong>Prerequisiti:</strong> il <a href="/fondamenta/anatomia-file/">modulo 2</a> e il <a href="/fondamenta/memoria-e-contesto/">modulo 4</a>. Per replicare l'esempio guidato servono Node.js e un database Postgres con dei dati: se non li hai, l'esempio si segue benissimo anche solo leggendolo.</span>
 </div>
+
+Di suo, Claude vede solo i file del tuo progetto. **MCP** — *Model Context Protocol*, "protocollo per
+il contesto dei modelli" — è lo standard aperto che gli apre il resto del mondo: il database,
+l'issue tracker, il servizio di monitoraggio. Funziona come le prese elettriche: uno standard comune,
+e qualsiasi "spina" compatibile si collega. La spina si chiama **server MCP**: un connettore per uno
+specifico servizio che, una volta installato, dà a Claude nuove capacità — interrogare quel database,
+leggere quelle issue — senza che tu debba fare da tramite copiando dati in chat.
 
 ## Obiettivi
 
@@ -29,8 +37,8 @@ copiare dati in chat da un altro strumento** — un issue tracker, una dashboard
 | Trasporto | Quando | Comando |
 | --- | --- | --- |
 | **HTTP** | Servizi cloud. È l'opzione consigliata e la più supportata | `claude mcp add --transport http <nome> <url>` |
-| **stdio** | Processi locali sulla tua macchina: accesso diretto al sistema, script custom | `claude mcp add [opzioni] <nome> -- <comando> [args...]` |
-| **SSE** | **Deprecato.** Solo per servizi che espongono ancora solo un endpoint SSE | `claude mcp add --transport sse <nome> <url>` |
+| **stdio** (da *standard input/output*: il server è un programma locale che dialoga sui [canali standard](/glossario/#stdin--stdout--stderr)) | Processi sulla tua macchina: accesso diretto al sistema, script custom | `claude mcp add [opzioni] <nome> -- <comando> [args...]` |
+| **SSE** (*Server-Sent Events*) | **Deprecato.** Solo per servizi che espongono ancora solo questo | `claude mcp add --transport sse <nome> <url>` |
 | **WebSocket** | Server remoti che spingono eventi non richiesti. Non supporta OAuth né il flag `--transport` | Solo via `.mcp.json` o `claude mcp add-json` |
 
 **Tre scope, che decidono chi vede cosa.**
@@ -181,8 +189,9 @@ Committa `.mcp.json` e tutto il team ha gli stessi tool.
 
 `.mcp.json` supporta l'**espansione delle variabili d'ambiente**:
 
-- `${VAR}` — si espande al valore della variabile
-- `${VAR:-default}` — usa `VAR` se impostata, altrimenti il default
+- `${VAR}` — si espande al valore della [variabile d'ambiente](/glossario/#variabile-dambiente) `VAR`
+- `${VAR:-default}` — usa `VAR` se impostata, altrimenti il valore dopo `:-` (leggilo come "oppure"):
+  è il modo per dare un ripiego sensato quando la variabile manca
 
 L'espansione funziona in `command`, `args`, `env`, `url` e `headers`:
 
@@ -222,7 +231,11 @@ cartella non fidata. Il server resta a `⏸ Pending approval` finché non accett
 
 ## Autenticazione OAuth
 
-Molti server cloud richiedono autenticazione. Claude Code supporta OAuth 2.0.
+Molti server remoti hanno bisogno di sapere **chi sei** prima di darti accesso ai tuoi dati. Il
+meccanismo è [OAuth](/glossario/#oauth) — lo stesso "accedi con…" che usi ovunque: si apre il
+browser, autorizzi sul sito del servizio, e Claude Code riceve un permesso a tempo **senza mai vedere
+la tua password**. Ha anche un vantaggio pratico enorme rispetto alle chiavi copiate a mano: i
+permessi si rinnovano da soli e si revocano con un click.
 
 <Steps>
 
@@ -294,11 +307,9 @@ Le risorse vengono scaricate e incluse come allegati quando le referenzi.
 
 ## Tool search: perché il contesto regge
 
-Di default i tool MCP sono **differiti**: all'avvio entrano in contesto solo i nomi e le istruzioni del
-server. Claude usa un tool di ricerca per scoprire quelli che servono, e **solo i tool che usa davvero**
-entrano in contesto.
-
-Il comportamento si controlla con `ENABLE_TOOL_SEARCH`:
+È il meccanismo anticipato nei Concetti chiave, visto da vicino: i tool MCP sono **differiti** —
+all'avvio entrano in contesto solo i nomi, e le definizioni complete si caricano quando servono. Qui
+la parte operativa: il comportamento si controlla con la variabile d'ambiente `ENABLE_TOOL_SEARCH`:
 
 | Valore | Comportamento |
 | --- | --- |
@@ -311,7 +322,8 @@ Il comportamento si controlla con `ENABLE_TOOL_SEARCH`:
 Richiede un modello che supporti i blocchi `tool_reference`: Claude Sonnet 4.5, Haiku 4.5, Opus 4.5 e
 successivi.
 
-Se stai **scrivendo** un server MCP: con la tool search attiva, il campo delle istruzioni del server
+**Solo per chi costruisce server MCP** (se li usi soltanto, salta pure questo paragrafo): con la tool
+search attiva, il campo delle istruzioni del server
 diventa più importante: aiuta Claude a capire quando cercare i tuoi tool, come fa la `description` di una
 skill. Descrizioni dei tool e istruzioni del server vengono **troncate a 2 KB ciascuna**: metti i dettagli
 critici all'inizio.
@@ -324,19 +336,36 @@ spesso.
 <Steps>
 
 1. **Prepara un utente di sola lettura.** Non è un dettaglio di stile: è **la** precauzione che rende
-   sicuro tutto il resto.
+   sicuro tutto il resto. L'idea: invece di dare a Claude le chiavi di casa, gli creiamo un "utente
+   ospite" del database che può **solo guardare**, mai modificare.
+
+   <Zero title="Cos'è SQL e cosa stai per eseguire">
+   **SQL** è il linguaggio dei database relazionali: i dati vivono in *tabelle* (come fogli di
+   calcolo), e i comandi SQL li creano, leggono e modificano. Un database ha anche i suoi *utenti*,
+   ognuno con permessi diversi — come gli account di un computer condiviso. I comandi qui sotto si
+   eseguono nella console del database (ad es. `psql` per Postgres), **non** nel terminale normale, e
+   servono a creare l'utente ospite. Se il database lo gestisce qualcun altro, questi comandi sono la
+   cosa da chiedergli.
+   </Zero>
 
    ```sql
+   -- crea l'utente "claude_ro" (ro = read-only) con la sua password
    CREATE USER claude_ro WITH PASSWORD 'una-password-lunga';
+   -- gli permette di connettersi al database "analytics"...
    GRANT CONNECT ON DATABASE analytics TO claude_ro;
+   -- ...di "entrare" nello spazio delle tabelle...
    GRANT USAGE ON SCHEMA public TO claude_ro;
+   -- ...e di LEGGERE (SELECT) tutte le tabelle esistenti. Solo leggere.
    GRANT SELECT ON ALL TABLES IN SCHEMA public TO claude_ro;
+   -- idem per le tabelle che verranno create in futuro
    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO claude_ro;
    ```
 
 2. **Aggiungi il server.** Useremo [DBHub](https://github.com/bytebase/dbhub), il pacchetto
-   `@bytebase/dbhub`, che collega Claude a un database relazionale tramite la connection string passata in
-   `--dsn`:
+   `@bytebase/dbhub`, che collega Claude a un database relazionale. Il collegamento avviene tramite la
+   **connection string** (o *DSN*): l'"indirizzo completo" del database in una riga — utente, password,
+   host, porta e nome del database, tutto insieme nel formato
+   `postgresql://utente:password@host:porta/nome`:
 
    ```bash
    claude mcp add --transport stdio db -- npx -y @bytebase/dbhub \
@@ -352,19 +381,28 @@ spesso.
    Devi vedere `db` con `✔ Connected`. Se leggi `✘ Failed to connect`, la riga include lo stato o il codice
    d'errore: quasi sempre è la connection string.
 
-4. **Interroga in linguaggio naturale.** Avvia `claude` e prova:
+4. **Interroga in linguaggio naturale.** Avvia `claude` e prova (le domande presuppongono un database
+   di vendite con tabelle tipo `orders` e `customers` — adattale alle **tue** tabelle):
 
    ```text
    Show me the schema for the orders table
    ```
 
+   *(= "mostrami la struttura della tabella orders" — Claude userà i tool del server per leggere
+   colonne e tipi, e te li riassumerà)*
+
    ```text
    What's our total revenue this month?
    ```
 
+   *(= "qual è il fatturato totale di questo mese?" — qui Claude scrive da solo la query SQL, la
+   esegue tramite il server e ti riporta il numero: è il punto dell'intero esercizio)*
+
    ```text
    Find customers who haven't made a purchase in 90 days
    ```
+
+   *(= "trova i clienti che non comprano da 90 giorni")*
 
 5. **Guarda quanto ti costa in contesto.**
 
