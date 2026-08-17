@@ -47,6 +47,24 @@ Otto sezioni, sempre nello stesso ordine:
 7. Cheat-sheet in tabella
 8. Fonti — link ai docs ufficiali con data dell'ultima verifica
 
+## Regole editoriali (revisione didattica)
+
+Il corso viaggia su due binari: testo principale per sviluppatori, box "Se parti da zero" per chi
+non lo è. Ogni modifica ai contenuti rispetta queste quattro regole:
+
+1. **Prima il cosa e il perché, poi il come.** Ogni modulo e ogni sezione importante apre con 2-4
+   frasi in linguaggio piano: cos'è, che problema risolve, un'analogia o uno scenario concreto.
+2. **Nessun termine orfano.** Alla prima occorrenza in un modulo, ogni termine tecnico riceve una
+   definizione inline di una riga e/o un link al glossario: `[token](/glossario/#token)`.
+3. **Nessun codice muto.** Ogni blocco di codice ha: una frase prima che dice cosa fa; commenti
+   interni in italiano sulle righe non ovvie; una spiegazione dell'output mostrato. I prompt
+   restano in inglese ma ricevono una parafrasi italiana di una riga.
+4. **Il binario zero.** I passaggi che presuppongono bash, git, SQL, YAML ecc. hanno un box
+   `<Zero title="...">` (componente `src/components/Zero.astro`, import `@/components/Zero.astro`).
+
+Pagine di supporto: `src/content/docs/basi.mdx` (le basi per non sviluppatori) e
+`src/content/docs/glossario.mdx` (~60 voci con anchor stabili: linka `#termine` in kebab-case).
+
 ## Convenzioni di scrittura
 
 - Contenuti in **italiano**; codice, comandi e nomi di file in inglese.

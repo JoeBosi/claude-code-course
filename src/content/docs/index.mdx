@@ -15,7 +15,7 @@ hero:
       variant: minimal
 ---
 
-import { Card, CardGrid, LinkCard, Badge } from '@astrojs/starlight/components';
+import { Aside, Card, CardGrid, LinkCard, Badge } from '@astrojs/starlight/components';
 
 <p>
 	<Badge text="Fonti verificate il 16 agosto 2026" variant="success" size="medium" />
@@ -25,14 +25,17 @@ import { Card, CardGrid, LinkCard, Badge } from '@astrojs/starlight/components';
 
 ## Perché questo corso
 
-Claude Code non è un autocomplete: è un agente che legge il tuo codebase, esegue comandi, modifica file
-e chiude il ciclo da solo. Cambia il modo in cui scrivi software, e le abitudini dell'editor tradizionale
-non bastano più.
+Claude Code è un **[agente](/glossario/#agente)**: un'AI che non si limita a suggerire, ma agisce —
+legge i file del tuo progetto, esegue comandi nel [terminale](/glossario/#terminale), modifica il
+codice, verifica il risultato e corregge da sola finché il lavoro non è finito. Cambia il modo in cui
+si costruisce software, e le abitudini di prima non bastano più.
 
-Questo corso ti porta dalla prima installazione fino ai workflow che si usano davvero in produzione:
-memoria e contesto, `CLAUDE.md`, skills, MCP, hooks, subagent, automazione headless e boilerplate
-riusabili. Ogni comando e ogni percorso di file è stato verificato sulla documentazione ufficiale prima
-di finire in pagina — niente feature inventate, niente esempi che non girano.
+Questo corso ti porta dalla prima installazione fino ai flussi di lavoro che si usano davvero in
+produzione: la gestione della memoria dell'AI, il file di istruzioni `CLAUDE.md`, le estensioni
+(skills, MCP, hooks, subagent — ognuna spiegata dal suo modulo, e tutte nel
+[Glossario](/glossario/)), l'automazione senza interfaccia e i modelli di progetto riusabili. Ogni
+comando e ogni percorso di file è stato verificato sulla documentazione ufficiale prima di finire in
+pagina — niente feature inventate, niente esempi che non girano.
 
 <CardGrid>
 	<Card title="Fondamenta" icon="rocket">
@@ -55,21 +58,34 @@ di finire in pagina — niente feature inventate, niente esempi che non girano.
 
 ## Prerequisiti
 
-Ti serve poco, ma quel poco conta:
+L'unico requisito rigido è **un account Claude con piano attivo** (Pro, Max o Team). Il corso usa
+sempre il login dell'account: non serve, e non viene mai chiesta, una API key a pagamento.
 
-- **Un account Claude con piano attivo** (Pro, Max o Team). Il corso usa sempre il login dell'account:
-  non serve, e non viene mai chiesta, una API key a pagamento.
+Poi aiutano, ma **non sono obbligatori**:
+
 - **Familiarità con il terminale** — sai muoverti tra le cartelle, lanciare comandi, leggere un errore.
-- **Git installato** e le basi di commit, branch e diff.
-- **Node.js** per gli esempi pratici (alcuni moduli usano progetti JavaScript/TypeScript).
+- **Le basi di git** — commit, branch e diff, almeno come concetti.
+- **Node.js installato**, per gli esempi pratici di alcuni moduli.
 - **macOS o Windows**: ogni comando è fornito in entrambe le versioni, zsh e PowerShell, con la scelta
   del sistema operativo sincronizzata su tutte le pagine.
 
-Non serve invece nessuna esperienza pregressa con agenti AI o con Claude Code: si parte da zero.
+Non serve nessuna esperienza pregressa con agenti AI o con Claude Code: si parte da zero.
+
+<Aside type="tip" title="Non sei uno sviluppatore?">
+Il corso resta seguibile. Parti da **[Le basi](/basi/)** — dieci minuti su terminale, git, formati
+di file e come ragiona un modello AI — e tieni aperto il **[Glossario](/glossario/)**: ogni termine
+tecnico del corso è spiegato lì in una frase, con un'analogia. Dentro i moduli, i passaggi più
+tecnici hanno un box richiudibile *"Se parti da zero"* con la spiegazione minima per proseguire.
+</Aside>
 
 ## Da dove iniziare
 
 <CardGrid>
+	<LinkCard
+		title="Le basi, prima di iniziare"
+		description="Dieci minuti su terminale, git e come ragiona un modello AI. Se non sviluppi di mestiere, parti da qui."
+		href="/basi/"
+	/>
 	<LinkCard
 		title="0 · Setup e installazione"
 		description="Installa la CLI e l'app desktop, fai login e apri il primo progetto."
@@ -98,3 +114,8 @@ Ogni modulo ha sempre la stessa struttura, così sai cosa aspettarti: tempo stim
 obiettivi, concetti chiave, un esempio guidato passo-passo con l'output atteso, un esercizio con la
 soluzione in un blocco collassabile, errori comuni e troubleshooting, un cheat-sheet finale e le fonti
 ufficiali consultate con la data di verifica.
+
+E il corso viaggia su **due binari**: il testo principale è pensato per chi sviluppa, ma ogni termine
+tecnico è linkato al [Glossario](/glossario/) alla prima occorrenza, e i passaggi che presuppongono
+conoscenze da sviluppatore hanno un box richiudibile *"Se parti da zero"* con la spiegazione minima
+per seguire. Chi sa, li salta; chi non sa, non si perde mai.

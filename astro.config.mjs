@@ -44,6 +44,13 @@ export default defineConfig({
 			lastUpdated: true,
 			sidebar: [
 				{
+					label: 'Per orientarsi',
+					items: [
+						{ label: 'Le basi, prima di iniziare', slug: 'basi' },
+						{ label: 'Glossario', slug: 'glossario' },
+					],
+				},
+				{
 					label: 'Fondamenta',
 					items: [
 						{ label: '0 · Setup e installazione', slug: 'fondamenta/setup' },

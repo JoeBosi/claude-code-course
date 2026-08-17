@@ -1,0 +1,192 @@
+---
+title: "Le basi, prima di iniziare"
+description: "Dieci minuti per chi non è sviluppatore: il terminale, git, i formati di file e come ragiona un modello AI. Le quattro fondamenta per seguire tutto il corso senza perdersi."
+---
+
+import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+Questo corso è scritto per sviluppatori, ma è pensato per essere seguibile anche se non lo sei.
+Questa pagina è il ponte: **quattro concetti di base, dieci minuti di lettura**, e da qui in poi
+tutto il resto ha un appiglio. Se sviluppi già da anni, saltala pure — o scorri l'ultima sezione,
+che spiega come ragiona un modello AI e serve anche ai veterani.
+
+In tutto il corso troverai due aiuti costanti:
+
+- il **[Glossario](/glossario/)**, con ogni termine tecnico spiegato in una frase — i moduli ci
+  linkano alla prima occorrenza di ogni parola;
+- i box **"Se parti da zero"**, riquadri richiudibili con la spiegazione minima dei passaggi più
+  tecnici. Chi sa, li salta; chi non sa, li apre e prosegue.
+
+## Il terminale
+
+Il terminale è una finestra in cui parli col computer **scrivendo**, invece che cliccando.
+Sembra un passo indietro rispetto alle icone; in realtà è il contrario: un comando scritto si può
+ripetere, salvare, incollare in una guida — un click no. È il motivo per cui tutto questo corso
+è fatto di comandi da copiare.
+
+Per aprirlo:
+
+<Tabs syncKey="os">
+<TabItem label="macOS" icon="apple">
+Premi `Cmd+Spazio`, scrivi **Terminale** (o *Terminal*), premi Invio. Ti accoglie una riga che
+finisce con un simbolo tipo `%` o `$`: è il **prompt**, il "dimmi pure" del computer.
+</TabItem>
+<TabItem label="Windows" icon="seti:windows">
+Premi il tasto Windows, scrivi **PowerShell**, premi Invio. Ti accoglie una riga che comincia con
+`PS C:\...>`: è il **prompt**, il "dimmi pure" del computer.
+</TabItem>
+</Tabs>
+
+### L'anatomia di un comando
+
+Ogni comando ha la stessa struttura, e saperla leggere vale più di conoscere cento comandi:
+
+```bash
+claude --resume mia-sessione
+#  │        │        │
+#  │        │        └── argomento: il dato su cui lavorare
+#  │        └── flag: un'opzione, riconoscibile dai trattini
+#  └── il programma da eseguire
+```
+
+Tre cose da sapere subito:
+
+1. **Il terminale è permaloso sugli spazi e le maiuscole.** `claude` funziona, `Claude` no.
+   Per questo il corso ti fa sempre copiare i comandi invece di riscriverli.
+2. **"Eseguire" = scrivere il comando e premere Invio.** Se non succede niente di visibile, spesso
+   è buon segno: molti comandi parlano solo quando qualcosa va storto.
+3. **La cartella conta.** Il terminale è sempre "dentro" una cartella (la *working directory*).
+   `cd nome-cartella` ti sposta; è come fare doppio click su una cartella, ma scrivendo. Claude
+   Code lavora sulla cartella in cui lo avvii.
+
+### I tre incastri che incontrerai spesso
+
+```bash
+comando-a | comando-b     # la PIPE: l'uscita di A diventa l'ingresso di B
+comando > file.txt        # la REDIREZIONE: l'uscita finisce in un file invece che a schermo
+export NOME=valore        # una VARIABILE D'AMBIENTE: un valore con nome, visibile ai programmi
+```
+
+La **pipe** (`|`) è una catena di montaggio: ogni stazione lavora quello che arriva dalla
+precedente. Quando nel corso leggi `git diff | claude -p "rivedi"`, significa: prendi le
+differenze del codice e mandale in pasto a Claude.
+
+Le **variabili d'ambiente** sono il posto dove si mettono i valori che non vanno scritti nei file
+— soprattutto le password e le chiavi, che nel corso chiamiamo [secret](/glossario/#secret).
+
+Un ultimo concetto invisibile ma onnipresente: ogni comando, quando finisce, lascia un numero
+chiamato **[exit code](/glossario/#exit-code)** — 0 se è andato tutto bene, qualsiasi altro numero
+se no. Tu non lo vedi, ma gli script lo leggono per decidere se proseguire o fermarsi.
+
+## Git in 10 minuti
+
+Git è il sistema che registra **la storia di un progetto**. Non devi saperlo usare per seguire il
+corso — Claude lo usa per te — ma devi capirne cinque parole, perché ricorrono ovunque.
+
+*L'analogia che regge tutto*: immagina di scrivere un libro con altre persone, e di avere un
+archivio magico che conserva **ogni versione mai salvata**, di tutti, con data, autore e motivo
+del salvataggio.
+
+| Parola | Cos'è | Nell'analogia del libro |
+| --- | --- | --- |
+| **Repository** | La cartella del progetto con tutta la sua storia dentro | Il manoscritto **più** l'archivio di tutte le versioni |
+| **Commit** | Un salvataggio firmato: chi, quando, cosa, perché | "Versione del 3 marzo — riscritto il finale, era troppo lento" |
+| **Branch** | Una linea di lavoro parallela, che non tocca la principale | La brutta copia di un capitolo: la ricopi nel manoscritto solo se ti convince |
+| **Diff** | L'elenco delle differenze tra due versioni: righe aggiunte (+) e tolte (−) | Le correzioni in rosso sulla bozza |
+| **PR** (pull request) | La proposta formale: "ho finito il mio pezzo, guardatelo e se va bene unitelo" | Consegnare il capitolo all'editor per la revisione |
+
+Due dettagli pratici che il corso dà spesso per scontati:
+
+- Il repository vive **in due posti**: sul tuo computer e su un servizio come **GitHub** (una
+  specie di cloud per repository, con la revisione e la discussione incorporate). *Push* = mandare
+  i tuoi commit su GitHub; *pull* = scaricare quelli degli altri.
+- Il branch principale di solito si chiama **`main`**. Quando leggi "la diff rispetto a main",
+  significa: tutte le differenze tra il tuo lavoro e la versione ufficiale.
+
+## I formati che incontrerai
+
+Tre formati di testo ricorrono in tutto il corso. Non devi saperli **scrivere** — devi saperli
+**riconoscere e leggere**.
+
+### JSON — i dati tra programmi
+
+```json
+{
+  "nome": "Claude Code Tutorial",
+  "moduli": 20,
+  "gratuito": true,
+  "sezioni": ["Fondamenta", "Personalizzazione", "Automazione", "Professionale"]
+}
+```
+
+Coppie `"chiave": valore` tra graffe; le quadre `[...]` sono elenchi. Tutto qui. Quando un
+programma deve passare dati a un altro — o quando Claude deve rispondere in un formato che uno
+script può leggere — si usa JSON.
+
+### YAML — la configurazione
+
+```yaml
+name: il-mio-progetto
+opzioni:
+  velocita: alta
+  notifiche: true
+```
+
+Come il JSON, ma senza graffe: la struttura la fanno **gli spazi a inizio riga**. Più leggibile,
+ma attento a non toccare l'indentazione quando copi. Lo troverai in cima ai file delle
+[skill](/glossario/#skill) (il ["frontmatter"](/glossario/#frontmatter), racchiuso tra due righe
+`---`) e nei file di automazione di GitHub.
+
+### Markdown — il testo formattato
+
+```markdown
+# Titolo
+Testo normale con **grassetto** e [link](https://esempio.it).
+- un elenco
+- puntato
+```
+
+È il formato dei file `.md`: testo semplice con qualche simbolo per la formattazione. Il famoso
+`CLAUDE.md` del corso è esattamente questo — un file di testo — e il bello è proprio lì: le
+istruzioni per l'AI si scrivono in italiano, non in codice.
+
+## Come ragiona un modello AI
+
+Questa è la sezione che serve **a tutti**, anche a chi programma da vent'anni. Cinque parole, e
+mezzo corso si spiega da solo.
+
+**LLM** (*Large Language Model*) — il motore. Un sistema addestrato su enormi quantità di testo
+che fa una cosa sola, straordinariamente bene: dato tutto quello che ha davanti, produce il seguito
+più sensato. Claude è un LLM.
+
+**Prompt** — quello che gli scrivi. Non è una formula magica: è una richiesta, e la qualità della
+risposta dipende da quanta buona informazione contiene. Metà del corso è imparare a scrivere
+prompt che contengono le cose giuste.
+
+**Token** — l'unità di misura del testo. Un token è un pezzo di parola, in media 3-4 caratteri:
+«ciao» è circa 1 token, questa frase una quindicina. I modelli non leggono lettere né parole:
+leggono token. E i token si **pagano** — il consumo del tuo piano si misura così.
+
+**Finestra di contesto** — la memoria di lavoro. *L'analogia più utile del corso*: una
+**scrivania**. Tutto quello che il modello sa in questo momento deve stare fisicamente sulla
+scrivania: la conversazione, i file che ha letto, le istruzioni. La scrivania è grande ma **non
+infinita** (si misura in token — es. 200.000), e quando è ingombra si lavora male: le cose in
+fondo si perdono di vista. Il [modulo 4](/fondamenta/memoria-e-contesto/) è interamente dedicato
+a tenere la scrivania in ordine, ed è uno dei più importanti.
+
+**Agente** — un LLM con le mani. Un modello da solo può solo *scrivere*; un agente può *fare*:
+legge file, esegue comandi, guarda il risultato, corregge, riprova. Il ciclo
+"guarda → agisci → verifica" si chiama **ciclo agentico** ed è il cuore di Claude Code — e del
+[modulo 3](/fondamenta/agentic-coding/).
+
+<Aside type="tip" title="La frase che riassume tutto">
+Claude Code è **un agente** (un'AI che agisce, non solo risponde) che lavora **nel tuo
+terminale** (quindi sui tuoi file veri), con una **memoria di lavoro limitata** (la finestra di
+contesto) che va gestita, e che diventa tanto più utile quante più **istruzioni scritte** gli
+lasci (il `CLAUDE.md`, le skill, gli hook — cioè i moduli di questo corso).
+</Aside>
+
+## E adesso?
+
+Sei pronto per il [modulo 0 — Setup e installazione](/fondamenta/setup/). Tieni il
+[Glossario](/glossario/) a portata di mano: ogni termine che incontri e non riconosci, è lì.

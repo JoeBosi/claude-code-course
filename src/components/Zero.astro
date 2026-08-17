@@ -1,0 +1,81 @@
+---
+/**
+ * Box collassabile "Se parti da zero": il secondo binario del corso.
+ *
+ * Il testo principale è scritto per sviluppatori; questi box contengono la
+ * spiegazione minima perché anche chi non programma possa seguire. Chi sa,
+ * non li apre; chi non sa, non si perde.
+ *
+ * Uso negli MDX:
+ *   import Zero from '@/components/Zero.astro';
+ *   <Zero title="Cos'è una pipe">…</Zero>
+ */
+interface Props {
+	title: string;
+}
+const { title } = Astro.props;
+---
+
+<details class="zero">
+	<summary>
+		<span class="zero-etichetta">Se parti da zero</span>
+		<span class="zero-titolo">{title}</span>
+	</summary>
+	<div class="zero-corpo"><slot /></div>
+</details>
+
+<style>
+	.zero {
+		margin-block: 1rem;
+		border: 1px solid var(--sl-color-accent-low);
+		border-inline-start: 4px solid var(--sl-color-accent);
+		border-radius: 0.5rem;
+		background: var(--sl-color-gray-7, var(--sl-color-gray-6));
+	}
+
+	.zero > summary {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 0.5rem;
+		padding: 0.6rem 0.9rem;
+		cursor: pointer;
+		list-style: none;
+	}
+
+	.zero > summary::-webkit-details-marker {
+		display: none;
+	}
+
+	.zero > summary::before {
+		content: '▸';
+		color: var(--sl-color-accent);
+		transition: transform 0.15s ease;
+	}
+
+	.zero[open] > summary::before {
+		transform: rotate(90deg);
+	}
+
+	.zero-etichetta {
+		font-size: var(--sl-text-xs);
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--sl-color-accent);
+	}
+
+	.zero-titolo {
+		font-weight: 600;
+		color: var(--sl-color-white);
+	}
+
+	.zero-corpo {
+		padding: 0 1rem 0.9rem;
+		font-size: var(--sl-text-sm);
+	}
+
+	.zero-corpo > :global(:first-child) {
+		margin-top: 0;
+	}
+</style>
