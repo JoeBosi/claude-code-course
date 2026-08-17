@@ -4,11 +4,20 @@ description: "Comporre Claude Code con gli strumenti Unix: pipe, elaborazioni ba
 ---
 
 import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
+import Zero from '@/components/Zero.astro';
 
 <div class="meta-modulo">
 	<span><strong>Tempo stimato:</strong> 55 minuti</span>
 	<span><strong>Prerequisiti:</strong> i moduli <a href="/automazione/cli-scripting/">12</a> e <a href="/automazione/output-json/">13</a>. Per la parte CI serve un repository su GitHub.</span>
 </div>
+
+Una [pipeline](/glossario/#pipeline) è una catena di passaggi automatici in cui l'uscita di uno è
+l'ingresso del successivo: raccogli → elabora → pubblica. In questo modulo Claude diventa **uno degli
+anelli** della catena — non tutta la catena — e imparerai i tre pattern che coprono quasi tutto: la
+composizione con gli strumenti Unix, il **fan-out** (letteralmente "apertura a ventaglio": lo stesso
+lavoro distribuito su tante invocazioni indipendenti, una per file) e l'integrazione in
+[CI](/glossario/#ci--cd) — il servizio che esegue controlli automatici a ogni modifica del codice, per
+noi GitHub Actions.
 
 ## Obiettivi
 
@@ -93,17 +102,23 @@ Il pattern documentato per le migrazioni su larga scala ha tre fasi.
 <Steps>
 
 1. **Genera la lista di lavoro.** Fai scrivere a Claude l'elenco dei file da trattare, così il ciclo del
-   passo successivo può leggerlo:
+   passo successivo può leggerlo. L'esempio che seguiremo in tutto il capitolo: migrare i file che
+   usano ancora la vecchia API di configurazione del progetto alla nuova.
 
    ```text
-   list all Python files that still use the legacy config API and save the list to files.txt
+   list all files that still use the legacy config API and save the list to files.txt
    ```
 
-2. **Cicla sulla lista.**
+   *(= "elenca i file che usano ancora la vecchia API di configurazione e salva la lista in files.txt")*
+
+2. **Cicla sulla lista.** Un giro di ciclo = un'invocazione di Claude = un file, ognuna con il suo
+   contesto pulito:
 
    ```bash
+   # per ogni riga di files.txt...
    for file in $(cat files.txt); do
-     claude -p "Migrate $file from React to Vue. Return OK or FAIL." \
+     # ...un'invocazione dedicata, che risponde solo OK o FAIL
+     claude -p "Migrate $file from the legacy config API to the new one. Return OK or FAIL." \
        --allowedTools "Edit,Bash(git commit *)"
    done
    ```
@@ -121,20 +136,31 @@ possibilità di ritentare:
 
 ```bash title="migra.sh"
 #!/usr/bin/env bash
+# Nota: manca apposta la "-e" (esci al primo errore): un file che
+# fallisce NON deve fermare la migrazione degli altri — i fallimenti
+# li gestiamo noi, marcandoli e proseguendo.
 set -uo pipefail
 
+# argomenti con default: la lista dei file e quante migrazioni in parallelo
 LISTA="${1:-files.txt}"
 PARALLELI="${2:-4}"
+# tre cartelle di lavoro in un colpo (la brace expansion {a,b,c} le crea tutte)
 mkdir -p .migrazione/{ok,fail,log}
 
+# la funzione che migra UN file
 migra_uno() {
   local file="$1"
   local slug
+  # trasforma il percorso in un nome di file valido: src/app.py -> src_app.py
   slug=$(printf '%s' "$file" | tr '/' '_')
 
-  # Idempotenza: se è già stato fatto, salta.
+  # IDEMPOTENZA (= rieseguire non fa danni): se questo file risulta gia
+  # migrato da un run precedente, saltalo. E cio che rende lo script
+  # ri-lanciabile dopo un'interruzione senza rifare tutto.
   [ -f ".migrazione/ok/$slug" ] && { echo "skip  $file"; return 0; }
 
+  # l'invocazione vera: prompt preciso, permessi minimi, tetto ai turni,
+  # e TUTTO l'output in un log dedicato a questo file (2>&1 = anche gli errori)
   if claude -p "Migrate $file from the legacy config API to the new one. \
 Follow the pattern in src/config/new-api.ts. Do not change behaviour. \
 Run \`npm run typecheck\` when done. Reply with exactly OK or FAIL." \
@@ -142,20 +168,29 @@ Run \`npm run typecheck\` when done. Reply with exactly OK or FAIL." \
       --max-turns 15 \
       > ".migrazione/log/$slug.log" 2>&1
   then
+    # Claude ha risposto: ha detto proprio "OK"?
     if grep -q '^OK' ".migrazione/log/$slug.log"; then
       touch ".migrazione/ok/$slug"; echo "ok    $file"; return 0
     fi
   fi
 
+  # qualsiasi altro esito: marca il fallimento (il log dira perche)
   touch ".migrazione/fail/$slug"; echo "FAIL  $file"; return 1
 }
+# rende la funzione visibile ai processi figli che xargs lancera
 export -f migra_uno
 
+# il motore del parallelismo: xargs legge la lista (-a) e lancia fino a
+# PARALLELI processi insieme (-P), chiamando migra_uno su ogni file.
+# La coda "bash -c '...' _ {}" e un idioma fisso: serve solo a passare
+# il nome del file alla funzione — copialo cosi com'e.
 xargs -a "$LISTA" -P "$PARALLELI" -I{} bash -c 'migra_uno "$@"' _ {}
 
+# riepilogo: conta i marcatori nelle due cartelle
 echo
 echo "riusciti: $(ls .migrazione/ok | wc -l)   falliti: $(ls .migrazione/fail | wc -l)"
 echo "per ritentare i falliti:"
+# ricostruisce i percorsi dai nomi dei marcatori e li salva come nuova lista
 echo "  ls .migrazione/fail | tr '_' '/' > retry.txt && ./migra.sh retry.txt"
 ```
 
@@ -196,6 +231,16 @@ documentazione — così `git log` diventa il registro della migrazione e `git r
 </Steps>
 
 ### Uno script in CI
+
+<Zero title="Cos'è GitHub Actions e come si legge un workflow">
+**GitHub Actions** è il servizio di [CI](/glossario/#ci--cd) integrato in GitHub: metti un file
+[YAML](/glossario/#yaml) nella cartella `.github/workflows/` del repository, e GitHub esegue quei
+passi su una sua macchina (il *runner*) ogni volta che accade l'evento indicato. Le parole chiave dei
+file che vedrai: `on:` = quando scattare (un push, l'apertura di una PR, un orario); `jobs:` = i
+lavori da eseguire; `steps:` = i passi di ciascun lavoro; `uses:` = "riusa un'azione già pronta";
+`run:` = "esegui questo comando"; `secrets` = le credenziali custodite da GitHub, mai scritte nel
+file.
+</Zero>
 
 Il modo più semplice: uno script che gira come qualsiasi altro passo.
 
@@ -275,7 +320,10 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 ```
 
-Le righe che non sono boilerplate:
+Quasi tutte le righe di questo file sono la struttura fissa che ogni workflow ripete uguale (il
+"boilerplate" nel senso di codice-cerimonia — non confonderlo con le cartelle-template del
+[modulo 18](/professionale/boilerplate/), che rubano lo stesso nome). Le righe che invece meritano
+attenzione:
 
 | Riga | Perché c'è |
 | --- | --- |
@@ -296,8 +344,12 @@ Le righe che non sono boilerplate:
 Due controlli sull'attore che ha innescato il run, e il run **fallisce** se uno dei due rifiuta:
 
 - **Accesso in scrittura** — su eventi di issue e pull request, l'utente deve avere accesso in scrittura al
-  repository. Per permettere utenti specifici senza scrittura, `allowed_non_write_users` più un
-  `github_token` tuo. Gli eventi senza autore, come un trigger `schedule`, saltano il controllo.
+  repository. Per permettere utenti specifici senza scrittura serve `allowed_non_write_users`, che
+  richiede anche un token GitHub personalizzato (`github_token`). Attenzione al doppio taglio di quel
+  parametro: come vedremo nel troubleshooting, passare il `GITHUB_TOKEN` di default **impedisce** ai
+  commit di Claude di far partire la CI — quindi usalo solo se ti serve davvero questa eccezione, e in
+  quel caso con un token di una GitHub App dedicata. Gli eventi senza autore, come un trigger
+  `schedule`, saltano il controllo.
 - **Attore umano** — su ogni evento, un attore bot viene rifiutato a meno che non sia in `allowed_bots`.
   Serve a evitare che i bot facciano partire Claude in loop. **Vale anche per i run schedulati**, che
   GitHub attribuisce a un utente del repository, di solito l'ultimo che ha toccato il `cron`.
@@ -308,7 +360,8 @@ Due controlli sull'attore che ha innescato il run, e il run **fallisce** se uno 
 name: Daily Report
 on:
   schedule:
-    - cron: "0 9 * * *"
+    - cron: "0 9 * * *"    # sintassi cron: minuto ora giorno mese giorno-settimana
+                           # "0 9 * * *" = alle 9:00 UTC, ogni giorno
 jobs:
   report:
     runs-on: ubuntu-latest
@@ -425,14 +478,14 @@ I più usati: `--max-turns`, `--model`, `--mcp-config`, `--allowedTools`, `--deb
 
 Vale la pena dirlo esplicitamente, perché è l'errore più costoso in una pipeline:
 
-| Non usare Claude per | Usa invece |
-| --- | --- |
-| Trovare pattern testuali | `grep`, `rg` |
-| Formattare codice | `prettier`, `black`, `gofmt` |
-| Applicare regole di lint deterministiche | `eslint`, `ruff` |
-| Trasformazioni sintattiche meccaniche | `codemod`, `jscodeshift`, `ast-grep` |
-| Validare uno schema | `ajv`, `jsonschema` |
-| Contare, ordinare, deduplicare | `wc`, `sort`, `uniq` |
+| Non usare Claude per | Usa invece | Cosa sono |
+| --- | --- | --- |
+| Trovare pattern testuali | `grep`, `rg` | I cerca-testo del terminale, istantanei |
+| Formattare codice | `prettier`, `black`, `gofmt` | I formattatori automatici (JS, Python, Go) |
+| Applicare regole di lint deterministiche | `eslint`, `ruff` | I [linter](/glossario/#linter): trovano gli errori senza eseguire |
+| Trasformazioni sintattiche meccaniche | `codemod`, `jscodeshift`, `ast-grep` | Strumenti che riscrivono codice seguendo una regola esatta |
+| Validare uno schema | `ajv`, `jsonschema` | Validatori di [JSON Schema](/glossario/#json-schema) |
+| Contare, ordinare, deduplicare | `wc`, `sort`, `uniq` | I coltellini svizzeri Unix del testo |
 
 Claude serve dove serve **giudizio**: capire *perché* una build fallisce, decidere se un TODO è un bug,
 scrivere il codice che il codemod non sa scrivere, rivedere una diff. Metterlo dove basta un comando
@@ -458,12 +511,17 @@ set -euo pipefail
 
 DA="${1:-1 week ago}"
 
-# Tutto ciò che è deterministico lo fanno git e gh.
+# Tutto cio che e deterministico lo fanno git e gh. Le graffe { ... }
+# raggruppano i comandi: l'output di TUTTI finisce insieme nel file
+# indicato dopo la parentesi (un solo ">" per l'intero blocco).
 {
   echo "## Commit"
+  # la storia della settimana, un commit per riga (%h=hash, %s=messaggio, %an=autore)
   git log --since="$DA" --pretty='- %h %s (%an)'
   echo
   echo "## Issue aperte questa settimana"
+  # gh restituisce JSON; il suo flag --jq lo formatta al volo in righe
+  # markdown (e jq "annidato" dentro gh: stessa sintassi del modulo 13)
   gh issue list --state open --search "created:>$(date -d "$DA" +%F)" \
     --json number,title,labels \
     --jq '.[] | "- #\(.number) \(.title) [\(.labels | map(.name) | join(", "))]"'

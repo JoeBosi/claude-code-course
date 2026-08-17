@@ -4,11 +4,27 @@ description: "Claude Code sul web, Remote Control dal telefono, l'app desktop e 
 ---
 
 import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
+import Zero from '@/components/Zero.astro';
 
 <div class="meta-modulo">
 	<span><strong>Tempo stimato:</strong> 55 minuti</span>
-	<span><strong>Prerequisiti:</strong> i moduli <a href="/fondamenta/setup/">0</a> e <a href="/automazione/cli-scripting/">12</a>, un abbonamento Pro/Max/Team e un repository su GitHub.</span>
+	<span><strong>Prerequisiti:</strong> i moduli <a href="/fondamenta/setup/">0</a> e <a href="/automazione/cli-scripting/">12</a>, e un repository su GitHub per la parte cloud. Le sessioni cloud richiedono un piano Pro/Max/Team (o Enterprise con i posti giusti); Remote Control è su tutti i piani.</span>
 </div>
+
+Lo scenario di questo modulo: lanci un lavoro lungo, chiudi il laptop e vai a cena — e da divano, col
+telefono, controlli come sta andando e correggi la rotta. Le strade per arrivarci sono tre, e la
+differenza tra loro è **una sola domanda: dove gira il codice?** Su una macchina virtuale di Anthropic
+nel cloud (la sessione continua anche a laptop spento), sulla **tua** macchina resa visibile dal
+browser (i tuoi file e i tuoi strumenti, ma il computer deve restare acceso), o nell'app desktop.
+Impararle tutte e tre significa scegliere ogni volta quella giusta.
+
+<Zero title="Due parole che ricorrono in tutto il modulo">
+Una **VM** (macchina virtuale) è un computer simulato dentro un altro: le sessioni cloud girano
+ciascuna nella propria VM sui server di Anthropic — un ambiente pulito e isolato, creato per te e
+buttato via dopo. Un **webhook** è una "campanella" tra servizi: GitHub suona la campanella di Claude
+quando succede qualcosa (un test fallito, un commento), ed è così che l'auto-fix delle PR sa quando
+intervenire.
+</Zero>
 
 ## Obiettivi
 
@@ -106,9 +122,11 @@ Tieni il controllo sulla strategia e deleghi l'esecuzione autonoma.
 
 ### Repository senza GitHub
 
-Se lanci `claude --cloud` da un repository non collegato a GitHub, Claude Code **impacchetta il repository
-locale** e lo carica nella sessione. Il bundle include la storia completa su tutti i branch, più le
-modifiche non committate ai file **tracciati**.
+Se lanci `claude --cloud` da un repository non collegato a GitHub, Claude Code **impacchetta il
+repository locale** in un *bundle* — la "valigia" del progetto: un unico file con dentro tutta la
+storia git — e lo carica nella sessione. Dentro c'è la storia completa su tutti i branch, più le
+modifiche non committate ai file **tracciati** (quelli che git conosce già; i file mai aggiunti con
+`git add` restano fuori).
 
 I limiti:
 
@@ -127,7 +145,8 @@ Per forzare il bundle anche con GitHub collegato: `CCR_FORCE_BUNDLE=1`.
 claude -p "your message" --cloud <session-id>
 ```
 
-Mette il messaggio in coda ed esce **senza aspettare risposta**. Serve per steerare una sessione lunga,
+Mette il messaggio in coda ed esce **senza aspettare risposta**. Serve per correggere la rotta di una
+sessione lunga (*steering*, nel gergo),
 accodare il passo successivo, o mandare follow-up da uno script di CI. Funziona da **qualsiasi macchina**
 dove sei autenticato con `claude auth login`: non serve la macchina che ha avviato la sessione.
 
@@ -167,7 +186,7 @@ I requisiti:
 
 <Aside type="caution" title="Dopo il teleport la sessione si sdoppia">
 Il terminale ottiene **una sua copia** della sessione: il lavoro nuovo resta locale e **non** compare più
-nella sessione cloud su claude.ai né sull'app mobile. Per continuare a steerare dal telefono dopo il
+nella sessione cloud su claude.ai né sull'app mobile. Per continuare a guidarla dal telefono dopo il
 teleport, avvia `/remote-control` nella sessione locale.
 </Aside>
 
@@ -215,8 +234,8 @@ girare in locale per tutto il tempo: esecuzione e accesso al filesystem restano 
 
 ### Tre modi per avviarlo
 
-<Tabs syncKey="os">
-<TabItem label="macOS" icon="apple">
+I comandi sono identici su macOS e Windows:
+
 ```bash
 # Server mode: il processo resta in ascolto, senza sessione interattiva locale
 claude remote-control
@@ -232,25 +251,6 @@ Da dentro una sessione già avviata:
 /remote-control
 /rc My Project
 ```
-</TabItem>
-<TabItem label="Windows" icon="seti:windows">
-```powershell
-# Server mode: il processo resta in ascolto, senza sessione interattiva locale
-claude remote-control
-
-# Sessione interattiva con Remote Control attivo
-claude --remote-control
-claude --remote-control "My Project"
-```
-
-Da dentro una sessione già avviata:
-
-```text
-/remote-control
-/rc My Project
-```
-</TabItem>
-</Tabs>
 
 In server mode, il terminale mostra un URL di sessione e — premendo la **barra spaziatrice** — un QR code
 per collegarti rapidamente dal telefono.
@@ -385,7 +385,11 @@ una volta, qualunque opzione scegli.
 
 ## Lavoro programmato
 
-Per far girare del lavoro da solo, ci sono due strade a seconda di dove deve girare:
+Chiudiamo con una mappa volutamente breve: il lavoro programmato — "fai questa cosa ogni mattina alle
+7" — merita di essere impostato quando hai un caso reale, e gli strumenti si imparano in cinque minuti
+partendo dalla tabella. Qui ti serve solo sapere **cosa esiste e dove gira**, così quando il caso
+arriva sai quale porta aprire (per la strada CI, il [modulo 14](/automazione/pipeline-locali/) ha
+l'esempio completo con cron):
 
 | Strumento | Dove gira | Come |
 | --- | --- | --- |
@@ -437,7 +441,10 @@ Per far girare del lavoro da solo, ci sono due strade a seconda di dove deve gir
 5. **Riportala in locale quando è pronta.**
 
    ```bash
-   git stash          # il teleport richiede uno stato git pulito
+   # stash = "metti da parte": nasconde le modifiche non committate in un
+   # cassetto temporaneo, lasciando la cartella pulita (il teleport lo esige).
+   # NON le perdi: dopo, `git stash pop` le tira fuori dal cassetto.
+   git stash
    claude --teleport
    ```
 
@@ -520,7 +527,7 @@ Dal telefono: app Claude → la lista delle sessioni. Il follow-up da qualsiasi 
 claude -p "the rate limit should be per-API-key, not per-IP" --cloud session_01ABC...
 ```
 
-Nota che questo comando **non aspetta la risposta**: accoda ed esce. È il comportamento giusto per steerare
+Nota che questo comando **non aspetta la risposta**: accoda ed esce. È il comportamento giusto per guidare
 qualcosa che sta girando.
 
 **Passo 4.** Per la sessione che vuoi rivedere:
@@ -566,11 +573,11 @@ Due cose da tenere a mente:
 | Sintomo | Causa | Soluzione |
 | --- | --- | --- |
 | La sessione cloud non vede le tue modifiche | La VM clona il **remote**, non il checkout locale | `git push` prima di `claude --cloud` |
-| `Unable to get organization UUID` | `--cloud` e `--teleport` richiedono il login claude.ai, non una API key | `/login` con l'account claude.ai |
-| `Cloud sessions aren't available with <provider>` | Claude Code è configurato per un provider di terze parti | Togli la configurazione del provider, es. `CLAUDE_CODE_USE_BEDROCK` |
+| `Unable to get organization UUID` ("impossibile identificare la tua organizzazione") | `--cloud` e `--teleport` richiedono il login claude.ai, non una API key | `/login` con l'account claude.ai |
+| `Cloud sessions aren't available with <provider>` ("le sessioni cloud non sono disponibili con questo fornitore") | Claude Code è configurato per un provider di terze parti | Togli la configurazione del provider, es. `CLAUDE_CODE_USE_BEDROCK` |
 | `Cloud sessions are disabled by your organization's policy` | Policy `allow_remote_sessions` disattivata | Un Owner la abilita nelle impostazioni admin |
-| `Session not found: <id>` | L'ID non corrisponde a una sessione accessibile | Confrontalo con l'URL `claude.ai/code` della sessione |
-| `cloud session <id> is archived` | La sessione è stata archiviata | Avvia una sessione nuova |
+| `Session not found: <id>` ("sessione non trovata") | L'ID non corrisponde a una sessione accessibile | Confrontalo con l'URL `claude.ai/code` della sessione |
+| `cloud session <id> is archived` ("la sessione è archiviata") | Le sessioni archiviate non accettano più messaggi | Avvia una sessione nuova |
 | Il teleport rifiuta di partire | Working directory sporca, o repository sbagliato | Committa o stasha; devi essere nello **stesso** repository, non un fork |
 | Dopo il teleport il telefono non aggiorna più | La sessione locale è una copia separata | `/remote-control` nella sessione locale |
 | `Session creation failed` | Non è stato possibile allocare una VM | Controlla status.claude.com, riprova dopo un minuto, verifica l'accesso al repository |

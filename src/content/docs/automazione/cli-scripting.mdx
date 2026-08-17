@@ -4,11 +4,29 @@ description: "La modalità headless di Claude Code: claude -p, bare mode, i flag
 ---
 
 import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
+import Zero from '@/components/Zero.astro';
 
 <div class="meta-modulo">
 	<span><strong>Tempo stimato:</strong> 50 minuti</span>
 	<span><strong>Prerequisiti:</strong> la sezione <a href="/fondamenta/setup/">Fondamenta</a> e il <a href="/personalizzazione/mcp/">modulo 9</a>. Serve dimestichezza con bash o PowerShell.</span>
 </div>
+
+Finora hai sempre *conversato* con Claude. Questo modulo lo trasforma in un **ingranaggio**: un
+comando che parte, fa una cosa, restituisce il risultato ed esce — senza nessuno alla tastiera. Si
+chiama modalità **headless** ("senza testa", cioè senza interfaccia) o *non interattiva*, e apre una
+categoria nuova di usi: il controllo automatico su ogni modifica prima del salvataggio, il report che
+si genera da solo ogni mattina, la stessa correzione applicata a duecento file in serie. Tutta la
+sezione Automazione del corso poggia su questo modulo.
+
+<Zero title="I tre attrezzi di questo modulo: stdin, stdout, exit code">
+Ogni comando del terminale ha un ingresso ([stdin](/glossario/#stdin--stdout--stderr)), un'uscita
+(stdout) e un canale per gli errori (stderr); la [pipe](/glossario/#pipe) `|` collega l'uscita di un
+comando all'ingresso del successivo. E quando finisce, ogni comando lascia un
+[exit code](/glossario/#exit-code): 0 = tutto bene, altro = problema. Claude, in questa modalità, è
+un comando come gli altri: gli si danno dati in pancia con la pipe, e si controlla com'è andata
+leggendo l'exit code. Se questi tre concetti sono nuovi, [Le basi](/basi/#il-terminale) li mostra
+in pratica.
+</Zero>
 
 ## Obiettivi
 
@@ -50,12 +68,17 @@ Detto altrimenti: `claude -p` dentro un repository clonato da internet esegue co
 In CI, e su qualsiasi codice non tuo, usa `--bare`.
 </Aside>
 
-<Aside type="note" title="`--bare` non usa il tuo abbonamento">
-In bare mode, Claude Code **non legge mai** le credenziali OAuth né il portachiavi di sistema. Per l'API
-Anthropic serve `ANTHROPIC_API_KEY` nell'ambiente, o un `apiKeyHelper` nel JSON di `--settings`.
+<Aside type="note" title="Quando usare `--bare` e quando no — la regola del corso">
+C'è un dettaglio che decide tutto: in bare mode Claude Code **non legge mai** le credenziali del tuo
+login — serve una API key o un token nell'ambiente. Quindi la regola pratica è:
 
-Per gli esercizi di questo corso, che usano l'abbonamento, lavoriamo **senza** `--bare`. Il flag resta
-quello giusto per la CI, dove userai un token generato con `claude setup-token`.
+- **Sulla tua macchina, per provare e per gli esercizi**: `claude -p` **senza** `--bare`. Usa il tuo
+  abbonamento, e in locale caricare i tuoi hook e il tuo `CLAUDE.md` va benissimo.
+- **In CI, e su codice che non è tuo**: **sempre con** `--bare`, autenticandoti con un token generato
+  da `claude setup-token` ([modulo 14](/automazione/pipeline-locali/)). Lì la riproducibilità e la
+  sicurezza contano più della comodità.
+
+Quando negli esempi vedi `--bare`, è perché quel comando è pensato per la CI.
 </Aside>
 
 In bare mode Claude ha accesso ai tool Bash, lettura file e modifica file. Il contesto va passato a mano:
@@ -70,70 +93,73 @@ In bare mode Claude ha accesso ai tool Bash, lettura file e modifica file. Il co
 
 ## I flag che userai davvero
 
-### Modalità e input/output
+Un [flag](/glossario/#flag) è un'opzione del comando, riconoscibile dai trattini. Questi dieci coprono
+la quasi totalità degli script reali — impara questi, e consulta il resto quando serve:
 
 | Flag | Cosa fa |
 | --- | --- |
-| `-p`, `--print` | Stampa la risposta senza modalità interattiva |
-| `--bare` | Modalità minima: nessun auto-discovery |
-| `--output-format` | `text` (default), `json`, `stream-json` |
+| `-p`, `--print` | Modalità non interattiva: esegui, stampa, esci |
+| `--bare` | Modalità minima per la CI: nessun caricamento automatico |
+| `--output-format` | Formato della risposta: `text` (default), `json`, `stream-json` — il [modulo 13](/automazione/output-json/) è tutto su questo |
+| `--json-schema` | Risposta validata contro uno schema: dati, non prosa |
+| `--allowedTools` | Tool pre-approvati, che eseguono senza chiedere |
+| `--permission-mode` | La modalità di permesso di partenza ([modulo 6](/fondamenta/plan-mode/)) |
+| `--continue`, `-c` | Continua la conversazione più recente |
+| `--resume`, `-r` | Riprende una sessione per ID o nome |
+| `--max-turns` | Tetto ai turni: la cintura di sicurezza dei run non sorvegliati |
+| `--append-system-prompt` | Aggiunge istruzioni di ruolo ("sei un revisore di sicurezza…") |
+
+<details class="soluzione">
+<summary>Il riferimento completo dei flag, per quando serve</summary>
+
+**Input/output**
+
+| Flag | Cosa fa |
+| --- | --- |
 | `--input-format` | `text` o `stream-json` |
-| `--json-schema` | Output JSON validato contro uno schema |
 | `--verbose` | Output dettagliato — necessario con `stream-json` |
 | `--include-partial-messages` | Include gli eventi di streaming parziale |
 
-### Permessi
+**Permessi**
 
 | Flag | Cosa fa |
 | --- | --- |
-| `--allowedTools`, `--allowed-tools` | Tool che eseguono senza chiedere permesso |
-| `--disallowedTools` | Regole di deny |
-| `--permission-mode` | Parte in una modalità specifica |
+| `--disallowedTools` | Regole di divieto |
 | `--tools` | Limita quali tool integrati Claude può usare |
-| `--permission-prompt-tool` | Tool MCP che gestisce i prompt di permesso in non interattivo |
-| `--dangerously-skip-permissions` | Salta i prompt (equivale a `--permission-mode bypassPermissions`) |
+| `--permission-prompt-tool` | Tool MCP che gestisce le richieste di permesso al posto tuo |
+| `--dangerously-skip-permissions` | Salta ogni conferma — solo in ambienti isolati |
 
-### Sessioni
+**Sessioni**
 
 | Flag | Cosa fa |
 | --- | --- |
-| `--continue`, `-c` | Carica la conversazione più recente nella directory corrente |
-| `--resume`, `-r` | Riprende una sessione specifica per ID o nome |
 | `--session-id` | Usa un ID di sessione specifico (UUID valido) |
 | `--fork-session` | Riprendendo, crea un nuovo ID invece di riusare l'originale |
-| `--no-session-persistence` | Disattiva la persistenza (solo in print mode) |
+| `--no-session-persistence` | Non salvare la trascrizione (solo con `-p`) |
 | `--name`, `-n` | Nome visualizzato della sessione |
 
-### System prompt e contesto
+**System prompt e contesto**
 
 | Flag | Cosa fa |
 | --- | --- |
-| `--append-system-prompt` | Aggiunge testo in fondo al system prompt di default |
-| `--append-system-prompt-file` | Come sopra, da file |
-| `--system-prompt` | **Sostituisce** l'intero system prompt |
-| `--system-prompt-file` | Come sopra, da file |
+| `--append-system-prompt-file` | Come `--append-system-prompt`, ma da file |
+| `--system-prompt` / `--system-prompt-file` | **Sostituisce** l'intero system prompt |
 | `--add-dir` | Directory di lavoro aggiuntive |
 | `--setting-sources` | Quali sorgenti di settings caricare: `user`, `project`, `local` |
 | `--settings` | File JSON di settings, o JSON inline |
 
-### Limiti e modello
+**Limiti, modello, diagnostica**
 
 | Flag | Cosa fa |
 | --- | --- |
-| `--max-turns` | Limita i turni agentici (solo print mode) |
-| `--max-budget-usd` | Tetto di spesa per le chiamate API |
-| `--model` | Modello per questa sessione |
-| `--fallback-model` | Fallback automatico se il modello primario non è disponibile |
-| `--effort` | Livello di effort |
+| `--max-budget-usd` | Tetto di spesa (per chi usa una API key a consumo) |
+| `--model` / `--fallback-model` | Modello per la sessione, con eventuale ripiego |
+| `--effort` | Quanto il modello "ci pensa": da `low` a `max` |
+| `--debug` / `--debug-file <path>` | Log di debug, eventualmente su file |
+| `--safe-mode` | Tutte le personalizzazioni disattivate, per diagnosticare |
+| `--strict-mcp-config` | Solo i server passati con `--mcp-config`, ignora il resto |
 
-### Diagnostica
-
-| Flag | Cosa fa |
-| --- | --- |
-| `--debug` | Modalità debug, con filtro opzionale per categoria |
-| `--debug-file <path>` | Scrive i log di debug su un file |
-| `--safe-mode` | Parte con tutte le personalizzazioni disattivate |
-| `--strict-mcp-config` | Usa **solo** i server di `--mcp-config`, ignorando il resto |
+</details>
 
 ## I permessi negli script
 
@@ -162,16 +188,27 @@ alla più blindata:
    `git diff-index`.
    </Aside>
 
-3. **Impostare una modalità di base:**
+3. **Impostare una modalità di base.** Due modalità servono ai due estremi:
+
+   `acceptEdits` per i task locali in cui le modifiche ai file vanno bene senza conferma:
 
    ```bash
    claude -p "Apply the lint fixes" --permission-mode acceptEdits
    ```
 
-   `dontAsk` nega tutto ciò che non è nelle tue regole `permissions.allow` o nell'insieme di comandi di
-   sola lettura: è la scelta per una CI blindata. `AskUserQuestion`, i tool dei connettori impostati su
-   `ask` dall'organizzazione, e i tool MCP marcati `requiresUserInteraction` restano **negati anche con
-   una regola di allow**.
+   *(= "applica le correzioni del linter" — le modifiche ai file passano, gli altri comandi
+   chiedono comunque)*
+
+   `dontAsk` per la CI blindata: **nega** tutto ciò che non è già nelle tue regole
+   `permissions.allow` o nell'insieme dei comandi di sola lettura:
+
+   ```bash
+   claude -p "Run the checks" --permission-mode dontAsk
+   ```
+
+   Nota per i casi limite: alcuni tool restano negati in `dontAsk` **anche** con una regola di allow —
+   quelli che per natura richiedono un umano, come `AskUserQuestion` (fa domande all'utente) e i tool
+   marcati come interattivi dal loro server MCP.
 
 </Steps>
 
@@ -337,19 +374,28 @@ un'impostazione da un'invocazione `-p`, passa `chiave=valore` a `/config`, per e
      --allowedTools "Read,Edit,Bash(npm test *)"
    ```
 
-8. **Confronta con e senza `--bare`.** Per vedere la differenza:
+8. **Guarda con i tuoi occhi cosa carica `-p` (e cosa `--bare` toglierebbe).** Chiedi a Claude di
+   elencare l'equipaggiamento con cui è partito:
 
    ```bash
+   # senza --bare: skill, hook e CLAUDE.md della tua macchina sono a bordo
    claude -p "list the skills and hooks you have available" | head -20
    ```
 
-   Poi, sapendo che bare mode richiede `ANTHROPIC_API_KEY` e quindi non useremo questa forma negli
-   esercizi:
+   *(= "elenca le skill e gli hook che hai a disposizione")*
+
+   Vedrai le **tue** skill e i **tuoi** hook: sono partiti con la sessione, e su un'altra macchina
+   la stessa invocazione partirebbe con un equipaggiamento diverso — ecco il problema di
+   riproducibilità che `--bare` risolve. La controprova con `--bare` richiede un token (il login
+   dell'abbonamento non viene letto), quindi ha la forma che userai in CI:
 
    ```bash
-   # In CI, con un token da `claude setup-token`:
-   CLAUDE_CODE_OAUTH_TOKEN=... claude -p "Summarize README.md" --allowedTools "Read"
+   # in CI: --bare + token generato una volta con `claude setup-token`
+   CLAUDE_CODE_OAUTH_TOKEN=... claude --bare -p "list the skills and hooks you have available"
    ```
+
+   Qui la risposta sarebbe: nessuna skill, nessun hook. Stesso comando, equipaggiamento zero,
+   risultato identico su qualsiasi macchina.
 
 </Steps>
 
@@ -382,19 +428,32 @@ Scrivi uno script che usi Claude come gate di qualità, e che si comporti bene q
 
 ```bash title="gate.sh"
 #!/usr/bin/env bash
+# modalità prudente di bash: fermati al primo errore, vietato usare
+# variabili mai definite, niente errori nascosti nelle pipe
 set -euo pipefail
 
+# il branch di confronto: il primo argomento dello script, oppure
+# "main" se non ne passi nessuno (è il significato di ${1:-main})
 BASE="${1:-main}"
 
-# La diff arriva via stdin: nessun permesso Bash necessario.
+# le differenze del tuo lavoro rispetto al punto in cui ti sei staccato
+# da BASE (la notazione "..." di git diff). Le catturiamo in una
+# variabile: le passeremo a Claude via stdin, così non gli serve
+# nessun permesso per leggerle.
 DIFF=$(git diff "$BASE"...HEAD)
 
+# niente differenze, niente review: usciamo con 0 ("tutto bene")
 if [ -z "$DIFF" ]; then
   echo "Nessuna differenza rispetto a $BASE."
   exit 0
 fi
 
-# --json-schema forza una risposta strutturata: niente parsing di prosa.
+# Il cuore dello script: la diff entra in Claude dalla pipe, e
+# --json-schema obbliga la risposta ad avere ESATTAMENTE la forma
+# descritta qui sotto — un oggetto con una lista "bloccanti", dove
+# ogni voce ha file, riga, problema e scenario (tutti obbligatori:
+# "required"). Cosi il verdetto e un dato che lo script puo leggere,
+# non prosa da interpretare.
 RISPOSTA=$(printf '%s' "$DIFF" | claude -p \
   "Review this diff. Report only defects that affect correctness or security and that have a concrete failure scenario. Ignore style, naming and formatting." \
   --output-format json \

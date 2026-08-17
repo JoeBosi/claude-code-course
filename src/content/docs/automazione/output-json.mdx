@@ -4,11 +4,28 @@ description: "I formati di output di Claude Code: text, json e stream-json, lo s
 ---
 
 import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
+import Zero from '@/components/Zero.astro';
 
 <div class="meta-modulo">
 	<span><strong>Tempo stimato:</strong> 45 minuti</span>
 	<span><strong>Prerequisiti:</strong> il <a href="/automazione/cli-scripting/">modulo 12</a>. Serve <code>jq</code> installato.</span>
 </div>
+
+Uno script non sa leggere la prosa. Se chiedi a Claude "quanti TODO ci sono?" e lui risponde "ne ho
+trovati dodici, di cui tre importanti", per un programma quella frase è un muro. Questo modulo insegna
+a far parlare Claude **in dati**: risposte [JSON](/glossario/#json) con una forma precisa, che uno
+script legge senza interpretare. È il pezzo che trasforma gli esperimenti del modulo 12 in automazioni
+affidabili.
+
+<Zero title="jq: l'attrezzo del modulo (e come installarlo)">
+[jq](/glossario/#jq) è lo strumento da terminale per estrarre dati da un JSON: gli passi un
+"percorso" come `.result` o `.utenti[0].nome` e lui tira fuori quel pezzo — le pinzette per una
+scatola disordinata. Si installa con `brew install jq` su macOS, `winget install jqlang.jq` su
+Windows, `sudo apt install jq` su Linux. I tre flag che vedrai ovunque nel modulo: **`-r`** = output
+"grezzo", senza le virgolette attorno alle stringhe; **`-e`** = "fallisci se il risultato è
+nullo/falso", utile negli script che devono fermarsi; **`//`** dentro un'espressione = "oppure":
+`.nome // "sconosciuto"` significa "il nome, o «sconosciuto» se manca".
+</Zero>
 
 ## Obiettivi
 
@@ -26,42 +43,23 @@ import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
 | --- | --- | --- |
 | `text` (default) | Testo semplice | Uso a mano, pipe verso altri comandi Unix |
 | `json` | Un singolo oggetto JSON con risultato, ID di sessione, costi e metadati | Script che devono ramificare o tracciare la spesa |
-| `stream-json` | JSON delimitato da a-capo, un oggetto per riga | Streaming in tempo reale, monitoraggio, UI |
+| `stream-json` | Un oggetto JSON per riga, man mano che le cose accadono (il formato si chiama JSONL o NDJSON) | Seguire il lavoro in tempo reale, monitoraggio |
 
 **Parsare la prosa è un antipattern.** Chiedere a un modello di rispondere "solo con l'elenco" e poi
 estrarre con una regex funziona finché non smette di funzionare. Per un output che uno script deve
 consumare, esiste `--json-schema`: la risposta viene **validata contro lo schema** e arriva nel campo
 `structured_output` già strutturata.
 
-**Il costo è nella risposta.** Con `--output-format json`, il payload include `total_cost_usd` e una
-ripartizione per modello: uno script può tracciare la spesa per invocazione senza consultare la dashboard.
-Sono **stime lato client** e possono differire dalla fattura reale.
+**Il costo è nella risposta.** Con `--output-format json`, la risposta include `total_cost_usd` e una
+ripartizione per modello: uno script può tracciare la spesa per invocazione senza aprire la dashboard
+di utilizzo sul sito di Anthropic. Sono **stime calcolate localmente** e possono differire dai
+conteggi ufficiali del tuo piano.
 
 ## Il formato `json`
 
 ```bash
 claude -p "Summarize this project" --output-format json
 ```
-
-La risposta è un singolo oggetto. Questi sono i campi che ti serviranno davvero:
-
-| Campo | Tipo | Cosa contiene |
-| --- | --- | --- |
-| `result` | string | **Il testo della risposta.** È il campo che estrai il 90% delle volte |
-| `structured_output` | object | Presente solo con `--json-schema`: l'oggetto validato |
-| `is_error` | boolean | Se il run è andato in errore |
-| `subtype` | string | `"success"` o il tipo di fallimento |
-| `session_id` | string | ID della sessione, per riprenderla con `--resume` |
-| `num_turns` | integer | Quanti turni agentici sono serviti |
-| `stop_reason` | string | Perché si è fermato, es. `"end_turn"` |
-| `terminal_reason` | string | Es. `"completed"` |
-| `total_cost_usd` | number | Costo stimato dell'invocazione |
-| `usage` | object | Token di input, output, cache read e cache creation |
-| `modelUsage` | object | Ripartizione per modello, con costo e finestra di contesto |
-| `permission_denials` | array | Le azioni negate dai permessi durante il run |
-| `duration_ms` / `duration_api_ms` | integer | Durata totale e durata delle chiamate API |
-| `api_error_status` | integer or null | Stato HTTP in caso di errore API |
-| `uuid` | string | Identificatore dell'evento |
 
 Un esempio reale, prodotto da `claude --version 2.1.233`, ridotto ai campi principali:
 
@@ -89,6 +87,27 @@ Un esempio reale, prodotto da `claude --version 2.1.233`, ridotto ai campi princ
 }
 ```
 
+Quella sopra è una risposta vera (accorciata). Ora i campi, quelli che ti serviranno davvero:
+
+| Campo | Tipo | Cosa contiene |
+| --- | --- | --- |
+| `result` | string | **Il testo della risposta.** È il campo che estrai il 90% delle volte |
+| `structured_output` | object | Presente solo con `--json-schema`: l'oggetto validato |
+| `is_error` | boolean | Se il run è andato in errore |
+| `subtype` | string | `"success"` o il tipo di fallimento |
+| `session_id` | string | ID della sessione, per riprenderla con `--resume` |
+| `num_turns` | integer | Quanti turni agentici sono serviti |
+| `stop_reason` | string | Perché si è fermato, es. `"end_turn"` |
+| `terminal_reason` | string | Es. `"completed"` |
+| `total_cost_usd` | number | Costo stimato dell'invocazione |
+| `usage` | object | Token di input, output, cache read e cache creation |
+| `modelUsage` | object | Ripartizione per modello, con costo e finestra di contesto |
+| `permission_denials` | array | Le azioni negate dai permessi durante il run |
+| `duration_ms` / `duration_api_ms` | integer | Durata totale e durata delle chiamate API |
+| `api_error_status` | integer or null | Stato HTTP in caso di errore API |
+| `uuid` | string | Identificatore dell'evento |
+
+
 ### Estrarre con `jq`
 
 ```bash
@@ -107,8 +126,12 @@ claude -p "..." --output-format json | jq -e '.is_error == false' > /dev/null
 
 ## Output validato con `--json-schema`
 
-È la funzione più utile del modulo. Passi uno [JSON Schema](https://json-schema.org/) e ottieni una
-risposta conforme:
+È la funzione più utile del modulo. Uno [schema JSON](/glossario/#json-schema) è la **descrizione
+della forma** che un JSON deve avere: quali campi esistono, di che tipo è ciascuno, quali sono
+obbligatori. Il modulo prestampato, insomma: se manca un campo obbligatorio, il modulo non è valido.
+Passandolo a Claude con `--json-schema`, la risposta **deve** rispettare quella forma — e il tuo
+script può leggerla alla cieca, senza controllare se stavolta il modello ha scritto le cose in modo
+diverso:
 
 ```bash
 claude -p "Extract the main function names from auth.py" \
@@ -437,24 +460,32 @@ SCHEMA='{
   "required": ["linguaggi", "entrypoint", "comandi", "rischi"]
 }'
 
+# Lancia Claude con lo schema definito sopra. Il prompt, in italiano:
+# "fai l'inventario del progetto; per i comandi riporta quelli ESATTI dei
+# file di configurazione, non quelli che ti aspetteresti; per i rischi,
+# solo cose puntabili col dito — 'prova' deve citare un percorso".
 RUN=$(claude -p "Produce an inventory of this project. For comandi, report the exact commands from the project config files, not what you would expect. For rischi, report only things you can point at concretely; prova must cite a file path." \
   --allowedTools "Read,Grep,Glob" \
   --output-format json \
   --json-schema "$SCHEMA" \
   --max-turns 15)
 
-# Unisce inventario e metadati del run in un solo documento.
+# Unisce inventario e metadati in un solo documento. La sintassi jq
+# '{chiave: espressione, ...}' COSTRUISCE un nuovo oggetto: qui uno con
+# due sezioni — l'inventario di Claude e i dati sul run stesso.
 echo "$RUN" | jq '{
   inventario: .structured_output,
   run: {
-    modello:  (.modelUsage | keys | .[0]),
+    modello:  (.modelUsage | keys | .[0]),   # il nome del modello usato
     costo_usd: .total_cost_usd,
     durata_ms: .duration_ms,
     turni:     .num_turns,
-    negati:    (.permission_denials | length)
+    negati:    (.permission_denials | length) # quante azioni sono state negate
   }
 }' > inventario.json
 
+# ultima verifica: "jq -e ." fallisce se il file non e JSON valido,
+# e "&&" stampa la conferma SOLO se la verifica passa
 jq -e . inventario.json > /dev/null && echo "✔ inventario.json scritto e valido"
 ```
 
