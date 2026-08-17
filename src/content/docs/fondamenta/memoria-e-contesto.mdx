@@ -4,15 +4,26 @@ description: "Gestire la finestra di contesto di Claude Code: cosa si carica e q
 ---
 
 import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
+import Zero from '@/components/Zero.astro';
 
 <div class="meta-modulo">
 	<span><strong>Tempo stimato:</strong> 50 minuti</span>
 	<span><strong>Prerequisiti:</strong> il <a href="/fondamenta/agentic-coding/">modulo 3</a> e una sessione lunga già vissuta almeno una volta.</span>
 </div>
 
+Il titolo è in inglese perché nel settore si chiama così — *context engineering*, l'ingegneria del
+contesto — ma l'idea si spiega con una scrivania. La [finestra di
+contesto](/glossario/#finestra-di-contesto) è la **memoria di lavoro** di Claude: tutto ciò che sa in
+questo momento deve stare fisicamente lì — la conversazione, i file letti, le istruzioni. La scrivania
+è grande ma non infinita, si misura in [token](/glossario/#token) (l'unità di misura del testo: ~3-4
+caratteri l'uno), e **quando è ingombra si lavora male**. Questo modulo insegna a tenerla in ordine:
+è la competenza singola che più distingue chi ottiene ottimi risultati da chi si chiede perché "Claude
+si è rincretinito dopo un'ora". Se i cinque concetti AI di base ti sono nuovi, [Le
+basi](/basi/#come-ragiona-un-modello-ai) li copre in due minuti.
+
 ## Obiettivi
 
-- Sapere cosa entra nella finestra di contesto, quando, e quanto costa in token.
+- Sapere cosa entra nella finestra di contesto, quando, e quanto costa in [token](/glossario/#token).
 - Leggere l'output di `/context` e agire di conseguenza.
 - Scegliere consapevolmente tra `/compact`, `/clear`, `/autocompact` e delega a subagent.
 - Capire cosa sopravvive alla compattazione e cosa no — è la causa numero uno di istruzioni "sparite".
@@ -51,7 +62,7 @@ completamente separata dalla conversazione principale. Se gli deleghi una ricerc
 venti file stanno nel suo contesto, non nel tuo: a te torna solo un riassunto. È il motivo per cui i
 subagent aiutano nelle sessioni lunghe più di qualsiasi altra tecnica.
 
-**Se ti serve più spazio, cambia modello.** Fable 5, Sonnet 5, Opus 4.6 e successivi, e Sonnet 4.6
+**Se ti serve più spazio, cambia modello.** I [modelli](/glossario/#modello) Claude più recenti — Fable 5, Sonnet 5, Opus 4.6 e successivi, e Sonnet 4.6 —
 supportano una finestra da **1 milione di token**. Sonnet 5 gira a 1M senza bisogno di selezionare una
 variante `[1m]`. La compattazione funziona allo stesso modo anche al limite più grande.
 
@@ -76,8 +87,9 @@ Una sessione tipica, con valori rappresentativi in token:
 | | Il subagent legge N file | **0 nel tuo contesto** |
 | | Riassunto restituito dal subagent | ~420 |
 
-Il contrasto della penultima riga è il punto di tutto il modulo: la stessa ricerca costa migliaia di token
-se la fai nel contesto principale e ~500 se la deleghi.
+Guarda le due righe della delega: il subagent legge N file e nel **tuo** contesto entrano **0 token**;
+a te torna solo il riassunto (~420). È il punto di tutto il modulo: la stessa ricerca costa migliaia
+di token se la fai nel contesto principale, e ~500 se la deleghi.
 
 ```mermaid
 flowchart TD
@@ -104,7 +116,10 @@ flowchart TD
 
 ## Cosa sopravvive alla compattazione
 
-Questa tabella spiega il 90% dei "ma io te l'avevo detto" che ti capiteranno:
+Questa tabella spiega il 90% dei "ma io te l'avevo detto" che ti capiteranno. "Re-iniettato da disco"
+significa: dopo la compattazione, Claude Code **rilegge il file e lo rimette in contesto da solo** —
+quindi sopravvive. Ciò che vive solo nella conversazione, invece, viene riassunto, e i dettagli si
+perdono:
 
 | Meccanismo | Dopo la compattazione |
 | --- | --- |
@@ -152,7 +167,9 @@ conversazione vecchia toglie spazio ai file che ti servono adesso e costa token 
 
 ### `/autocompact` — anticipa la soglia
 
-Imposta quanto si riempie la finestra prima che scatti il passaggio automatico:
+La compattazione automatica scatta quando la finestra è quasi piena. Con `/autocompact` decidi **tu**
+la soglia: `500k` significa "compatta quando arrivi a 500.000 token" (la `k` sta per migliaia). Utile
+sui modelli con finestra da 1 milione, per compattare a metà invece che all'ultimo:
 
 ```text
 /autocompact 500k
@@ -171,10 +188,21 @@ conversazione, quindi puoi verificare un dettaglio senza far crescere il contest
 
 ### Subagent — la delega
 
+Il [subagent](/glossario/#subagent) è l'aiutante con la scrivania separata: gli passi una ricerca, lui
+legge tutti i file che servono **nel suo contesto**, e a te torna solo il riassunto. Non serve nessun
+comando speciale — basta chiederlo nel prompt:
+
 ```text
 Use subagents to investigate how our authentication system handles token
 refresh, and whether we have any existing OAuth utilities I should reuse.
 ```
+
+*(= "usa dei subagent per indagare come il nostro sistema di autenticazione gestisce il rinnovo dei
+token, e se abbiamo già utility OAuth da riusare" — qui "token" è il gettone di accesso di un login,
+un altro significato rispetto ai token dell'AI)*
+
+I subagent hanno un intero modulo dedicato, l'[11](/personalizzazione/agents-subagents/): qui basta
+sapere che esistono e quando invocarli.
 
 ## Auto memory
 
@@ -374,7 +402,7 @@ La descrizione resta fuori dal contesto finché non invochi `/deploy`. Per le sk
 | Una regola con `paths:` non ha più effetto dopo `/compact` | Le regole path-scoped non vengono re-iniettate | Rileggi un file corrispondente, o togli il frontmatter `paths:` |
 | Il `CLAUDE.md` non sembra letto | Potrebbe non essere in una posizione che viene caricata | `/context` → sezione **Memory files**: se non c'è, Claude non lo vede |
 | La sessione rallenta e sbaglia sempre di più | Contesto quasi pieno | `/context` per la diagnosi, poi `/clear` o `/compact` con focus |
-| La compattazione automatica si blocca con un errore di *thrashing* | Un singolo file o output di tool è così grande che il contesto si riempie subito dopo ogni riassunto | Non leggere quel file per intero: fai leggere solo le parti che servono, o delega a un subagent |
+| La compattazione automatica si blocca con un errore di *thrashing* ("sbattimento": comprime, si riempie di nuovo subito, comprime ancora — all'infinito) | Un singolo file o output di tool è così grande che il contesto si riempie subito dopo ogni riassunto | Non leggere quel file per intero: fai leggere solo le parti che servono, o delega a un subagent |
 | Le istruzioni di una skill lunga vengono ignorate dopo la compattazione | I corpi delle skill sono troncati a 5.000 token, mantenendo l'inizio | Metti le istruzioni importanti in cima a `SKILL.md` |
 | Non sai cosa ha salvato l'auto memory | I file sono markdown normale | `/memory`, poi apri la cartella di auto memory |
 | L'auto memory non si aggiorna | Disattivata a livello utente o di progetto | Controlla `autoMemoryEnabled` e `CLAUDE_CODE_DISABLE_AUTO_MEMORY` |

@@ -4,11 +4,27 @@ description: "Dove vive tutto: la cartella ~/.claude, la .claude di progetto, se
 ---
 
 import { Tabs, TabItem, Steps, Aside, FileTree } from '@astrojs/starlight/components';
+import Zero from '@/components/Zero.astro';
 
 <div class="meta-modulo">
 	<span><strong>Tempo stimato:</strong> 50 minuti</span>
 	<span><strong>Prerequisiti:</strong> il <a href="/fondamenta/setup/">modulo 0</a> completato e almeno una sessione di Claude Code già fatta.</span>
 </div>
+
+Ogni volta che usi Claude Code, lui legge e scrive file sul tuo disco: impostazioni, istruzioni,
+registrazioni delle conversazioni. Sapere **dove** stanno queste cose è quello che separa chi
+subisce lo strumento da chi lo governa: ti permette di capire perché si comporta in un certo modo,
+di condividere la configurazione col team, di ritrovare una conversazione di settimane fa e di fare
+pulizia senza rompere nulla. Questo modulo è la mappa.
+
+<Zero title="Cos'è un file di configurazione">
+Molti programmi si personalizzano da un menu "Impostazioni". Gli strumenti da terminale, invece,
+leggono le preferenze da **file di testo** in posti convenzionali: cambi il file, cambia il
+comportamento. È più scomodo del menu, ma ha un vantaggio enorme: quei file si possono copiare,
+versionare con git e condividere con il team — le impostazioni diventano parte del progetto. I nomi
+che iniziano col punto (`.claude`, `.gitignore`) sono "nascosti": i gestori di file non li mostrano
+di default, ma ci sono.
+</Zero>
 
 ## Obiettivi
 
@@ -21,11 +37,14 @@ import { Tabs, TabItem, Steps, Aside, FileTree } from '@astrojs/starlight/compon
 ## Concetti chiave
 
 **Due livelli, stessa struttura.** Claude Code legge la configurazione da due posti che hanno quasi la
-stessa forma: `~/.claude/` (livello utente, vale per tutti i progetti) e `.claude/` dentro il repo (livello
-progetto, vale solo lì). In entrambi trovi `settings.json`, `skills/`, `commands/`, `agents/`, `rules/`,
-`output-styles/`, `workflows/`, `agent-memory/`. Quello che cambia è la portata, non il formato: una skill
-scritta una volta in `~/.claude/skills/` ti segue ovunque, la stessa skill in `.claude/skills/` è del
-progetto e la committi per il team.
+stessa forma: `~/.claude/` nella tua cartella personale (livello **utente**: vale per tutti i tuoi
+progetti) e `.claude/` dentro il [repository](/glossario/#repository-repo) (livello **progetto**: vale
+solo lì, e viaggia con il codice). In entrambi trovi le stesse sottocartelle — una per ogni tipo di
+personalizzazione che il corso insegna nei prossimi moduli: `skills/` e `commands/` (istruzioni
+confezionate, moduli 7-8), `agents/` (aiutanti specializzati, modulo 11), `rules/` (regole per
+argomento, modulo 5), più `settings.json` per permessi e opzioni. Quello che cambia è la portata, non
+il formato: una [skill](/glossario/#skill) scritta in `~/.claude/skills/` ti segue ovunque; la stessa
+skill in `.claude/skills/` è del progetto e la [committi](/glossario/#commit) per il team.
 
 **La distinzione che conta di più: cosa si committa.** Dentro `.claude/` di progetto, `settings.json` è il
 file **condiviso** — permessi, hook, variabili d'ambiente concordate col team — e va in git.
@@ -38,8 +57,9 @@ aggiungendolo a `.gitignore`.
 si committa. I server MCP personali finiscono invece in `~/.claude.json`.
 
 **`~/.claude.json` non è `settings.json`.** È un errore frequentissimo. `~/.claude.json` è un file di
-**stato dell'applicazione**: sessione OAuth, server MCP di scope utente e locale, stato per progetto
-(trust, tool consentiti), cache e preferenze dell'interfaccia. `~/.claude/settings.json` è invece il
+**stato dell'applicazione**, cioè le cose che Claude Code gestisce da solo: la sessione di
+[login](/glossario/#oauth), i server [MCP](/glossario/#mcp) personali, il registro dei progetti di cui
+ti fidi ("trust"), le [cache](/glossario/#cache) e le preferenze dell'interfaccia. `~/.claude/settings.json` è invece il
 meccanismo ufficiale di configurazione del comportamento: permessi, hook, `env`, modello di default.
 Modifichi il secondo; il primo lo gestisce Claude Code.
 
@@ -54,6 +74,12 @@ Project → User**. Le impostazioni gestite dall'organizzazione stanno sopra tut
 sovrascrivibili, salvo eccezioni molto strette.
 
 ## La gerarchia, a colpo d'occhio
+
+Il diagramma qui sotto mette insieme tutto il modulo in una figura: i tre livelli di configurazione
+(organizzazione, utente, progetto), cosa contiene ciascuno, e le frecce della precedenza — chi vince
+quando due livelli dicono cose diverse. **Verde = file che si committano** (condivisi col team via
+git), **rosso = file personali** che restano fuori. Non serve capirlo tutto ora: è la cartina da
+tenere sott'occhio mentre il modulo la percorre pezzo per pezzo.
 
 ```mermaid
 flowchart TD
@@ -152,8 +178,10 @@ un trattino iniziale. Il progetto `/home/utente/work/my-repo` diventa:
 ~/.claude/projects/-home-utente-work-my-repo/
 ```
 
-Dentro, un file `.jsonl` per sessione con la trascrizione completa: ogni messaggio, ogni chiamata a tool e
-ogni risultato. Essendo JSON Lines, è grep-abile.
+Dentro, un file `.jsonl` per sessione con la [trascrizione](/glossario/#trascrizione) completa: ogni
+messaggio, ogni comando eseguito, ogni risultato. Il formato è [JSONL](/glossario/#jsonl) — un oggetto
+JSON per riga — e questo ha una conseguenza pratica preziosa: **si può cercare dentro con gli
+strumenti di testo normali**, come vedremo tra poco nell'esempio guidato.
 
 <Aside type="caution" title="Sono file in chiaro">
 Trascrizioni e cronologia non sono cifrate a riposo: l'unica protezione sono i permessi del filesystem.
@@ -282,23 +310,33 @@ verifica la singola variabile nel [riferimento delle env vars](https://code.clau
    </TabItem>
    </Tabs>
 
-2. **Misura cosa occupa spazio.** Di solito la risposta è `projects/`.
+2. **Misura cosa occupa spazio.** Di solito la risposta è `projects/`, la cartella delle trascrizioni.
 
    <Tabs syncKey="os">
    <TabItem label="macOS" icon="apple">
    ```bash
+   # du = "disk usage": misura ogni elemento di ~/.claude ("-s" un totale
+   # per elemento, "-h" in unità leggibili tipo MB), poi ordina per
+   # dimensione e mostra i 10 più grandi
    du -sh ~/.claude/* | sort -h | tail -10
    ```
    </TabItem>
    <TabItem label="Windows" icon="seti:windows">
+   PowerShell non ha un equivalente diretto di `du`, quindi il comando è più lungo: elenca le
+   cartelle, somma i byte dei file di ciascuna, converte in MB e ordina. Copialo com'è — fa solo
+   letture:
+
    ```powershell
+   # per ogni cartella dentro .claude...
    Get-ChildItem $env:USERPROFILE\.claude -Directory |
      ForEach-Object {
+       # ...costruisci una riga di tabella: nome e dimensione totale in MB
        [PSCustomObject]@{
          Nome = $_.Name
          MB   = [math]::Round((Get-ChildItem $_.FullName -Recurse -File |
                 Measure-Object Length -Sum).Sum / 1MB, 1)
        }
+       # infine: ordina dalla più grande e tieni le prime 10
      } | Sort-Object MB -Descending | Select-Object -First 10
    ```
    </TabItem>
@@ -363,22 +401,49 @@ verifica la singola variabile nel [riferimento delle env vars](https://code.clau
    claude --continue
    ```
 
-6. **Guarda l'ordine di precedenza in azione.** Crea un progetto di prova con due settings in conflitto:
+6. **Guarda l'ordine di precedenza in azione.** L'esperimento: creiamo un progetto di prova con la
+   **stessa** [variabile d'ambiente](/glossario/#variabile-dambiente) `DEMO` definita in due file di
+   settings con valori diversi, e chiediamo a Claude quale vede.
 
+   <Tabs syncKey="os">
+   <TabItem label="macOS" icon="apple">
    ```bash
+   # crea la cartella di prova (con la sottocartella .claude) ed entraci
    mkdir -p /tmp/precedenza/.claude && cd /tmp/precedenza
+
+   # scrive i due file di settings (">" = "scrivi su questo file"):
+   # nel settings condiviso, DEMO vale "progetto"...
    printf '{\n  "env": { "DEMO": "progetto" }\n}\n' > .claude/settings.json
+   # ...in quello personale, DEMO vale "locale"
    printf '{\n  "env": { "DEMO": "locale" }\n}\n' > .claude/settings.local.json
    ```
+   </TabItem>
+   <TabItem label="Windows" icon="seti:windows">
+   ```powershell
+   # crea la cartella di prova (con la sottocartella .claude) ed entraci
+   New-Item -ItemType Directory -Force $env:TEMP\precedenza\.claude | Out-Null
+   cd $env:TEMP\precedenza
 
-   Poi lancia `claude` e chiedi quale valore vede:
+   # scrive i due file di settings:
+   # nel settings condiviso, DEMO vale "progetto"...
+   '{ "env": { "DEMO": "progetto" } }' | Set-Content .claude\settings.json
+   # ...in quello personale, DEMO vale "locale"
+   '{ "env": { "DEMO": "locale" } }' | Set-Content .claude\settings.local.json
+   ```
+   </TabItem>
+   </Tabs>
+
+   Poi lancia `claude` e, in chat, chiedigli di eseguire il comando che stampa la variabile:
 
    ```text
    run: echo $DEMO
    ```
 
-   Vince `locale`: `settings.local.json` sta sopra `settings.json`. Se avessi lanciato con
-   `--settings` da riga di comando, avrebbe vinto quello.
+   *(= "esegui: stampa il valore di DEMO" — `run:` non è una sintassi speciale, è solo un modo chiaro
+   di chiedere a Claude di lanciare un comando)*
+
+   Claude risponderà **`locale`**: `settings.local.json` batte `settings.json`, come dice la scala di
+   precedenza. Se avessi lanciato con `--settings` da riga di comando, avrebbe vinto quello.
 
 7. **Verifica lo stato della configurazione.** Da dentro la sessione:
 
@@ -419,7 +484,7 @@ dopo essere rimasta vuota per l'intero periodo di retention.
 | Percorso | Contenuto |
 | --- | --- |
 | `history.jsonl` | Ogni prompt che hai digitato, con timestamp e progetto. Serve al richiamo con la freccia su |
-| `stats-cache.json` | Conteggi aggregati di token e costi mostrati da `/usage` |
+| `stats-cache.json` | Conteggi aggregati di [token](/glossario/#token) (l'unità di misura del testo per l'AI — e del consumo del tuo piano) e costi mostrati da `/usage` |
 | `remote-settings.json` | Copia cache delle impostazioni gestite dall'organizzazione |
 | `cache/changelog.md` | Copia cache del changelog |
 | `policy-limits.json` | Impostazioni di policy della tua organizzazione |
@@ -541,6 +606,10 @@ snapshot non servono a nulla in un backup: sono grandi, in chiaro e ricostruibil
 <Tabs syncKey="os">
 <TabItem label="macOS" icon="apple">
 ```bash
+# tar = strumento di archiviazione: "czf" = crea (c) un archivio
+# compresso (z) nel file (f) indicato. "-C ~/.claude" = "entra lì
+# prima di prendere i file". Le "\" a fine riga spezzano il comando
+# su più righe per leggibilità: è UN comando solo.
 tar czf ~/claude-config-backup.tgz \
   -C ~/.claude \
   CLAUDE.md settings.json keybindings.json \
@@ -549,11 +618,18 @@ tar czf ~/claude-config-backup.tgz \
 </TabItem>
 <TabItem label="Windows" icon="seti:windows">
 ```powershell
+# la cartella di partenza
 $src = "$env:USERPROFILE\.claude"
+
+# costruisce l'elenco dei percorsi da salvare e tiene solo quelli
+# che esistono davvero (Test-Path), così il comando non fallisce
+# se ti manca una cartella
 $items = 'CLAUDE.md','settings.json','keybindings.json','skills','commands',
          'agents','rules','output-styles','workflows','themes' |
          ForEach-Object { Join-Path $src $_ } |
          Where-Object { Test-Path $_ }
+
+# comprime tutto in uno zip nella tua cartella utente
 Compress-Archive -Path $items -DestinationPath "$env:USERPROFILE\claude-config-backup.zip" -Force
 ```
 </TabItem>
@@ -579,7 +655,7 @@ archivio che poi finisce chissà dove.
 | Il team non vede le tue skill di progetto | Sono in `~/.claude/skills/`, che è personale | Spostale in `.claude/skills/` del repo e committale |
 | Un server MCP non c'è per i colleghi | È nello scope personale, dentro `~/.claude.json` | Mettilo in `.mcp.json` alla radice del repo e committalo |
 | Cancelli le vecchie sessioni ma lo spazio non scende | `history.jsonl` e le cache non rientrano nella pulizia automatica | Sono nella lista "kept until you delete them": vanno rimossi a mano o con `project purge` |
-| Un errore di sintassi in un settings blocca la pulizia automatica | Se non riesce a determinare la retention, Claude Code sospende lo sweep | `claude doctor` mostra gli errori di validazione; `/status` avvisa finché non li correggi |
+| Un errore di sintassi in un settings blocca la pulizia automatica | Se non riesce a leggere quanto a lungo conservare i dati, Claude Code sospende la pulizia periodica per prudenza | `claude doctor` mostra gli errori di validazione; `/status` avvisa finché non li correggi |
 
 ## Cheat-sheet
 

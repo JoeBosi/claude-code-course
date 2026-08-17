@@ -4,11 +4,18 @@ description: "Installare Claude Code su macOS e Windows: CLI con installer nativ
 ---
 
 import { Tabs, TabItem, Steps, Aside, Badge } from '@astrojs/starlight/components';
+import Zero from '@/components/Zero.astro';
 
 <div class="meta-modulo">
 	<span><strong>Tempo stimato:</strong> 30 minuti</span>
-	<span><strong>Prerequisiti:</strong> un terminale aperto, un progetto di codice e un abbonamento Claude Pro, Max, Team o Enterprise.</span>
+	<span><strong>Prerequisiti:</strong> un abbonamento Claude Pro, Max, Team o Enterprise. Se non hai mai usato un terminale, leggi prima <a href="/basi/">Le basi</a>: dieci minuti e sei pronto.</span>
 </div>
+
+In questo modulo installi Claude Code e gli parli per la prima volta. Alla fine avrai fatto il giro
+completo: un programma installato, un login fatto, una domanda posta sul tuo codice, una modifica
+proposta da un'AI e salvata nella storia del progetto. È il modulo più "meccanico" del corso — tanti
+comandi da copiare, poca teoria — e va bene così: la teoria comincia al modulo 3, quando avrai
+qualcosa di funzionante davanti.
 
 ## Obiettivi
 
@@ -20,6 +27,13 @@ import { Tabs, TabItem, Steps, Aside, Badge } from '@astrojs/starlight/component
 
 ## Concetti chiave
 
+<Zero title="Terminale, CLI, comandi: le tre parole di questo modulo">
+Il **terminale** è la finestra in cui dai ordini al computer scrivendo invece di cliccare
+([come si apre](/basi/#il-terminale)). Una **CLI** (*Command Line Interface*) è un programma
+pensato per essere usato da lì: Claude Code lo è. "Eseguire un comando" significa: copiarlo nel
+terminale e premere Invio. Tutto il resto del modulo è questo, ripetuto.
+</Zero>
+
 **Claude Code è un motore, non una singola app.** Lo stesso motore gira in quattro posti: nel terminale
 (la CLI), nell'app desktop, dentro VS Code e JetBrains, e sul web. Condividono la stessa configurazione —
 `CLAUDE.md`, server MCP, hook, skills e settings — quindi installare la CLI e l'app desktop non significa
@@ -30,22 +44,27 @@ desktop; VS Code e Antigravity li vediamo nel [modulo 1](/fondamenta/ide/).
 account Claude Console. Il piano gratuito di Claude.ai non include Claude Code. In tutto il corso usiamo
 il login con l'account: non serve, e non chiederemo mai, una API key a consumo.
 
-**L'installer nativo è la via consigliata.** Scarica un binario compilato — non un pacchetto Node — e lo
-mette in `~/.local/bin/claude` su macOS e Linux, in `%USERPROFILE%\.local\bin\claude.exe` su Windows. Il
+**L'installer nativo è la via consigliata.** "Nativo" vuol dire che scarica un programma già pronto
+per il tuo sistema (un *binario*), senza bisogno di altri strumenti installati, e lo mette in
+`~/.local/bin/claude` su macOS e Linux, in `%USERPROFILE%\.local\bin\claude.exe` su Windows. Il
 vantaggio pratico è l'**auto-update in background**: le installazioni native si tengono aggiornate da
 sole, mentre Homebrew, WinGet e i package manager Linux richiedono un aggiornamento manuale. Se scegli
 uno di quelli, mettiti in calendario un `brew upgrade claude-code` o `winget upgrade Anthropic.ClaudeCode`
 ogni tanto.
 
-C'è anche un pacchetto npm (`@anthropic-ai/claude-code`), utile se gestisci già tutto il tooling con npm.
-Installa lo stesso binario nativo tramite una dipendenza opzionale per piattaforma: il `claude` risultante
-non usa Node a runtime. Dalla v2.1.198 richiede Node.js 22 o superiore.
+C'è anche un pacchetto **npm** — il gestore di pacchetti del mondo JavaScript, cioè lo "store" da cui
+gli sviluppatori installano librerie e strumenti. Se npm fa già parte della tua giornata, `npm install
+-g @anthropic-ai/claude-code` ti dà lo stesso identico binario nativo; se non sai cosa sia npm,
+ignora questa strada e usa l'installer nativo. Dalla v2.1.198 il pacchetto richiede Node.js 22 o
+superiore.
 
 **Su Windows hai due strade.** Windows nativo funziona senza altro, ma [Git for
 Windows](https://git-scm.com/downloads/win) è consigliato: fornisce Git Bash, che abilita il tool Bash.
 Senza Git for Windows, Claude Code esegue i comandi tramite il tool PowerShell. In alternativa puoi
-lavorare dentro **WSL 2**, che è l'unica configurazione Windows in cui il sandboxing è supportato: in quel
-caso installi e lanci `claude` dentro il terminale WSL, non da PowerShell.
+lavorare dentro **WSL 2** (*Windows Subsystem for Linux*: un Linux completo che gira dentro Windows,
+si installa dal Microsoft Store). È l'unica configurazione Windows che supporta il
+[sandboxing](/glossario/#sandbox), cioè il "recinto" che limita cosa i comandi possono toccare: se
+scegli questa strada, installi e lanci `claude` dentro il terminale WSL, non da PowerShell.
 
 **Requisiti di sistema.** macOS 13.0+, Windows 10 1809+ o Windows Server 2019+, oppure Ubuntu 20.04+ /
 Debian 10+ / Alpine 3.19+. Servono 4 GB di RAM, un processore x64 o ARM64 e una connessione a internet.
@@ -88,13 +107,20 @@ installata a parte: sono due installazioni distinte che condividono la configura
 
 2. **Installa la CLI con l'installer nativo.**
 
+   Il comando qui sotto fa due cose in una: scarica lo script ufficiale di installazione
+   (`curl` è lo strumento che scarica cose da internet) e lo esegue subito, passandoglielo con una
+   [pipe](/glossario/#pipe) (`|`). È la forma di installazione più comune nel mondo degli sviluppatori
+   — e va usata **solo** con indirizzi di cui ti fidi, come questo, che è quello ufficiale di Anthropic.
+
    <Tabs syncKey="os">
    <TabItem label="macOS" icon="apple">
    ```bash
+   # scarica lo script di installazione da claude.ai e lo esegue
    curl -fsSL https://claude.ai/install.sh | bash
    ```
 
-   In alternativa, con Homebrew:
+   In alternativa, con **Homebrew** (il gestore di pacchetti più usato su macOS — se non lo hai già,
+   salta questa alternativa):
 
    ```bash
    brew install --cask claude-code
@@ -154,25 +180,34 @@ installata a parte: sono due installazioni distinte che condividono la configura
 
 4. **Fai login con il tuo account.**
 
-   Spostati in un progetto e avvia una sessione interattiva:
+   Spostati nella cartella di un progetto e avvia una sessione. Il punto importante: **Claude Code
+   lavora sulla cartella da cui lo avvii** — è il suo perimetro. Sostituisci il percorso dell'esempio
+   con una tua cartella vera (un progetto di codice se ce l'hai; altrimenti una cartella qualsiasi
+   con dei file di testo va benissimo per cominciare).
 
    <Tabs syncKey="os">
    <TabItem label="macOS" icon="apple">
    ```bash
+   # cd = "change directory": entra nella cartella del progetto
    cd ~/progetti/il-mio-progetto
+   # avvia Claude Code in quella cartella
    claude
    ```
    </TabItem>
    <TabItem label="Windows" icon="seti:windows">
    ```powershell
+   # cd = "change directory": entra nella cartella del progetto
    cd $env:USERPROFILE\progetti\il-mio-progetto
+   # avvia Claude Code in quella cartella
    claude
    ```
    </TabItem>
    </Tabs>
 
-   Al primo avvio Claude Code apre il browser per il login. Scegli **Claude Pro/Max** (o l'account del tuo
-   team) e completa l'accesso. Quando il login va a buon fine, il terminale mostra `Login successful` e ti
+   Al primo avvio Claude Code apre il browser per il login — è il meccanismo
+   ["accedi con"](/glossario/#oauth) che conosci da mille altri servizi: autorizzi dal browser, senza
+   mai scrivere la password nel terminale. Scegli **Claude Pro/Max** (o l'account del tuo team) e
+   completa l'accesso. Quando il login va a buon fine, il terminale mostra `Login successful` e ti
    chiede di premere `Enter` per continuare.
 
    Se il browser non si apre da solo, premi `c` per copiare l'URL di login negli appunti e incollalo a
@@ -181,10 +216,13 @@ installata a parte: sono due installazioni distinte che condividono la configura
    locale, tipico di WSL2, sessioni SSH e container.
 
    <Aside type="tip" title="Niente API key">
-   Se hai la variabile d'ambiente `ANTHROPIC_API_KEY` impostata, Claude Code salta il login e ti chiede di
-   approvare la key. In questo corso non ci serve: lancia `unset ANTHROPIC_API_KEY` (macOS) o
-   `Remove-Item Env:\ANTHROPIC_API_KEY` (PowerShell) prima di partire, e verifica con `/status` che il
-   metodo attivo sia il tuo abbonamento.
+   Una **API key** è una chiave segreta che paga le richieste **a consumo** — è l'altro modo di usare
+   Claude, pensato per i programmi, e in questo corso non ci serve mai: usiamo l'abbonamento. Se in
+   passato ne hai impostata una nella [variabile d'ambiente](/glossario/#variabile-dambiente)
+   `ANTHROPIC_API_KEY`, Claude Code la userebbe al posto del login (e pagheresti a consumo senza
+   accorgertene). Rimuovila dalla sessione corrente con `unset ANTHROPIC_API_KEY` (macOS) o
+   `Remove-Item Env:\ANTHROPIC_API_KEY` (PowerShell), e verifica con `/status` che il metodo attivo
+   sia il tuo abbonamento.
    </Aside>
 
 5. **Fai la prima domanda.**
@@ -196,11 +234,16 @@ installata a parte: sono due installazioni distinte che condividono la configura
    what does this project do?
    ```
 
+   *(= "cosa fa questo progetto?" — ai modelli puoi scrivere anche in italiano, ma nel corso i prompt
+   sono in inglese perché è la lingua in cui i modelli lavorano meglio sul codice)*
+
    Claude legge i file che gli servono da solo: non devi aggiungere contesto a mano. Prova anche:
 
    ```text
    explain the folder structure
    ```
+
+   *(= "spiegami com'è organizzata questa cartella")*
 
 6. **Fai la prima modifica e il primo commit.**
 
@@ -208,16 +251,21 @@ installata a parte: sono due installazioni distinte che condividono la configura
    add a hello world function to the main file
    ```
 
-   Claude trova il file giusto, ti mostra le modifiche proposte e — a seconda della modalità permessi —
-   ti chiede l'approvazione prima di scrivere. In modalità default chiede conferma a ogni modifica; con
-   `Shift+Tab` cicli tra le modalità (`acceptEdits` accetta in automatico le modifiche ai file, `plan`
-   propone senza scrivere nulla). Le vediamo in dettaglio nel [modulo 6](/fondamenta/plan-mode/).
+   Claude trova il file giusto, ti mostra le modifiche proposte e — a seconda della **modalità di
+   permesso** attiva — ti chiede l'approvazione prima di scrivere. Sui piani Pro, Max e Team la
+   modalità di partenza è `auto` (un supervisore controlla le azioni in background e blocca quelle
+   rischiose); in modalità `default` ti viene chiesta conferma a ogni modifica. Con `Shift+Tab` cicli
+   tra le modalità. Le vediamo tutte in dettaglio nel [modulo 6](/fondamenta/plan-mode/).
 
-   Poi chiudi il ciclo:
+   Poi chiudi il ciclo chiedendo un [commit](/glossario/#commit) — il "salvataggio firmato" di git
+   che registra la modifica nella storia del progetto (se git è un mistero, due minuti su
+   [Le basi](/basi/#git-in-10-minuti) e torna qui):
 
    ```text
    commit my changes with a descriptive message
    ```
+
+   *(in italiano: "salva le mie modifiche con un messaggio descrittivo")*
 
    Per uscire, `/exit` oppure `Ctrl+D` due volte.
 
@@ -301,20 +349,23 @@ Remove-Item Env:\ANTHROPIC_API_KEY
 </Tabs>
 
 Poi, dentro la sessione, `/status`: la riga `Login method` deve mostrare il tuo account di abbonamento.
-Se compare anche una riga `API key`, la key è ancora attiva e ha la precedenza sull'abbonamento — l'ordine
-di precedenza mette le variabili d'ambiente sopra le credenziali OAuth di `/login`.
+Se compare anche una riga `API key`, la key è ancora attiva e **vince lei**: nella scala di precedenza
+di Claude Code, una chiave nella variabile d'ambiente batte il login fatto col browser. È il motivo
+per cui l'abbiamo rimossa prima di controllare.
 
 **Passo 4.**
 
 <Tabs syncKey="os">
 <TabItem label="macOS" icon="apple">
 ```bash
+# crea la cartella e, SE la creazione riesce ("&&"), entraci
 mkdir claude-tutorial-esercizi && cd claude-tutorial-esercizi
 claude
 ```
 </TabItem>
 <TabItem label="Windows" icon="seti:windows">
 ```powershell
+# crea la cartella, poi entraci (";" = esegui in sequenza)
 mkdir claude-tutorial-esercizi; cd claude-tutorial-esercizi
 claude
 ```
@@ -349,47 +400,71 @@ Claude ti mostra il contenuto proposto e chiede conferma prima di scrivere il fi
 
 ### Sistemare il PATH
 
+Prima il concetto, poi i comandi. Il **PATH** è l'elenco delle cartelle in cui il terminale cerca i
+programmi quando scrivi un nome: digiti `claude`, e il terminale scorre quelle cartelle finché non
+trova un file chiamato così. Se l'installer ha messo `claude` in una cartella che **non** è
+nell'elenco, il programma esiste ma il terminale non lo trova — ed ecco il `command not found`.
+La cura è aggiungere quella cartella all'elenco. È una modifica piccola ma **permanente** al tuo
+ambiente: i comandi qui sotto sono commentati riga per riga proprio per questo.
+
 <Tabs syncKey="os">
 <TabItem label="macOS" icon="apple">
-Controlla se la directory è già nel PATH:
+Controlla se la cartella è già nel PATH:
 
 ```bash
+# stampa il PATH, un percorso per riga, e cerca la riga esatta "~/.local/bin"
 echo $PATH | tr ':' '\n' | grep -Fx "$HOME/.local/bin"
 ```
 
-Se non stampa nulla, aggiungila. Su macOS la shell di default è Zsh:
+Se stampa il percorso, il PATH è a posto e il problema è altrove. Se **non stampa nulla**,
+aggiungila. Su macOS la shell di default è Zsh, e il suo file di configurazione personale è
+`~/.zshrc` — viene riletto a ogni nuova finestra del terminale:
 
 ```bash
+# aggiunge UNA riga in fondo a ~/.zshrc (">>" = "appendi, non sovrascrivere"):
+# la riga dice "d'ora in poi, cerca i programmi anche in ~/.local/bin"
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+
+# ricarica la configurazione nella finestra corrente, senza doverla chiudere
 source ~/.zshrc
+
+# verifica: ora deve rispondere con la versione
 claude --version
 ```
 
-Se sospetti installazioni multiple in conflitto:
+Se sospetti di avere **più installazioni in conflitto** (ad esempio una vecchia via npm e una
+nuova nativa):
 
 ```bash
+# elenca TUTTI i "claude" che il terminale trova nel PATH, in ordine di precedenza
 which -a claude
 ```
 </TabItem>
 <TabItem label="Windows" icon="seti:windows">
-Controlla se la directory è già nel PATH:
+Controlla se la cartella è già nel PATH:
 
 ```powershell
+# stampa il PATH spezzato per ";" e cerca le righe che contengono ".local\bin"
 $env:PATH -split ';' | Select-String '\.local\\bin'
 ```
 
-Se non stampa nulla, aggiungila al PATH utente:
+Se stampa il percorso, il PATH è a posto e il problema è altrove. Se **non stampa nulla**,
+aggiungila al PATH del tuo utente (modifica permanente, vale per tutte le finestre future):
 
 ```powershell
+# legge il PATH attuale dell'utente...
 $currentPath = [Environment]::GetEnvironmentVariable('PATH', 'User')
+# ...e lo risalva con la cartella di Claude aggiunta in fondo
 [Environment]::SetEnvironmentVariable('PATH', "$currentPath;$env:USERPROFILE\.local\bin", 'User')
 ```
 
-Riavvia il terminale e verifica con `claude --version`.
+Riavvia il terminale (le finestre già aperte non vedono la modifica) e verifica con
+`claude --version`.
 
-Se sospetti installazioni multiple in conflitto:
+Se sospetti di avere **più installazioni in conflitto**:
 
 ```powershell
+# elenca TUTTI i "claude" che il terminale trova, in ordine di precedenza
 where.exe claude
 ```
 </TabItem>

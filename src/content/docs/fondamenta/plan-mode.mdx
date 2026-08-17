@@ -4,15 +4,22 @@ description: "Quando e come usare il Plan Mode di Claude Code: entrare e uscire,
 ---
 
 import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
+import Zero from '@/components/Zero.astro';
 
 <div class="meta-modulo">
 	<span><strong>Tempo stimato:</strong> 40 minuti</span>
 	<span><strong>Prerequisiti:</strong> il <a href="/fondamenta/agentic-coding/">modulo 3</a> e un progetto con più di un paio di file.</span>
 </div>
 
+Lo scenario che questo modulo risolve: chiedi a Claude una modifica grossa, lui parte come un treno,
+e dieci minuti dopo ti ritrovi a rivedere trecento righe di modifiche che risolvono il problema
+sbagliato. Il **Plan Mode** è il freno a mano: prima Claude studia e ti propone un piano scritto, tu
+lo leggi e lo correggi (costa cinque righe, non trecento), e solo dopo la tua approvazione parte
+l'esecuzione. È la differenza tra firmare un preventivo e trovarsi i lavori già fatti.
+
 ## Obiettivi
 
-- Entrare e uscire dal Plan Mode in tutte le interfacce, e riconoscerne lo stato dalla status bar.
+- Entrare e uscire dal Plan Mode in tutte le interfacce, e riconoscerne lo stato dalla barra di stato del terminale (la riga informativa sotto il prompt).
 - Sapere esattamente cosa Claude può e non può fare mentre pianifica.
 - Rivedere, modificare e approvare un piano scegliendo la modalità giusta per la fase di esecuzione.
 - Impostare il Plan Mode come default dove ha senso — e sapere dove quell'impostazione **non** viene letta.
@@ -28,7 +35,11 @@ restano bloccate finché non approvi il piano.
 sbagliato. Il Plan Mode separa la ricerca dall'esecuzione: quando il piano è sbagliato te ne accorgi
 leggendo cinque righe, non rivedendo una diff da trecento.
 
-**Le sei modalità di permessi.** Il Plan Mode è una delle sei, e conviene vederle insieme:
+**Le sei modalità di permessi.** Una "modalità di permesso" definisce **quanto Claude può fare senza
+chiederti conferma** — dal chiedere per ogni singola modifica al non chiedere mai. Il Plan Mode è una
+delle sei, e conviene vederle insieme. (Nella tabella compare il **classificatore**: è un secondo
+modello AI che fa da supervisore — esamina ogni azione prima che venga eseguita e blocca quelle
+rischiose. È il meccanismo dietro la modalità `auto`.)
 
 | Modalità | Cosa gira senza chiedere | Ideale per |
 | --- | --- | --- |
@@ -58,12 +69,13 @@ del piano costa secondi, correggere l'implementazione costa una sessione.
 
 ## Entrare e uscire
 
-<Tabs syncKey="os">
-<TabItem label="macOS" icon="apple">
-Da terminale, `Shift+Tab` cicla tra le modalità. Partendo da `auto`, la prima pressione porta a `default`,
-poi il ciclo prosegue `default` → `acceptEdits` → `plan`.
+Qui i comandi sono **identici su macOS e Windows**, quindi niente tab doppi.
 
-La status bar mostra la modalità attiva:
+Da terminale, `Shift+Tab` cicla tra le modalità. Partendo da `auto`, la prima pressione porta a
+`default`, poi il ciclo prosegue `default` → `acceptEdits` → `plan`.
+
+La **barra di stato** — la riga informativa sotto il prompt di Claude Code — mostra sempre la modalità
+attiva. I simboli si leggono così: `⏸` = Claude si ferma a chiedere, `⏵⏵` = Claude procede da solo:
 
 ```text
 ⏸ manual mode on          (default)
@@ -79,29 +91,6 @@ Per un singolo prompt, prefissalo con `/plan`. All'avvio:
 ```bash
 claude --permission-mode plan
 ```
-</TabItem>
-<TabItem label="Windows" icon="seti:windows">
-Da terminale, `Shift+Tab` cicla tra le modalità. Partendo da `auto`, la prima pressione porta a `default`,
-poi il ciclo prosegue `default` → `acceptEdits` → `plan`.
-
-La status bar mostra la modalità attiva:
-
-```text
-⏸ manual mode on          (default)
-⏵⏵ accept edits on         (acceptEdits)
-⏸ plan mode on             (plan)
-⏵⏵ auto mode on            (auto)
-⏵⏵ don't ask on            (dontAsk)
-⏵⏵ bypass permissions on   (bypassPermissions)
-```
-
-Per un singolo prompt, prefissalo con `/plan`. All'avvio:
-
-```powershell
-claude --permission-mode plan
-```
-</TabItem>
-</Tabs>
 
 Per **uscire senza approvare** un piano, premi di nuovo `Shift+Tab`.
 
@@ -194,7 +183,7 @@ qualsiasi modifica.
 | Non sei sicuro dell'approccio | Sapresti descrivere la diff in una frase |
 | La modifica tocca più file | È un refuso, una riga di log, un rename |
 | Non conosci il codice che va cambiato | Conosci bene il file e l'intervento è locale |
-| Il costo di sbagliare è alto (migrazioni, schema, auth) | Stai iterando velocemente su codice che rivedi comunque |
+| Il costo di sbagliare è alto: modifiche al database, alla sua struttura, o al sistema di login | Stai iterando velocemente su codice che rivedi comunque |
 | Vuoi allineare qualcun altro prima di partire | Il task è esplorativo e vuoi vedere dove va |
 
 La regola pratica, testuale dalla documentazione: **se sapresti descrivere la diff in una frase, salta il
@@ -250,7 +239,7 @@ Facciamo un cambiamento che tocca più file, che è il caso in cui il Plan Mode 
 
    - **File fuori scope** — c'è qualcosa che non doveva essere toccato?
    - **Verifica assente** — il piano dice come si controlla che abbia funzionato? Se no, aggiungilo tu.
-   - **Ordine sbagliato** — sta modificando i consumatori prima del contratto?
+   - **Ordine sbagliato** — sta cambiando chi *usa* una funzione prima di aver cambiato la funzione stessa? (Prima si cambia il contratto, poi chi ci si appoggia.)
 
    Aggiungi in fondo, a mano:
 

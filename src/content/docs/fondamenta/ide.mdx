@@ -4,11 +4,19 @@ description: "L'estensione Claude Code per VS Code e Google Antigravity 2.0: ins
 ---
 
 import { Tabs, TabItem, Steps, Aside, Badge } from '@astrojs/starlight/components';
+import Zero from '@/components/Zero.astro';
 
 <div class="meta-modulo">
 	<span><strong>Tempo stimato:</strong> 60 minuti</span>
 	<span><strong>Prerequisiti:</strong> il <a href="/fondamenta/setup/">modulo 0</a> completato, VS Code installato e un account Google (per la parte su Antigravity).</span>
 </div>
+
+Un **IDE** (*Integrated Development Environment*, "ambiente di sviluppo integrato") è il programma
+in cui gli sviluppatori scrivono codice: editor, ricerca, terminale e strumenti in un'unica finestra.
+VS Code è il più diffuso. Nel modulo 0 hai usato Claude dal terminale; qui lo porti **dentro**
+l'editor, dove le modifiche si vedono fianco a fianco e i piani si commentano come un documento. E
+conosci Antigravity, l'ambiente di Google che può usare i modelli Claude: sapere che esiste, e quando
+conviene, fa parte del mestiere.
 
 ## Obiettivi
 
@@ -21,8 +29,10 @@ import { Tabs, TabItem, Steps, Aside, Badge } from '@astrojs/starlight/component
 ## Concetti chiave
 
 **Un solo motore, tre superfici diverse.** L'estensione VS Code e la CLI sono lo stesso Claude Code:
-condividono `~/.claude/settings.json`, i `CLAUDE.md`, gli hook, le skill, i server MCP e — importante — la
-**stessa cronologia delle conversazioni**. Puoi iniziare una conversazione nel pannello dell'estensione e
+condividono la configurazione — il file di istruzioni [`CLAUDE.md`](/glossario/#claudemd), gli
+[hook](/glossario/#hook), le [skill](/glossario/#skill), i server [MCP](/glossario/#mcp): ognuno avrà
+il suo modulo più avanti, per ora basta sapere che sono i modi di personalizzare Claude — e, importante,
+la **stessa cronologia delle conversazioni**. Puoi iniziare una conversazione nel pannello dell'estensione e
 proseguirla nel terminale con `claude --resume`. Non stai usando due prodotti: stai guardando lo stesso
 processo da due finestre.
 
@@ -121,10 +131,12 @@ Il modello di ragionamento si sceglie da un selettore, e tra le opzioni ci sono 
 
 ### Funzioni chiave della prompt box
 
-- **Modalità permessi** — clicca l'indicatore in basso nella prompt box per cambiarla. **Manual** chiede
-  il permesso prima delle modifiche ai file e della maggior parte dei comandi shell; **Plan** descrive cosa
-  farà e aspetta l'approvazione, e VS Code apre il piano come documento Markdown a tutto schermo dove puoi
-  lasciare **commenti inline**; **Edit automatically** applica le modifiche senza chiedere.
+- **Modalità permessi** — quanto Claude può fare senza chiederti conferma. Clicca l'indicatore in
+  basso nella prompt box per cambiarla. Le tre che vedi qui: **Manual** chiede il permesso prima delle
+  modifiche ai file e della maggior parte dei comandi; **Plan** descrive cosa farà e aspetta
+  l'approvazione, e VS Code apre il piano come documento Markdown su cui puoi lasciare **commenti
+  inline**; **Edit automatically** applica le modifiche senza chiedere. L'elenco completo delle
+  modalità (sono sei) è nel [modulo 6](/fondamenta/plan-mode/).
 - **Menu comandi** — digita `/` per aprirlo: allegare file, cambiare modello, attivare l'extended thinking,
   vedere il consumo del piano con `/usage`, avviare una sessione Remote Control con `/remote-control`. La
   sezione *Customize* dà accesso a server MCP, hook, memoria, permessi e plugin.
@@ -138,13 +150,18 @@ Il modello di ragionamento si sceglie da un selettore, e tra le opzioni ci sono 
 
 ### Contesto: file, cartelle e terminale
 
+Una **@-menzione** è il modo per dire a Claude "guarda proprio questo file": scrivi `@` seguito dal
+nome, e il contenuto entra nella conversazione. Due esempi, con la traduzione:
+
 ```text
 Explain the logic in @auth
 What's in @src/components/
 ```
 
-Le @-menzioni supportano il **fuzzy matching**: `@auth` trova `auth.js`, `AuthService.ts` e simili. Per le
-cartelle, aggiungi lo slash finale. Puoi anche trascinare file nella prompt box tenendo premuto `Shift` per
+*(= "spiegami la logica in @auth" · "cosa c'è in @src/components/?")*
+
+Le @-menzioni supportano il **fuzzy matching** (ricerca "sfumata"): `@auth` trova `auth.js`,
+`AuthService.ts` e simili anche senza il nome esatto. Per le cartelle, aggiungi lo slash finale. Puoi anche trascinare file nella prompt box tenendo premuto `Shift` per
 allegarli.
 
 Una funzione che si dimentica spesso: `@terminal:nome` inserisce l'**output di un terminale** nel prompt,
@@ -178,8 +195,10 @@ Si trovano in `Cmd+,` / `Ctrl+,` → Extensions → Claude Code.
 | `enableNewConversationShortcut` | `false` | `true` per abilitare `Cmd/Ctrl+N` |
 
 Le impostazioni **condivise con la CLI** stanno invece in `~/.claude/settings.json`: comandi consentiti,
-variabili d'ambiente, hook e server MCP. Aggiungi `"$schema": "https://json.schemastore.org/claude-code-settings.json"`
-in cima al file per avere autocomplete e validazione dentro VS Code.
+[variabili d'ambiente](/glossario/#variabile-dambiente), hook e server MCP. Un trucco utile: aggiungi
+`"$schema": "https://json.schemastore.org/claude-code-settings.json"` in cima al file — è il
+riferimento a uno [schema](/glossario/#json-schema), la descrizione formale di quali campi sono
+validi — e VS Code ti darà suggerimenti automatici ed evidenzierà gli errori mentre scrivi.
 
 ### Checkpoint: tornare indietro
 
@@ -206,6 +225,13 @@ Claude Code per collegarlo a VS Code.
 ---
 
 ## Parte B · Google Antigravity 2.0
+
+Perché un corso su Claude Code dedica mezza lezione a un prodotto Google? Per due ragioni concrete:
+Antigravity può usare **i modelli Claude senza abbonamento Anthropic** (fattura Google), quindi è un
+modo per far provare Claude a un collega senza fargli aprire un account; e il suo approccio — deleghi
+un task intero e rivedi i risultati, invece di lavorare fianco a fianco — è l'altro modo di usare gli
+agenti, e conoscerlo ti aiuta a scegliere. Alla fine del modulo costruiamo la stessa cosa nei due
+ambienti proprio per sentire la differenza.
 
 <Aside type="note" title="Ecosistema in movimento">
 Antigravity è nato a novembre 2025 come IDE agentico in preview, con le viste Editor e Manager. Con la
@@ -262,8 +288,10 @@ volerlo. Fai il sign in con il tuo account Google.
 3. Scrivi l'obiettivo nella chat, ad esempio `Help me add a new feature`, e premi Invio.
 4. Scegli la modalità di esecuzione:
    - **Local Mode** — l'agente lavora direttamente sulla cartella.
-   - **New Worktree Mode** — l'agente lavora in un worktree Git isolato. È la scelta giusta quando fai
-     girare più agenti in parallelo sullo stesso repository.
+   - **New Worktree Mode** — l'agente lavora in un [worktree](/glossario/#worktree) git isolato: una
+     **seconda cartella di lavoro dello stesso progetto**, su una linea separata, come una seconda
+     scrivania che attinge allo stesso archivio. È la scelta giusta quando fai girare più agenti in
+     parallelo sullo stesso [repository](/glossario/#repository-repo).
 
 </Steps>
 
@@ -308,15 +336,17 @@ visuale.
 
 ### MCP
 
-Antigravity supporta MCP. Nell'IDE la via più semplice è l'**MCP Store** integrato, da cui sfogli, scopri e
+[MCP](/glossario/#mcp) è lo standard che collega un'AI a strumenti esterni — database, servizi web,
+issue tracker (lo vedremo a fondo nel [modulo 9](/personalizzazione/mcp/)). Anche Antigravity lo
+supporta. Nell'IDE la via più semplice è l'**MCP Store** integrato, da cui sfogli, scopri e
 installi i server supportati; una volta installati, risorse e tool sono automaticamente disponibili
 all'editor. Nella CLI digiti `/mcp` nel pannello del prompt per aprire l'**MCP Manager Overlay**, con gli
 indicatori di stato dei server attivi, disconnessi o in caricamento.
 
-<Aside type="tip" title="Un limite del 2025 che non c'è più">
-Nelle guide scritte al lancio si legge che Antigravity non supporta MCP o che è in preview chiusa. Non è
-più vero: MCP è supportato su IDE e CLI, e la piattaforma è generalmente disponibile. È il motivo per cui
-la regola di questo corso è verificare sempre sui docs ufficiali prima di scrivere.
+<Aside type="tip" title="Se leggi in giro che Antigravity non supporta MCP">
+È un'informazione vecchia: era vera al lancio (fine 2025), non lo è più. Quando cerchi guide online su
+questi strumenti, controlla sempre la data — l'ecosistema cambia in mesi, non in anni, ed è il motivo
+per cui ogni modulo di questo corso chiude con le fonti ufficiali e la data di verifica.
 </Aside>
 
 ---
@@ -356,18 +386,27 @@ Alla fine confrontiamo i due flussi.
 
 ### Preparazione (comune)
 
+Creiamo un mini-progetto Node.js. **npm** è il gestore di pacchetti di JavaScript — lo "store" da cui
+si installano librerie — ed **Express** è la libreria più usata per costruire servizi web.
+
 <Tabs syncKey="os">
 <TabItem label="macOS" icon="apple">
 ```bash
+# crea la cartella del progetto ed entraci
 mkdir health-api && cd health-api
+# inizializza un progetto Node ("-y" = accetta le risposte di default)
 npm init -y
+# installa la libreria Express
 npm install express
 ```
 </TabItem>
 <TabItem label="Windows" icon="seti:windows">
 ```powershell
+# crea la cartella del progetto ed entraci
 mkdir health-api; cd health-api
+# inizializza un progetto Node ("-y" = accetta le risposte di default)
 npm init -y
+# installa la libreria Express
 npm install express
 ```
 </TabItem>
@@ -402,6 +441,11 @@ Aggiungi `"type": "module"` al `package.json` e uno script di test:
    app on an ephemeral port and asserts the response status is 200 and status is "ok".
    ```
 
+   *In italiano: "crea un servizio web con un indirizzo `/health` che risponda «sto bene» in formato
+   JSON, e un test automatico che lo avvii e verifichi che risponda davvero". Un
+   [endpoint](/glossario/#endpoint) `/health` è il classico "batticuore" di un servizio: serve a
+   chiedergli se è vivo.*
+
 4. VS Code apre il **piano come documento Markdown**. Leggilo e lascia un commento inline, ad esempio sulla
    riga in cui propone la struttura dei file:
 
@@ -429,11 +473,15 @@ Aggiungi `"type": "module"` al `package.json` e uno script di test:
    # fail 0
    ```
 
-7. Se il test fallisce, non copiare l'errore: seleziona il terminale e usa la @-menzione dell'output.
+7. Se il test fallisce, non copiare l'errore a mano: esiste la @-menzione dell'output del terminale.
+   Attenzione alla sintassi: qui `bash` è **il nome del pannello del terminale** (lo leggi sulla sua
+   linguetta in VS Code), non un comando.
 
    ```text
    @terminal:bash the test fails, fix it
    ```
+
+   *(= "il test fallisce — guardati l'output del terminale e correggi")*
 
 8. Chiudi il ciclo:
 
@@ -452,8 +500,9 @@ Aggiungi `"type": "module"` al `package.json` e uno script di test:
 
 2. Nel selettore dei modelli scegli **Claude Sonnet 4.6 (thinking)**.
 
-3. Scegli **New Worktree Mode**: l'agente lavorerà in un worktree Git isolato, così non sovrascrive quello
-   che hai appena costruito nella versione A e potrai fare un diff pulito tra le due soluzioni.
+3. Scegli **New Worktree Mode**: l'agente lavorerà nella sua cartella isolata (il worktree visto
+   sopra), così non sovrascrive quello che hai appena costruito nella versione A e potrai confrontare
+   le due soluzioni con un [diff](/glossario/#diff) pulito.
 
 4. Manda lo stesso identico prompt della versione A. Non riformularlo: metà del confronto sta qui.
 
@@ -486,7 +535,7 @@ Aggiungi `"type": "module"` al `package.json` e uno script di test:
 
 Il senso dell'esercizio non è decretare un vincitore. È notare **dove sta la frizione**: nell'estensione
 lavori su un file alla volta con controllo fine e feedback continuo; in Antigravity deleghi un task intero
-e ti concentri sulla revisione degli artifact. Il primo modello premia chi conosce già il codice, il
+e ti concentri sulla revisione degli artifact. Il primo approccio premia chi conosce già il codice, il
 secondo premia chi vuole parallelizzare.
 
 ## Esercizio

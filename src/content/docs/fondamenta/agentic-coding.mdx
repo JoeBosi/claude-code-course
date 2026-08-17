@@ -4,11 +4,19 @@ description: "Cos'è il coding agentico, come funziona il ciclo raccogli contest
 ---
 
 import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
+import Zero from '@/components/Zero.astro';
 
 <div class="meta-modulo">
 	<span><strong>Tempo stimato:</strong> 45 minuti</span>
-	<span><strong>Prerequisiti:</strong> i moduli <a href="/fondamenta/setup/">0</a> e <a href="/fondamenta/anatomia-file/">2</a>, e un progetto con una suite di test che gira.</span>
+	<span><strong>Prerequisiti:</strong> i moduli <a href="/fondamenta/setup/">0</a> e <a href="/fondamenta/anatomia-file/">2</a>. Per l'esempio guidato è utile un progetto con dei <a href="/glossario/#test">test automatici</a>; se non ne hai uno, il progettino del modulo 1 basta.</span>
 </div>
+
+Questo è il modulo di teoria del corso — l'unico, ed è corto. Fin qui hai visto Claude *fare* cose;
+qui capisci **come ragiona mentre le fa**, perché è da questo che discendono tutte le buone abitudini
+dei moduli successivi. "Agentico" non è una parola di marketing: descrive una differenza precisa.
+Un'AI normale risponde e si ferma; un [agente](/glossario/#agente) guarda, agisce, controlla il
+risultato e riprova — come farebbe una persona. Questo modulo smonta quel ciclo e ti mostra dove
+puoi metterci le mani.
 
 ## Obiettivi
 
@@ -29,11 +37,13 @@ correzione di un bug percorre tutte e tre le fasi più volte. Claude decide cosa
 a quello che ha imparato al passo precedente, concatenando decine di azioni e correggendo la rotta strada
 facendo.
 
-**Modelli + tool = harness.** Il ciclo è alimentato da due componenti: i **modelli**, che ragionano, e i
-**tool**, che agiscono. Claude Code è l'**harness agentico** attorno a Claude: fornisce i tool, la gestione
-del contesto e l'ambiente di esecuzione che trasformano un modello linguistico in un agente di codice.
-Senza tool, Claude può solo rispondere con del testo; con i tool può leggere il tuo codice, modificare
-file, eseguire comandi, cercare sul web e parlare con servizi esterni.
+**Modello + tool = harness.** Il ciclo è alimentato da due componenti. Il **modello** è il motore che
+ragiona — l'[LLM](/glossario/#llm), il sistema AI addestrato sul testo che sta sotto tutto. I **tool**
+("strumenti") sono le sue mani: leggere un file, eseguire un comando, cercare sul web. E l'**harness**
+— letteralmente "imbracatura" — è tutto ciò che sta attorno al modello e gli permette di usare quelle
+mani in sicurezza: Claude Code è esattamente questo. Senza tool, Claude potrebbe solo rispondere con
+del testo; con i tool può leggere il tuo codice, modificare file, eseguire comandi e parlare con
+servizi esterni.
 
 I tool integrati ricadono in cinque categorie:
 
@@ -43,7 +53,7 @@ I tool integrati ricadono in cinque categorie:
 | **Ricerca** | Trovare file per pattern, cercare contenuti con regex, esplorare codebase |
 | **Esecuzione** | Eseguire comandi shell, avviare server, lanciare test, usare git |
 | **Web** | Cercare sul web, scaricare documentazione, cercare messaggi di errore |
-| **Code intelligence** | Vedere errori di tipo e warning dopo le modifiche, saltare alle definizioni, trovare i riferimenti (richiede i plugin di code intelligence) |
+| **Code intelligence** | Capire il codice come fa un IDE: accorgersi degli errori subito dopo una modifica, risalire a dove una funzione è definita e a chi la usa (richiede i plugin appositi, [modulo 16](/professionale/ecosistema/)) |
 
 **Le sessioni sono indipendenti.** Ogni nuova sessione parte con una finestra di contesto pulita, senza la
 cronologia delle precedenti. La persistenza tra sessioni passa da altre due strade: l'**auto memory**, gli
@@ -121,9 +131,10 @@ contesto, fa modifiche coordinate su più file, lancia i test per verificare e �
 
 È l'abitudine con il ritorno più alto, e quella che si trascura di più.
 
-Claude si ferma quando il lavoro **sembra** finito. Senza un controllo che possa eseguire, "sembra finito"
-è l'unico segnale disponibile, e il ciclo di verifica diventi tu: ogni errore aspetta che sia tu ad
-accorgertene. Dagli qualcosa che produce un pass o un fail e il ciclo si chiude da solo.
+Claude si ferma quando il lavoro **sembra** finito. Senza un controllo che possa eseguire da solo,
+"sembra finito" è l'unico segnale che ha — e il controllo di qualità ricade tutto su di te: ogni
+errore resta lì finché non te ne accorgi. Dagli invece qualcosa che produce un esito netto — passa o fallisce
+— e il ciclo si chiude da solo: Claude esegue il controllo, legge l'esito e corregge finché non passa.
 
 | Strategia | Prima | Dopo |
 | --- | --- | --- |
@@ -203,12 +214,16 @@ deploy — non sono annullabili: è il motivo per cui Claude chiede il permesso 
 effetti esterni.
 </Aside>
 
-**I permessi.** `Shift+Tab` cicla tra le modalità:
+**I permessi.** Una "modalità di permesso" stabilisce quanto Claude può fare **senza chiederti
+conferma**. `Shift+Tab` cicla tra le principali:
 
 - **Manual** — chiede prima delle modifiche ai file e dei comandi shell.
 - **Accept edits** — modifica file ed esegue comandi filesystem comuni come `mkdir` e `mv` senza chiedere; per gli altri comandi chiede.
 - **Plan** — esplora e propone un piano senza modificare i sorgenti.
 - **Auto** — valuta tutte le azioni con controlli di sicurezza in background.
+
+Ne esistono altre due per casi particolari: l'elenco completo, con quando usare quale, è nel
+[modulo 6](/fondamenta/plan-mode/).
 
 Puoi anche consentire comandi specifici in `.claude/settings.json`, utile per cose fidate come `npm test`
 o `git status`.
@@ -308,9 +323,22 @@ Then fix the handler so the tests pass. Run the test suite and show me
 the output. Don't change the response shape for the success case.
 ```
 
-Cosa è stato aggiunto rispetto all'originale: il **sintomo** (500 invece di 400), la **posizione** (due
-file specifici), i **criteri di verifica** (tre casi con l'output atteso), la richiesta di **mostrare
-l'output**, e un **vincolo di non-regressione** (non cambiare la forma della risposta di successo).
+Rileggiamolo riga per riga, perché ogni pezzo ha un ruolo:
+
+- **Il sintomo** — *"returns 500 … instead of 400"*. I numeri sono codici standard con cui un servizio
+  web risponde: **500** = "sono esploso" (errore del server), **400** = "la tua richiesta è sbagliata"
+  (errore di chi chiama). Il bug è proprio questo: un dato mancante dovrebbe produrre un educato "400,
+  manca l'email", non un crash. Senza dire quale codice ti aspetti, Claude non sa cosa sia "giusto".
+- **La posizione** — due file precisi. Claude li troverebbe da solo, ma spenderebbe metà del contesto
+  a cercarli.
+- **I criteri di verifica** — tre casi con l'esito atteso, incluso il **201** ("creato con successo")
+  per il caso valido: senza quello, Claude potrebbe "aggiustare" il bug rompendo il caso che funziona.
+- **La richiesta di prove** — *"show me the output"*: vogliamo vedere l'esito dei test, non sentirci
+  dire che passano.
+- **Il vincolo di non-regressione** — *"don't change the response shape"*: la forma della risposta di
+  successo non si tocca, perché qualcun altro potrebbe dipenderne.
+
+È lo stesso prompt di prima, con dentro le quattro abitudini del modulo.
 
 **Passo 2.** Entra in Plan Mode con `Shift+Tab` finché la status bar non mostra `⏸ plan mode on`, oppure
 avvia la sessione con:
@@ -336,7 +364,8 @@ Il subagent gira in una finestra di contesto separata e vede solo la diff e i cr
 che ha prodotto la modifica: valuta il risultato per quello che è. In alternativa, per un controllo di
 correttezza generico, esiste la skill integrata `/code-review`.
 
-**Attenzione al rovescio della medaglia:** un revisore a cui chiedi di trovare lacune ne troverà quasi
+**Attenzione al rovescio della medaglia** (ci torneremo al [modulo 11](/personalizzazione/agents-subagents/),
+quando costruiremo un revisore vero): un revisore a cui chiedi di trovare lacune ne troverà quasi
 sempre qualcuna, anche quando il lavoro è solido — è ciò che gli hai chiesto di fare. Inseguirle tutte
 porta a over-engineering: astrazioni inutili, codice difensivo, test per casi impossibili. Digli
 esplicitamente di segnalare solo le lacune che toccano correttezza o requisiti dichiarati.

@@ -4,11 +4,20 @@ description: "La gerarchia globale, di progetto e di directory del file CLAUDE.m
 ---
 
 import { Tabs, TabItem, Steps, Aside, FileTree } from '@astrojs/starlight/components';
+import Zero from '@/components/Zero.astro';
 
 <div class="meta-modulo">
 	<span><strong>Tempo stimato:</strong> 45 minuti</span>
 	<span><strong>Prerequisiti:</strong> i moduli <a href="/fondamenta/anatomia-file/">2</a> e <a href="/fondamenta/memoria-e-contesto/">4</a>, e un progetto reale su cui lavorare.</span>
 </div>
+
+Il [`CLAUDE.md`](/glossario/#claudemd) è un file di testo con le istruzioni che Claude legge
+all'inizio di **ogni** sessione. L'analogia giusta è il foglio di consegne per chi ti sostituisce:
+tutto quello che deve sapere prima di toccare qualcosa — come si lanciano i test, quali convenzioni
+seguite, cosa non va mai fatto. È lo strumento con il miglior rapporto sforzo/risultato dell'intero
+corso: dieci minuti per scriverlo, e ogni sessione futura parte già istruita. Questo modulo insegna
+dove metterlo, come scriverlo perché venga **davvero** seguito, e come diagnosticare il classico
+"gliel'ho scritto ma non lo fa".
 
 ## Obiettivi
 
@@ -35,7 +44,7 @@ tolta.
 | Comandi di shell che Claude non può indovinare | Tutto ciò che Claude può capire leggendo il codice |
 | Regole di stile che divergono dai default | Convenzioni standard del linguaggio, che già conosce |
 | Istruzioni di test e test runner preferiti | Documentazione API dettagliata (metti un link) |
-| Etichetta del repository (naming dei branch, convenzioni PR) | Informazioni che cambiano di frequente |
+| Le regole di convivenza del repository: come si chiamano i [branch](/glossario/#branch), come si scrivono le [PR](/glossario/#pr-pull-request) | Informazioni che cambiano di frequente |
 | Decisioni architetturali specifiche del progetto | Spiegazioni lunghe o tutorial |
 | Stranezze dell'ambiente di sviluppo (env var obbligatorie) | Descrizioni file per file del codebase |
 | Trappole e comportamenti non ovvi | Ovvietà tipo "scrivi codice pulito" |
@@ -48,7 +57,8 @@ dello stesso contesto per essere produttivo.
 **La dimensione conta.** L'obiettivo documentato è **sotto le 200 righe** per file. File più lunghi
 consumano più contesto e **riducono l'aderenza**: se il file è troppo lungo, Claude ne ignora metà perché
 le regole importanti si perdono nel rumore. Se le istruzioni crescono, la risposta non è un file più lungo:
-sono le regole path-scoped.
+sono le **regole legate ai percorsi** (*path-scoped*: si caricano solo quando Claude lavora sui file
+a cui si riferiscono — le vediamo più sotto).
 
 **Tutti i file trovati vengono concatenati, non si sovrascrivono.** È la differenza sostanziale rispetto ai
 `settings.json`. Non c'è "vince il più specifico": c'è "vengono letti tutti, in ordine". Il che rende le
@@ -110,8 +120,11 @@ dentro i blocchi di codice invece restano.
 
 ## Import con `@path`
 
-Un `CLAUDE.md` può importare altri file con la sintassi `@percorso/del/file`. I file importati vengono
-espansi e caricati in contesto all'avvio, insieme al `CLAUDE.md` che li referenzia.
+A cosa serve importare? A **non duplicare**: se le istruzioni per il flusso git stanno già in un
+documento del progetto, il `CLAUDE.md` può puntarci invece di copiarle — un posto solo da tenere
+aggiornato. La sintassi è `@percorso/del/file`: i file importati vengono espansi e caricati in
+contesto all'avvio, insieme al `CLAUDE.md` che li referenzia. (Nota subito il rovescio: l'import
+**organizza**, ma non fa risparmiare contesto — i file importati si caricano comunque tutti.)
 
 ```markdown title="CLAUDE.md"
 See @README for project overview and @package.json for available npm commands.
@@ -124,7 +137,7 @@ Le regole:
 
 - Sono ammessi percorsi **relativi e assoluti**. I relativi si risolvono rispetto al file che contiene l'import, non alla working directory.
 - I file importati possono importare ricorsivamente, fino a una **profondità massima di 4 salti**.
-- Il parsing degli import **salta** code span e blocchi di codice recintati. Per citare un percorso senza importarlo, mettilo tra backtick: `` `@README` `` resta testo, `@README` fuori dai backtick importa il file.
+- Tutto ciò che in Markdown è "codice" viene ignorato dagli import: sia il codice inline tra backtick, sia i blocchi tra triple backtick. Quindi per **citare** un percorso senza importarlo basta metterlo tra backtick: `` `@README` `` resta testo, `@README` fuori dai backtick importa il file.
 
 <Aside type="caution" title="Gli import esterni chiedono approvazione">
 Un import in un file di memoria di progetto è **esterno** quando il percorso si risolve fuori dalla working
@@ -164,9 +177,12 @@ un `CLAUDE.md` che lo importa, così entrambi gli strumenti leggono le stesse is
 Use plan mode for changes under `src/billing/`.
 ```
 
-Funziona anche un symlink, se non ti serve aggiungere contenuto specifico:
+Funziona anche un **symlink** — un collegamento simbolico: un file "finto" che punta a un altro, così
+i due nomi aprono lo stesso contenuto. Ha senso se non devi aggiungere nulla di specifico per Claude:
 
 ```bash
+# ln -s <file-esistente> <nome-del-collegamento>
+# crea "CLAUDE.md" come collegamento che punta ad AGENTS.md
 ln -s AGENTS.md CLAUDE.md
 ```
 
@@ -260,11 +276,13 @@ ln -s ~/shared-claude-rules .claude/rules/shared
 ln -s ~/company-standards/security.md .claude/rules/security.md
 ```
 
-I symlink circolari vengono rilevati e gestiti senza problemi.
+(Dettaglio per i più esperti: anche eventuali symlink circolari — A che punta a B che punta ad A —
+vengono rilevati e gestiti senza mandare nulla in loop.)
 
 ## Escludere i `CLAUDE.md` degli altri
 
-Nei monorepo capita che i `CLAUDE.md` degli antenati contengano istruzioni di altri team, irrilevanti per
+Nei [monorepo](/glossario/#monorepo) — un unico repository che contiene più progetti di team diversi —
+capita che i `CLAUDE.md` delle cartelle superiori contengano istruzioni di altri team, irrilevanti per
 te. Il setting `claudeMdExcludes` li salta per percorso o glob:
 
 ```json title=".claude/settings.local.json"
@@ -339,12 +357,31 @@ policy **non** sono escludibili.
    - Gli errori attesi sono `AppError`, non eccezioni generiche
    ```
 
-5. **Aggiungi le tue preferenze private.**
+5. **Aggiungi le tue preferenze private.** Occhio alla differenza tra i due simboli di redirezione,
+   perché qui è **critica**: `>` scrive il file **da zero** (e va bene per crearne uno nuovo), `>>`
+   **aggiunge in fondo** senza toccare ciò che c'è. Sul `.gitignore` serve `>>`: con `>` cancelleresti
+   tutte le regole esistenti del progetto.
 
+   <Tabs syncKey="os">
+   <TabItem label="macOS" icon="apple">
    ```bash
+   # crea CLAUDE.local.md con due righe di preferenze (">" = nuovo file)
    printf 'Il mio sandbox è su http://localhost:4000\nUsa i dati di test in fixtures/dev.json\n' > CLAUDE.local.md
+
+   # AGGIUNGE il file alla lista degli ignorati (">>" = appendi, non sovrascrivere!)
    echo 'CLAUDE.local.md' >> .gitignore
    ```
+   </TabItem>
+   <TabItem label="Windows" icon="seti:windows">
+   ```powershell
+   # crea CLAUDE.local.md con due righe di preferenze
+   "Il mio sandbox è su http://localhost:4000`nUsa i dati di test in fixtures/dev.json" | Set-Content CLAUDE.local.md
+
+   # AGGIUNGE il file alla lista degli ignorati (Add-Content = appendi, non sovrascrivere!)
+   Add-Content .gitignore 'CLAUDE.local.md'
+   ```
+   </TabItem>
+   </Tabs>
 
 6. **Testa che il comportamento cambi davvero.** Non fidarti del fatto che il file esista: fai fare a
    Claude qualcosa che dovrebbe rispettare la regola nuova e guarda se la rispetta. Se non lo fa, il
@@ -390,7 +427,9 @@ Nota che sono tutte preferenze **di processo**, non tecniche: le cose tecniche c
 progetto e appartengono al livello progetto.
 
 **Passo 2.** La regola pratica: nel `CLAUDE.md` di progetto va ciò che serve **in ogni sessione**; in
-`.claude/rules/` con `paths:` ciò che serve solo lavorando su una parte.
+`.claude/rules/` con `paths:` ciò che serve solo lavorando su una parte. (Questo esempio è in
+italiano, quello dell'esempio guidato era in inglese: **funzionano entrambi** — Claude legge bene
+tutte e due le lingue. Scegli quella del tuo team e sii coerente.)
 
 ```markdown title="CLAUDE.md"
 # Progetto
@@ -420,6 +459,10 @@ paths:
 - Server Component di default; `"use client"` solo quando serve davvero stato o effetti
 - Niente `useEffect` per il data fetching: usa i loader del framework
 ```
+
+*(Il contenuto è gergo React — se non lo usi, non serve capirlo: quello che conta è la **forma**.
+Il frontmatter `paths:` dice "queste regole valgono solo per i file `.tsx` dentro `src/components/`",
+e quindi si caricano solo quando Claude ci lavora.)*
 
 **Passo 3.** Metti nel `~/.claude/CLAUDE.md` una riga come `- Usa sempre tabulazioni per l'indentazione` e
 nel `CLAUDE.md` di progetto `- Usa 2 spazi per l'indentazione`. Poi chiedi a Claude di creare un file
@@ -471,7 +514,7 @@ Se l'istruzione **deve** eseguire a un punto preciso — prima di ogni commit, d
 non è materia da `CLAUDE.md`: scrivila come [hook](/personalizzazione/hooks/).
 
 Per capire esattamente quali file di istruzioni sono stati caricati, quando e perché, esiste l'hook
-`InstructionsLoaded`, utile per debuggare regole path-specific e file caricati pigramente.
+`InstructionsLoaded`, utile per capire perché una regola legata ai percorsi o un file a caricamento ritardato non è entrato in contesto.
 
 ### Tabella dei sintomi
 
