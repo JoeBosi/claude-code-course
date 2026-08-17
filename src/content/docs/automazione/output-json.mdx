@@ -237,7 +237,7 @@ Più, quando applicabile:
 | `plugins` | Plugin caricati correttamente, con `name` e `path` |
 | `plugin_errors` | Errori di caricamento, con `plugin`, `type`, `message`. **La chiave è assente se non ci sono errori** |
 | `mcp_server_errors` | Voci di `--mcp-config` scartate dalla validazione, con `name`, `type`, `message`. Assente se non ci sono errori |
-| `capabilities` | Array di stringhe con i comportamenti di protocollo implementati — usalo per il feature detection invece di confrontare versioni |
+| `capabilities` | Array di stringhe con i comportamenti di protocollo implementati. Usalo per il *feature detection* — "c'è la funzione che mi serve?" chiesto direttamente, invece di dedurlo dal numero di versione (che può mentire) |
 
 <Aside type="tip" title="Far fallire la CI su un plugin o server che non carica">
 `plugin_errors` e `mcp_server_errors` sono **assenti** quando va tutto bene. Un gate di CI può quindi

@@ -632,7 +632,8 @@ Due dettagli che fanno la differenza tra un workflow che funziona e uno che semb
 
 - **`workflow_dispatch`** ti permette di provarlo subito con `gh workflow run report-settimanale.yml`,
   invece di aspettare lunedì per scoprire un errore di sintassi.
-- **`fetch-depth: 0`**: senza, `actions/checkout` fa un clone shallow e `git log --since="1 week ago"`
+- **`fetch-depth: 0`**: senza, `actions/checkout` fa un clone *shallow* ("superficiale": scarica solo
+  l'ultimo commit, senza la storia) e `git log --since="1 week ago"`
   restituisce quasi nulla. È il modo più comune di ottenere un report vuoto senza capire perché.
 
 E ricorda il vincolo di GitHub: i workflow schedulati girano **solo dal branch di default**, e nei
@@ -647,7 +648,7 @@ repository pubblici lo schedule si disattiva dopo 60 giorni di inattività.
 | In CI il risultato non è riproducibile | `-p` carica hook, MCP e `CLAUDE.md` del repository | `--bare` |
 | Un job in CI esegue codice di una PR da un fork | Senza `--bare`, gli hook del repo girano | `--bare` è obbligatorio sul codice non tuo |
 | Il job si blocca aspettando un permesso | In CI nessuno può approvare | `--allowedTools` o `--permission-mode dontAsk` |
-| `git log --since` non restituisce nulla in CI | `actions/checkout` fa un clone shallow | `fetch-depth: 0` |
+| `git log --since` non restituisce nulla in CI | `actions/checkout` fa un clone shallow (senza storia) | `fetch-depth: 0` |
 | Il ciclo batch riparte da capo dopo un errore | Nessuna idempotenza | Marca i file già fatti e salta |
 | Un batch consuma token all'infinito | Nessun limite di turni | `--max-turns` per ogni invocazione |
 | Il workflow schedulato non parte | GitHub li esegue solo dal branch di default | Assicurati che il file sia su `main` |

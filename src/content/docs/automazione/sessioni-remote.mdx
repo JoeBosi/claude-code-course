@@ -40,7 +40,7 @@ intervenire.
 
 | | **Claude Code sul web** | **Remote Control** | **App desktop** |
 | --- | --- | --- | --- |
-| Dove esegue | VM gestite da Anthropic (o il tuo ambiente self-hosted) | **La tua macchina** | La tua macchina, o cloud/SSH/WSL |
+| Dove esegue | VM gestite da Anthropic (o il tuo ambiente self-hosted) | **La tua macchina** | La tua macchina, o cloud/SSH (collegamento via terminale a una macchina remota)/WSL (il Linux dentro Windows) |
 | Cosa serve | Un repository GitHub | Una sessione `claude` che resta accesa | L'app installata |
 | I tuoi server MCP e file locali | No | **Sì** | Sì |
 | Sopravvive alla chiusura del laptop | **Sì** | No | Solo le sessioni cloud |
@@ -179,7 +179,7 @@ I requisiti:
 
 | Requisito | Dettaglio |
 | --- | --- |
-| Stato git pulito | Nessuna modifica non committata. Ti viene proposto di stashare |
+| Stato git pulito | Nessuna modifica non committata. Ti viene proposto di *stashare* (mettere da parte le modifiche: spiegato al passo 5 dell'esempio guidato) |
 | Repository corretto | Deve essere un checkout **dello stesso repository**, non un fork |
 | Branch disponibile | Il branch della sessione cloud deve essere stato pushato sul remote |
 | Stesso account | Devi essere autenticato allo stesso account claude.ai |
@@ -228,7 +228,9 @@ girare in locale per tutto il tempo: esecuzione e accesso al filesystem restano 
 - **Endpoint API**: non disponibile su Bedrock, Agent Platform o Foundry, ed è disattivato quando
   `ANTHROPIC_BASE_URL` punta a un host diverso da `api.anthropic.com`.
 - **Feature flag**: `DISABLE_TELEMETRY`, `DO_NOT_TRACK`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` e
-  `DISABLE_GROWTHBOOK` disattivano la valutazione dei feature flag da cui dipende Remote Control.
+  `DISABLE_GROWTHBOOK` disattivano la valutazione dei *feature flag* — gli "interruttori remoti" con
+  cui Anthropic accende e spegne le funzioni senza aggiornare il programma — da cui dipende Remote
+  Control.
 - **Workspace trust**: lancia `claude` nella directory di progetto almeno una volta e accetta il dialogo.
   Il dialogo di avvio non salva mai il trust per la home: parti da una directory di progetto.
 
@@ -285,7 +287,9 @@ Claude Code salta le push mentre stai scrivendo nel terminale connesso.
 
 - **Una sessione remota per processo interattivo**, fuori dal server mode.
 - **Il processo locale deve restare vivo.** Se chiudi il terminale, la sessione va offline. Per tenerla
-  viva su una macchina remota dopo esserti disconnesso da SSH, avviala dentro `tmux` o `screen`.
+  viva su una macchina remota dopo esserti disconnesso da SSH, avviala dentro `tmux` o `screen` —
+  due programmi che tengono in vita una sessione di terminale anche quando tu ti scolleghi, come
+  lasciare la luce accesa in una stanza da cui esci.
 - **Outage di rete prolungato**: in server mode, Claude Code si arrende dopo circa 10 minuti e il processo
   esce; in sessione interattiva riprova finché serve e si riconnette da solo.
 - **Alcuni comandi sono solo locali**: quelli che esistono solo nell'interfaccia terminale, come `/plugin` o

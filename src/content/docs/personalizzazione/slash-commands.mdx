@@ -47,8 +47,10 @@ file solo, senza opzioni particolari? `commands/`. Serve altro? `skills/`, che v
 **Puoi concatenarne fino a sei in un solo messaggio** (la prima più altre cinque). Digitando
 `/write-tests /fix-issue 123` carichi entrambe le skill e passi
 il testo finale `123` come argomento a ciascuna. Claude Code espande la prima skill più altre cinque.
-L'espansione si ferma alla prima parola che non è una skill inline invocabile dall'utente: quella parola e tutto
-ciò che segue diventa il testo degli argomenti.
+L'espansione si ferma alla prima parola che non è una skill "inline" invocabile dall'utente — dove
+*inline* vuol dire una skill che si espande dentro la tua conversazione, com'è il default; quelle che
+girano come subagent separato (tipo `/code-review`) chiudono la catena. Quella parola e tutto ciò che
+segue diventa il testo degli argomenti.
 
 ## I comandi integrati
 
@@ -265,8 +267,9 @@ L'ordine di risoluzione, verificato sui docs:
    diventa `/my-plugin:deploy` e convive con un `deploy` di progetto.
 4. **Skill batte comando**: se esistono sia `.claude/commands/deploy.md` sia
    `.claude/skills/deploy/SKILL.md`, `/deploy` esegue la **skill**.
-5. **Locale batte sincronizzato**: una skill locale sovrascrive una skill sincronizzata dal tuo account
-   claude.ai con lo stesso nome.
+5. **Locale batte sincronizzato**: una skill salvata sui tuoi file sovrascrive una con lo stesso nome
+   sincronizzata dal tuo account claude.ai — le skill create sul sito ti seguono anche nella CLI, lo
+   vedrai nel [modulo 8](/personalizzazione/skills/).
 
 </Steps>
 

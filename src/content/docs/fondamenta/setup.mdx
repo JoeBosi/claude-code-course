@@ -222,7 +222,10 @@ installata a parte: sono due installazioni distinte che condividono la configura
    `ANTHROPIC_API_KEY`, Claude Code la userebbe al posto del login (e pagheresti a consumo senza
    accorgertene). Rimuovila dalla sessione corrente con `unset ANTHROPIC_API_KEY` (macOS) o
    `Remove-Item Env:\ANTHROPIC_API_KEY` (PowerShell), e verifica con `/status` che il metodo attivo
-   sia il tuo abbonamento.
+   sia il tuo abbonamento. Attenzione: `unset` vale **solo per la finestra di terminale aperta** — se
+   la chiave è impostata in modo permanente (una riga `export ANTHROPIC_API_KEY=...` in `~/.zshrc` o
+   nelle variabili d'ambiente di Windows), alla prossima apertura tornerà: in quel caso va tolta la
+   riga da lì.
    </Aside>
 
 5. **Fai la prima domanda.**

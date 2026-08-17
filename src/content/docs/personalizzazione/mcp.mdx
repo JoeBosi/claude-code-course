@@ -82,7 +82,8 @@ claude mcp add --transport http <nome> <url>
 # Esempio reale: Notion
 claude mcp add --transport http notion https://mcp.notion.com/mcp
 
-# Con un Bearer token
+# Con un Bearer token — un "gettone al portatore": una stringa segreta che
+# vale come credenziale per chiunque la presenti, da tenere fuori dai file versionati
 claude mcp add --transport http secure-api https://api.example.com/mcp \
   --header "Authorization: Bearer your-token"
 ```
@@ -104,6 +105,8 @@ claude mcp add [opzioni] <nome> -- <comando> [args...]
 # Esempio reale: Airtable
 claude mcp add --env AIRTABLE_API_KEY=YOUR_KEY --transport stdio airtable \
   -- npx -y airtable-mcp-server
+  # npx (arriva con Node.js) scarica ed esegue un pacchetto npm al volo,
+  # senza installarlo in modo permanente; -y salta la richiesta di conferma
 ```
 
 Il **doppio trattino `--` è obbligatorio** e separa le opzioni di Claude — `--transport`, `--env`,
@@ -257,7 +260,8 @@ permessi si rinnovano da soli e si revocano con un click.
    claude mcp login sentry
    ```
 
-3. **Su SSH o senza display server**, il comando se ne accorge e **stampa l'URL** invece di provare ad
+3. **Su SSH** (collegati via terminale a una macchina remota) **o senza display server** (un sistema
+   senza interfaccia grafica), il comando se ne accorge e **stampa l'URL** invece di provare ad
    aprire un browser. Aprilo sulla tua macchina, poi incolla l'URL completo di redirect al prompt. Serve un
    terminale interattivo, quindi collegati con `ssh -t`. Per forzare il comportamento anche con un browser
    disponibile:

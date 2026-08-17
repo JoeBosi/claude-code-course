@@ -51,7 +51,7 @@ ramificare. Un flag invalido viene riportato su **stderr prima** che il run part
 il run, tipo autenticazione mancante, viene stampato come risultato su **stdout**.
 
 **Di default `-p` carica tutto quello che caricherebbe una sessione interattiva:** hook, skill, plugin,
-server MCP, auto memory, `CLAUDE.md`. In locale è quello che vuoi. In CI è un problema: un hook nel
+server MCP, l'auto memory del [modulo 4](/fondamenta/memoria-e-contesto/), `CLAUDE.md`. In locale è quello che vuoi. In CI è un problema: un hook nel
 `~/.claude` di un collega o un server MCP nel `.mcp.json` del progetto cambiano il risultato da macchina a
 macchina.
 
@@ -60,8 +60,9 @@ macchina.
 
 <Aside type="danger" title="Cosa gira in `-p` senza che tu lo approvi">
 Senza `--bare`, Claude Code esegue gli hook del `.claude/settings.json` di un progetto **anche in una
-cartella di cui non ti sei mai fidato**, perché una sessione `-p` non può mostrare il dialogo di workspace
-trust. E collega i server del `.mcp.json` del progetto, perché non può mostrare nemmeno il prompt di
+cartella di cui non ti sei mai fidato**, perché una sessione `-p` non può mostrare il dialogo di
+*workspace trust* — la domanda "ti fidi di questa cartella?" vista nel
+[modulo 8](/personalizzazione/skills/). E collega i server del `.mcp.json` del progetto, perché non può mostrare nemmeno il prompt di
 approvazione per server.
 
 Detto altrimenti: `claude -p` dentro un repository clonato da internet esegue codice di quel repository.
@@ -343,6 +344,8 @@ un'impostazione da un'invocazione `-p`, passa `chiave=valore` a `/config`, per e
    #!/usr/bin/env bash
    set -euo pipefail
 
+   # gh è la CLI ufficiale di GitHub (si installa a parte: cli.github.com);
+   # "gh pr diff" scarica la diff della PR indicata come primo argomento
    gh pr diff "$1" | claude -p \
      --append-system-prompt "You are a security engineer. Review for vulnerabilities. Report only findings that have a concrete exploit path; ignore style." \
      --output-format json
@@ -482,6 +485,9 @@ RISPOSTA=$(printf '%s' "$DIFF" | claude -p \
     exit 2
   }
 
+# Con --json-schema, l'output validato non è tutta la risposta: vive nel campo
+# structured_output dell'involucro JSON (i dettagli nel modulo 13). Da lì
+# leggiamo la lista "bloccanti" definita dallo schema qui sopra.
 N=$(printf '%s' "$RISPOSTA" | jq '.structured_output.bloccanti | length')
 
 if [ "$N" -eq 0 ]; then

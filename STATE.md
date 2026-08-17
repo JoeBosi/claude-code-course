@@ -69,6 +69,32 @@ Ultimo aggiornamento: 2026-08-16 — **tutti i 20 moduli completati**
 - [x] Ri-verifica dei link esterni del modulo 16 (2026-08-16)
 - [ ] Dominio custom `claude-tutorial.giuseppebosi.com` — **serve il record DNS**, vedi README
 
+## Revisione didattica (2026-08-17)
+
+Motivazione: feedback del committente — il corso era scritto per chi sa già. Piano approvato,
+quattro regole editoriali (in `CLAUDE.md`): cosa/perché prima del come; nessun termine orfano;
+nessun codice muto; box "Se parti da zero" per il binario principianti.
+
+- [x] Fase 0 — Glossario (62 voci con anchor), pagina "Le basi", componente `Zero.astro`,
+      sezione sidebar "Per orientarsi", regole editoriali nel `CLAUDE.md`
+- [x] Fase 1 — moduli 0–6 + homepage rivisti (commit `refactor(corso): … moduli 00-06`)
+- [x] Fase 2 — moduli 7–11 rivisti (aggiunti `/subtask` e `/statusline` al modulo 7)
+- [x] Fase 3 — moduli 12–15 rivisti (fix incoerenze `--bare`, React→Vue, `github_token`, piani RC)
+- [x] Fase 4 — moduli 16–19 rivisti (tre "schema", legenda tabella decisionale e diagrammi,
+      `/ship` mostrato per intero, `init.sh` commentato riga per riga, TDD/nit/anchoring definiti)
+- [x] Fase 5 — boilerplate: **bug fix** `run.sh` (exit code perso dentro `if !` → l'orchestratore
+      usciva 0 a stadio fallito) + **bug fix** `01-fetch.sh` (doppio `[]` con pipefail) + `mkdir -p`
+      per stadio + commenti per non-esperti in tutti gli script e nel dominio Python + import
+      `collections.abc` (ruff pulito). Riprovato da zip estratto: 7 test verdi, shellcheck ok,
+      smoke test run.sh con stadio rotto → exit 2 ✔
+- [x] Fase 6 — build + links validator verdi; 10 Mermaid rivalidati col parser (0 errori);
+      Pagefind: 23 pagine indicizzate incluse `/basi/` e `/glossario/`; grep di controllo
+      termini-prima-della-definizione: pulito; deploy verificato (200 su tutte le pagine campione,
+      zip in produzione col fix); 4 test del lettore non-programmatore (subagent, uno per sezione):
+      34 rilievi, tutti valutati e i fondati corretti (system prompt/headless aggiunti al glossario,
+      chmod nei passi 3-4 del modulo 10, structured_output spiegato nel 12, SSH/WSL/tmux/stash/
+      feature flag/clone shallow/wrapper/SHA/CRUD/SaaS/edge/PII/rollback glossati inline)
+
 ## Da fare a consegna
 
 - [ ] Aggiungere il record CNAME `claude-tutorial` → `cname.vercel-dns.com` su giuseppebosi.com

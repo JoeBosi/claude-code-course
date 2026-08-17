@@ -63,7 +63,7 @@ Versioni verificate su npm e PyPI il **16 agosto 2026**.
 | --- | --- | --- | --- |
 | **Web app full-stack** | Next.js 16 + React 19 + TypeScript 7 + Postgres (Supabase o Neon) + Drizzle | SvelteKit 2 + Svelte 5 · Nuxt 4 · Rails · Django | Se non ti servono pagine generate dal server né visibilità sui motori di ricerca (SEO): una SPA — un'app che vive tutta nel browser — con Vite 8 è più semplice |
 | **Sito di contenuti o documentazione** | **Astro 7** + Starlight | Docusaurus · VitePress · MkDocs Material | Se il sito è per il 90% interattivo: Astro è pensato per pagine statiche con "isole" di interattività, e lo staresti usando controcorrente |
-| **API backend** | Hono 4 (edge e portabilità) o Fastify 5 (Node maturo) + TypeScript | FastAPI 0.141 se l'ecosistema è Python · Go se conta la latenza | Express 5 su un progetto nuovo: funziona, ma i tipi e i middleware moderni sono migliori altrove |
+| **API backend** | Hono 4 (portabile e pensato per l'*edge*: i server distribuiti vicino agli utenti invece che in un data center solo) o Fastify 5 (Node maturo) + TypeScript | FastAPI 0.141 se l'ecosistema è Python · Go se conta la latenza | Express 5 su un progetto nuovo: funziona, ma i tipi e i middleware moderni sono migliori altrove |
 | **CLI tool** | TypeScript + Bun o Node · oppure Go per un binario singolo | Rust se conta la performance · Python con Typer per script interni | Node se la distribuzione deve essere un binario che l'utente scarica |
 | **Automazione e pipeline dati** | Python 3.12+ con Pydantic 2 · oppure Bash e `claude -p` per orchestrazione | Airflow o Dagster se i passaggi e le dipendenze sono molti · GitHub Actions quando i job sono pochi e semplici | Un framework di orchestrazione per tre task in sequenza: cron e uno script bastano |
 | **App mobile** | React Native con Expo, se il team è già React | Flutter se il team non ha una preferenza web · Swift/Kotlin nativi per app che vivono di piattaforma | Il cross-platform se l'app dipende in modo pesante da API native |
@@ -101,7 +101,7 @@ E in tabella, quando sì e quando no:
 | Architettura | Conviene quando | Non conviene quando |
 | --- | --- | --- |
 | **Monolite modulare** | Quasi sempre all'inizio. Un deploy solo, moduli con confini chiari, la possibilità di estrarne uno se serve | Team molto grandi che devono rilasciare in modo indipendente |
-| **Hexagonal / clean** | Il **dominio è il valore** e le dipendenze esterne cambieranno: gateway LLM, provider di pagamento, database | CRUD su un database: stai aggiungendo tre livelli per proteggerti da un cambiamento che non avverrà |
+| **Hexagonal / clean** | Il **dominio è il valore** e le dipendenze esterne cambieranno: gateway LLM, provider di pagamento, database | L'app è solo CRUD (*Create, Read, Update, Delete*: creare, leggere, aggiornare e cancellare record) su un database: stai aggiungendo tre livelli per proteggerti da un cambiamento che non avverrà |
 | **Event-driven** | Serve disaccoppiamento temporale, picchi di carico da assorbire, o più consumatori dello stesso evento | Hai bisogno di consistenza forte e risposte sincrone: la complessità di debug esplode |
 | **Serverless** | Carico irregolare, molto tempo a zero, e la freddezza dell'avvio non è un problema | Connessioni persistenti, job lunghi, o costi prevedibili su carico costante |
 
@@ -117,7 +117,8 @@ Negli esempi qui sotto la porta c'è **solo** nel terzo, dove X = "Claude", Y = 
 
 ## Esempio A · SaaS dashboard
 
-Next.js 16 + Supabase. **Multi-tenant** vuol dire che più organizzazioni-clienti usano la stessa
+Un **SaaS** (*Software as a Service*) è un software venduto come servizio in abbonamento, usato dal
+browser: chi lo usa non installa niente. Stack: Next.js 16 + Supabase. **Multi-tenant** vuol dire che più organizzazioni-clienti usano la stessa
 applicazione e lo stesso database, ognuna vedendo solo i propri dati — e per garantirlo lo schema si
 appoggia alla **Row Level Security (RLS)** di Postgres: regole scritte *nel database* che filtrano ogni
 riga in base a chi sta chiedendo, così anche una query sbagliata nell'app non può far trapelare i dati
@@ -420,7 +421,7 @@ flowchart TD
         - mcp.py
     - api/ FastAPI: **solo traduzione HTTP ↔ dominio**
     - cli/
-    - config.py Composition root: sceglie gli adattatori
+    - config.py Il "composition root": l'unico punto in cui si decide e si monta quale adattatore usare
   - tests/
     - domain/ Con adattatori finti, **nessuna rete**
     - adapters/ Contratto: ogni adattatore supera lo stesso test

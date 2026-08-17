@@ -379,8 +379,9 @@ salvare. Le skill dei plugin **non** sono influenzate da `skillOverrides`: si ge
 
    Il file viene letto **solo quando serve**: non pesa sul contesto di ogni invocazione.
 
-6. **Falla girare in un subagent.** Se la skill legge molti file, fai stare quelle letture fuori dal tuo
-   contesto. Aggiungi al frontmatter:
+6. **Falla girare in un [subagent](/glossario/#subagent)** — un aiutante separato con la sua finestra
+   di contesto, protagonista del [modulo 11](/personalizzazione/agents-subagents/). Se la skill legge
+   molti file, fai stare quelle letture fuori dal tuo contesto. Aggiungi al frontmatter:
 
    ```yaml
    context: fork
@@ -413,7 +414,8 @@ cose vanno misurate separatamente:
 2. **Output** — quando si attiva, il risultato è quello che ti aspetti? Definisci prima cosa consideri
    corretto.
 
-Esiste anche una skill dedicata, `skill-creator`, per far girare delle eval su una skill.
+Esiste anche una skill dedicata, `skill-creator`, per far girare delle *eval* su una skill — test
+automatici che misurano se la skill produce davvero il comportamento per cui l'hai scritta.
 
 ## Esercizio
 

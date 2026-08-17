@@ -217,8 +217,10 @@ Il servizio gestito legge due file dal repository, con pesi diversi:
 ## Cosa significa Important qui
 
 Riserva 🔴 Important a ciò che romperebbe il comportamento, esporrebbe dati, o
-impedirebbe un rollback: logica errata, query non delimitate per tenant, PII nei
-log, migrazioni non retrocompatibili. Stile, naming e suggerimenti di refactoring
+impedirebbe un rollback (il "torna indietro": rimettere in produzione la versione
+precedente quando la nuova fa danni): logica errata, query non delimitate per
+tenant, PII nei log (dati personali identificabili — nomi, email, indirizzi),
+migrazioni non retrocompatibili. Stile, naming e suggerimenti di refactoring
 sono al massimo Nit.
 
 ## Limita i nit

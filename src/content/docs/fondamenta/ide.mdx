@@ -137,8 +137,11 @@ Il modello di ragionamento si sceglie da un selettore, e tra le opzioni ci sono 
   l'approvazione, e VS Code apre il piano come documento Markdown su cui puoi lasciare **commenti
   inline**; **Edit automatically** applica le modifiche senza chiedere. L'elenco completo delle
   modalità (sono sei) è nel [modulo 6](/fondamenta/plan-mode/).
-- **Menu comandi** — digita `/` per aprirlo: allegare file, cambiare modello, attivare l'extended thinking,
-  vedere il consumo del piano con `/usage`, avviare una sessione Remote Control con `/remote-control`. La
+- **Menu comandi** — digita `/` per aprirlo: allegare file, cambiare modello, attivare l'*extended
+  thinking* (il "ragionamento esteso": Claude riflette più a lungo prima di rispondere, utile sui
+  problemi difficili), vedere il consumo del piano con `/usage`, avviare una sessione **Remote
+  Control** — la modalità che ti fa seguire e guidare la sessione dal telefono, protagonista del
+  [modulo 15](/automazione/sessioni-remote/) — con `/remote-control`. La
   sezione *Customize* dà accesso a server MCP, hook, memoria, permessi e plugin.
 - **Domande laterali** — `/btw` seguito da una domanda apre la risposta in un pannello a fianco della chat,
   senza aggiungerla alla conversazione principale.
@@ -364,7 +367,7 @@ per cui ogni modulo di questo corso chiude con le fonti ufficiali e la data di v
 | **Hooks** | Sì | Sì (condivisi con la CLI) | No (modello di estensione diverso) |
 | **Diff visuale** | Nel terminale | Affiancato e modificabile | Pannello di revisione degli artifact |
 | **Multi-agente visuale** | Subagent da terminale | Conversazioni in tab paralleli | È il caso d'uso principale |
-| **Automazione headless** | `claude -p`, output JSON, CI | No | CLI e SDK Python |
+| **Automazione [headless](/glossario/#headless)** (senza interfaccia, da script) | `claude -p`, output JSON, CI | No | CLI e SDK Python |
 
 **Quando usare cosa, in pratica:**
 

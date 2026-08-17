@@ -448,6 +448,9 @@ correggerli e per fidarti di quelli che Claude genera.
    Nota il ramo `else`: uscire con `0` **senza** stampare JSON significa "nessuna decisione", e si applica
    il normale flusso dei permessi. Non significa "permetti".
 
+   E come per `lint.sh` al passo 2, su macOS/Linux lo script va reso eseguibile:
+   `chmod +x .claude/hooks/block-rm.sh` — senza, l'hook non scatta e non ti avvisa.
+
 4. **Notifica a fine turno.** Utile quando lanci un task lungo e vai a fare altro.
 
    ```json title="~/.claude/settings.json"
@@ -500,7 +503,8 @@ correggerli e per fidarti di quelli che Claude genera.
    </TabItem>
    </Tabs>
 
-   `"async": true` fa sì che il turno non aspetti la notifica.
+   `"async": true` fa sì che il turno non aspetti la notifica. Anche qui, su macOS:
+   `chmod +x .claude/hooks/notify.sh`.
 
 5. **Verifica cosa è configurato.**
 

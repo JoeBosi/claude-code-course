@@ -80,6 +80,8 @@ e la classificazione per tipo di PulseMCP sono più utili del totale.
 È l'unico con un'API pubblica, e questo lo rende l'unico automatizzabile:
 
 ```bash
+# jq '.' (il coltellino per il JSON, modulo 13) qui serve solo a stampare
+# la risposta indentata e leggibile
 curl -s "https://registry.modelcontextprotocol.io/v0/servers?limit=5" | jq '.'
 ```
 
@@ -103,7 +105,7 @@ canonico per X*, questa è la strada.
 | --- | --- | --- |
 | **Marketplace ufficiale** `claude-plugins-official` | Plugin curati da Anthropic: code intelligence LSP, integrazioni esterne (`github`, `linear`, `notion`, `figma`, `supabase`, `vercel`, `sentry`…), `security-guidance`, `commit-commands`, `pr-review-toolkit`, `plugin-dev` | **Aggiunto automaticamente** al primo avvio interattivo. Se manca: `/plugin marketplace add anthropics/claude-plugins-official` |
 | **Catalogo web** [claude.com/plugins](https://claude.com/plugins) | Lo stesso catalogo, sfogliabile dal browser | — |
-| **Marketplace community** [`anthropics/claude-plugins-community`](https://github.com/anthropics/claude-plugins-community) | Plugin di terze parti che hanno superato **validazione automatica e screening di sicurezza** di Anthropic. Ogni plugin è **pinnato a uno specifico commit SHA** | `/plugin marketplace add anthropics/claude-plugins-community`, poi `/plugin install <nome>@claude-community` |
+| **Marketplace community** [`anthropics/claude-plugins-community`](https://github.com/anthropics/claude-plugins-community) | Plugin di terze parti che hanno superato **validazione automatica e screening di sicurezza** di Anthropic. Ogni plugin è **pinnato a uno specifico commit SHA** (l'impronta univoca di una versione precisa del codice: quello che è stato controllato è quello che installi, né più né meno) | `/plugin marketplace add anthropics/claude-plugins-community`, poi `/plugin install <nome>@claude-community` |
 | **Marketplace demo** [`anthropics/claude-code`](https://github.com/anthropics/claude-code/tree/main/plugins) | Plugin di esempio, per capire cosa è possibile | `/plugin marketplace add anthropics/claude-code` |
 | **[github.com/anthropics/skills](https://github.com/anthropics/skills)** | Repository ufficiale delle skill | Copia la cartella della skill in `.claude/skills/` |
 | **[awesome-claude-code](https://github.com/hesreallyhim/awesome-claude-code)** | Lista community di comandi, skill, hook e workflow | Copia quello che ti serve, dopo averlo letto |
@@ -163,7 +165,7 @@ Da percorrere **prima** di installare qualsiasi cosa — server MCP, plugin o sk
 | # | Criterio | Cosa guardare | Segnale d'allarme |
 | --- | --- | --- | --- |
 | 1 | **Provenienza** | È il vendor stesso? È nell'Anthropic Directory o nel registry ufficiale? Il badge "official" corrisponde a un'organizzazione reale? | Un server "Stripe" pubblicato da un account personale sconosciuto |
-| 2 | **Server remoto ufficiale disponibile?** | Se il vendor ne pubblica uno, preferiscilo sempre a un wrapper locale | Un wrapper community per un servizio che ha già un MCP ufficiale |
+| 2 | **Server remoto ufficiale disponibile?** | Se il vendor ne pubblica uno, preferiscilo sempre a un *wrapper* locale — un "involucro": codice di terzi che fa da tramite verso il servizio, aggiungendo un intermediario di cui fidarsi | Un wrapper community per un servizio che ha già un MCP ufficiale |
 | 3 | **Manutenzione** | Data dell'ultimo commit, issue aperte e se ricevono risposta, cadenza delle release | Ultimo commit oltre sei mesi fa con issue aperte ignorate |
 | 4 | **Adozione** | Stelle, download, presenza su più directory. Su Glama, i **voti a lettera** per licenza, qualità e manutenzione | Zero adozione **e** zero manutenzione insieme |
 | 5 | **Cosa installa davvero** | Nel pannello `/plugin`: la sezione **Will install**. Per una skill: `allowed-tools` e `disallowed-tools` nel frontmatter | Un plugin di formattazione che vuole installare un server MCP e degli hook |
