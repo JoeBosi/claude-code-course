@@ -67,7 +67,7 @@ Ultimo aggiornamento: 2026-08-16 — **tutti i 20 moduli completati**
 - [x] Footer di non affiliazione su tutte e 21 le pagine
 - [x] Link esterni verificati: 98 unici, 91 rispondono 2xx/3xx
 - [x] Ri-verifica dei link esterni del modulo 16 (2026-08-16)
-- [ ] Dominio custom `claude-tutorial.giuseppebosi.com` — **serve il record DNS**, vedi README
+- [x] Dominio custom `claude-tutorial.giuseppebosi.com` — attivo, HTTPS ok (verificato 2026-09-12)
 
 ## Revisione didattica (2026-08-17)
 
@@ -97,8 +97,8 @@ nessun codice muto; box "Se parti da zero" per il binario principianti.
 
 ## Da fare a consegna
 
-- [ ] Aggiungere il record CNAME `claude-tutorial` → `cname.vercel-dns.com` su giuseppebosi.com
-- [ ] Aggiungere il dominio in Vercel: Project → Settings → Domains
+- [x] Record CNAME su IONOS (valore per-progetto `*.vercel-dns-017.com` fornito da Vercel)
+- [x] Dominio aggiunto in Vercel, certificato emesso (scade 2026-11-15, rinnovo automatico)
 - [ ] Rendere pubblico il repo `JoeBosi/claude-tutorial` (scelta dell'utente, a lavoro finito)
 - [ ] Riattivare il link GitHub nell'header: togliere il commento in `astro.config.mjs`
 
