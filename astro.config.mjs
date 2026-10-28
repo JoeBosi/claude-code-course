@@ -26,6 +26,7 @@ export default defineConfig({
 			customCss: ['./src/styles/custom.css'],
 			components: {
 				Footer: './src/components/Footer.astro',
+				SiteTitle: './src/components/SiteTitle.astro',
 			},
 			plugins: [starlightLinksValidator()],
 			// Il repo resta privato fino alla consegna: riattivare questo link quando
