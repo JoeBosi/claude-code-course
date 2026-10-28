@@ -35,6 +35,15 @@ export default defineConfig({
 			// 	{ icon: 'github', label: 'GitHub', href: 'https://github.com/JoeBosi/claude-tutorial' },
 			// ],
 			head: [
+				// Tema chiaro come predefinito per tutti, anche se il sistema del
+				// visitatore è in modalità scura. Chi sceglie il tema col selettore
+				// di Starlight viene comunque rispettato (il default vale solo se
+				// non c'è ancora una preferenza salvata).
+				{
+					tag: 'script',
+					content:
+						"(function(){try{if(!localStorage.getItem('starlight-theme')){localStorage.setItem('starlight-theme','light');}if(localStorage.getItem('starlight-theme')==='light'){document.documentElement.dataset.theme='light';}}catch(e){}})();",
+				},
 				{ tag: 'meta', attrs: { property: 'og:site_name', content: 'Claude Code Tutorial' } },
 				{ tag: 'meta', attrs: { property: 'og:type', content: 'website' } },
 				{ tag: 'meta', attrs: { property: 'og:locale', content: 'it_IT' } },
