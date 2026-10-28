@@ -114,10 +114,10 @@ sessione si interrompe, la ripresa parte da `STATE.md` invece che da zero.
 
 ## I tre boilerplate
 
-Coerenti con i tre esempi del [modulo 17](/professionale/stack-architetture/). Sono cartelle vere,
-provate: gli script passano `shellcheck` (il [linter](/glossario/#linter) degli script di shell:
-segnala gli errori tipici di bash prima che ti mordano), i test di `agentic-rag` girano davvero, e ogni zip è stato
-estratto e inizializzato per verificare che funzioni.
+Coerenti con i tre esempi del [modulo 17](/professionale/stack-architetture/). Dentro ogni zip
+trovi script già puliti per `shellcheck` (il [linter](/glossario/#linter) degli script di shell:
+segnala gli errori tipici di bash prima che ti mordano) e, in `agentic-rag`, una suite di 7 test che
+gira subito, offline: il primo `uv run pytest` è anche il collaudo del tuo setup.
 
 <CardGrid>
 	<LinkCard
@@ -736,7 +736,3 @@ Documentazione ufficiale consultata, verificata il **16 agosto 2026**:
 - [Settings](https://code.claude.com/docs/en/settings) — permessi, scope e precedenza
 - [Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp) — `.mcp.json` ed espansione delle variabili
 - [Run Claude Code programmatically](https://code.claude.com/docs/en/headless) — `--bare`, `--json-schema` e `--max-turns` usati dalla pipeline
-
-I tre boilerplate sono stati provati end-to-end il 16 agosto 2026: `shellcheck` pulito su tutti gli script,
-7 test verdi in `agentic-rag`, e ogni zip estratto e inizializzato con `init.sh` per verificare che non
-restino segnaposto.
