@@ -1,8 +1,8 @@
-# Claude Code Course
+# Claude Code Course: free Claude Code tutorial, from zero to agentic workflows
 
 **English** · [Italiano](README.it.md)
 
-A free, Italian-language web course on [Claude Code](https://code.claude.com/docs), Anthropic's agentic coding tool: the CLI, the VS Code extension and the desktop app, from first install to production agentic workflows.
+**Learn Claude Code step by step**: a free, open course (in Italian) on Anthropic's AI coding agent, covering the CLI, the VS Code extension and the desktop app, CLAUDE.md, Plan Mode, skills, MCP servers, hooks, subagents and headless automation, with runnable examples and three ready-to-use boilerplates.
 
 **Live site:** <https://claude-tutorial.giuseppebosi.com>
 
