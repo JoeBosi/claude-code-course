@@ -20,3 +20,8 @@ pnpm-debug.log*
 .idea/
 # vercel
 .vercel
+
+# internal notes (Italian, project management): kept local only
+STATE.md
+REVISIONE-DIVULGAZIONE.md
+README-DEPLOY-NOTES.md
