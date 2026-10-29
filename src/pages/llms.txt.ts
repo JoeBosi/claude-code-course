@@ -19,7 +19,7 @@ export const GET: APIRoute = async () => {
 	const righe = [
 		'# Claude Code Tutorial',
 		'',
-		'> Corso gratuito in italiano su Claude Code (CLI, estensione VS Code, app desktop), da zero al livello professionale: venti moduli con esempi da eseguire, esercizi con soluzione e link alla documentazione ufficiale. Autore: Prof. Giuseppe Bosi (https://www.giuseppebosi.com).',
+		'> Corso gratuito in italiano su Claude Code (CLI, estensione VS Code, app desktop), da zero al livello professionale: venti moduli con esempi da eseguire, esercizi con soluzione e link alla documentazione ufficiale. Autore: Prof. Giuseppe Bosi (https://www.giuseppebosi.com, LinkedIn: https://www.linkedin.com/in/giuseppebosi).',
 		'',
 		`Testo completo di tutte le pagine in un solo file: ${SITE}/llms-full.txt`,
 	];
