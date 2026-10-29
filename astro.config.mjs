@@ -45,6 +45,27 @@ export default defineConfig({
 					content:
 						"(function(){try{if(!localStorage.getItem('starlight-theme')){localStorage.setItem('starlight-theme','light');}if(localStorage.getItem('starlight-theme')==='light'){document.documentElement.dataset.theme='light';}}catch(e){}})();",
 				},
+				{
+					tag: 'script',
+					attrs: { type: 'application/ld+json' },
+					content: JSON.stringify({
+						'@context': 'https://schema.org',
+						'@type': 'Course',
+						name: 'Claude Code Tutorial',
+						description: DESCRIZIONE,
+						url: SITE,
+						inLanguage: 'it',
+						isAccessibleForFree: true,
+						author: {
+							'@type': 'Person',
+							name: 'Prof. Giuseppe Bosi',
+							url: 'https://www.giuseppebosi.com',
+							jobTitle: 'Professore di Scienze e Tecnologie Informatiche',
+							hasCredential: 'Dottore in Ingegneria Elettronica (V.O.)',
+						},
+						provider: { '@type': 'Person', name: 'Prof. Giuseppe Bosi', url: 'https://www.giuseppebosi.com' },
+					}),
+				},
 				{ tag: 'meta', attrs: { property: 'og:site_name', content: 'Claude Code Tutorial' } },
 				{ tag: 'meta', attrs: { property: 'og:type', content: 'website' } },
 				{ tag: 'meta', attrs: { property: 'og:locale', content: 'it_IT' } },
