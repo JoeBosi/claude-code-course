@@ -30,12 +30,9 @@ export default defineConfig({
 				SiteTitle: './src/components/SiteTitle.astro',
 			},
 			plugins: [starlightLinksValidator()],
-			// Il repo resta privato fino alla consegna: riattivare questo link quando
-			// github.com/JoeBosi/claude-code-course diventa pubblico, altrimenti i
-			// visitatori trovano un 404.
-			// social: [
-			// 	{ icon: 'github', label: 'GitHub', href: 'https://github.com/JoeBosi/claude-code-course' },
-			// ],
+			social: [
+				{ icon: 'github', label: 'GitHub', href: 'https://github.com/JoeBosi/claude-code-course' },
+			],
 			head: [
 				// Tema chiaro come predefinito per tutti, anche se il sistema del
 				// visitatore è in modalità scura. Chi sceglie il tema col selettore
