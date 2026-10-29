@@ -30,10 +30,10 @@ export default defineConfig({
 			},
 			plugins: [starlightLinksValidator()],
 			// Il repo resta privato fino alla consegna: riattivare questo link quando
-			// github.com/JoeBosi/claude-tutorial diventa pubblico, altrimenti i
+			// github.com/JoeBosi/claude-code-course diventa pubblico, altrimenti i
 			// visitatori trovano un 404.
 			// social: [
-			// 	{ icon: 'github', label: 'GitHub', href: 'https://github.com/JoeBosi/claude-tutorial' },
+			// 	{ icon: 'github', label: 'GitHub', href: 'https://github.com/JoeBosi/claude-code-course' },
 			// ],
 			head: [
 				// Tema chiaro come predefinito per tutti, anche se il sistema del
