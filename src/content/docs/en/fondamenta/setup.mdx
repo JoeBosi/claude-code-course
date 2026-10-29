@@ -1,0 +1,521 @@
+---
+title: "0 · Setup and installation"
+description: "Install Claude Code on macOS and Windows: the CLI with the native installer, the desktop app, login with your own account and a first session on a real project."
+---
+
+import { Tabs, TabItem, Steps, Aside, Badge } from '@astrojs/starlight/components';
+import Zero from '@/components/Zero.astro';
+
+<div class="meta-modulo">
+	<span><strong>Estimated time:</strong> 30 minutes</span>
+	<span><strong>Prerequisites:</strong> a Claude Pro, Max, Team or Enterprise subscription. If you have never used a terminal, read <a href="/en/basi/">The basics</a> first: ten minutes and you are ready.</span>
+</div>
+
+In this module you install Claude Code and talk to it for the first time. By the end you will have
+done the full round: a program installed, a login completed, a question asked about your code, a change
+proposed by an AI and saved in the project history. It is the most "mechanical" module of the course — lots
+of commands to copy, little theory — and that is fine: the theory starts in module 3, when you will
+have something working in front of you.
+
+## Objectives
+
+- Check that your machine meets Claude Code's system requirements.
+- Install the CLI on macOS or Windows with the native installer, and know when Homebrew, WinGet or npm make more sense instead.
+- Install the Claude desktop app and understand how it lives alongside the CLI.
+- Authenticate with your account, without ever configuring a paid API key.
+- Open your first session on a real project and close the first loop: question, change, commit.
+
+## Key concepts
+
+<Zero title="Terminal, CLI, commands: the three words of this module">
+The **terminal** is the window where you give the computer orders by typing instead of clicking
+([how to open it](/en/basi/#the-terminal)). A **CLI** (*Command Line Interface*) is a program
+designed to be used from there: Claude Code is one. "Running a command" means: copying it into the
+terminal and pressing Enter. The rest of the module is just that, repeated.
+</Zero>
+
+**Claude Code is an engine, not a single app.** The same engine runs in four places: in the terminal
+(the CLI), in the desktop app, inside VS Code and JetBrains, and on the web. They share the same configuration —
+`CLAUDE.md`, MCP servers, hooks, skills and settings — so installing the CLI and the desktop app does not mean
+maintaining two separate setups: it is the same setup with two interfaces. In this module you install the CLI and
+desktop; VS Code and Antigravity come in [module 1](/en/fondamenta/ide/).
+
+**You need a paid subscription.** Claude Code requires a Pro, Max, Team or Enterprise plan or a
+Claude Console account. The free Claude.ai plan does not include Claude Code. Throughout the course we use
+account login: a pay-as-you-go API key is not needed, and we will never ask for one.
+
+**The native installer is the recommended route.** "Native" means it downloads a ready-made program
+for your system (a *binary*), with no other tools needed, and puts it in
+`~/.local/bin/claude` on macOS and Linux, in `%USERPROFILE%\.local\bin\claude.exe` on Windows. The
+practical advantage is **background auto-update**: native installations keep themselves up to date
+on their own, while Homebrew, WinGet and Linux package managers require a manual update. If you choose
+one of those, put a `brew upgrade claude-code` or `winget upgrade Anthropic.ClaudeCode` in your calendar
+every so often.
+
+There is also an **npm** package — the package manager of the JavaScript world, that is, the "store" from which
+developers install libraries and tools. If npm is already part of your day, `npm install
+-g @anthropic-ai/claude-code` gives you the exact same native binary; if you don't know what npm is,
+ignore this route and use the native installer. Since v2.1.198 the package requires Node.js 22 or
+higher.
+
+**On Windows you have two routes.** Native Windows works with nothing else, but [Git for
+Windows](https://git-scm.com/downloads/win) is recommended: it provides Git Bash, which enables the Bash tool.
+Without Git for Windows, Claude Code runs commands through the PowerShell tool. Alternatively you can
+work inside **WSL 2** (*Windows Subsystem for Linux*: a full Linux that runs inside Windows,
+installed from the Microsoft Store). It is the only Windows configuration that supports
+[sandboxing](/en/glossario/#sandbox), the "fence" that limits what commands can touch: if
+you choose this route, you install and launch `claude` inside the WSL terminal, not from PowerShell.
+
+**System requirements.** macOS 13.0+, Windows 10 1809+ or Windows Server 2019+, or Ubuntu 20.04+ /
+Debian 10+ / Alpine 3.19+. You need 4 GB of RAM, an x64 or ARM64 processor and an internet connection.
+The supported shells are Bash, Zsh, PowerShell and CMD.
+
+**The desktop app already includes Claude Code.** You don't need to install Node or the CLI to use it. It has three tabs —
+Chat, Cowork and **Code** — and in this course we care about the Code tab: parallel sessions, visual diff,
+integrated terminal, app preview. If you also want the `claude` command in the terminal, the CLI must be
+installed separately: they are two distinct installations that share the configuration.
+
+## Guided example
+
+<Steps>
+
+1. **Check what you already have installed.**
+
+   If `claude` answers, you already have an installation: note the version and skip to step 4.
+
+   <Tabs syncKey="os">
+   <TabItem label="macOS" icon="apple">
+   ```bash
+   claude --version
+   ```
+   </TabItem>
+   <TabItem label="Windows" icon="seti:windows">
+   ```powershell
+   claude --version
+   ```
+   </TabItem>
+   </Tabs>
+
+   A working installation prints a version number followed by `(Claude Code)`:
+
+   ```text
+   2.1.211 (Claude Code)
+   ```
+
+   If you get `command not found: claude` (macOS) or `'claude' is not recognized` (Windows), carry on:
+   you still need to install it.
+
+2. **Install the CLI with the native installer.**
+
+   The command below does two things in one: it downloads the official installation script
+   (`curl` is the tool that downloads things from the internet) and runs it right away, handing it over with a
+   [pipe](/en/glossario/#pipe) (`|`). It is the most common form of installation in the developer world
+   — and it should be used **only** with addresses you trust, like this one, which is Anthropic's official one.
+
+   <Tabs syncKey="os">
+   <TabItem label="macOS" icon="apple">
+   ```bash
+   # downloads the installation script from claude.ai and runs it
+   curl -fsSL https://claude.ai/install.sh | bash
+   ```
+
+   Alternatively, with **Homebrew** (the most widely used package manager on macOS — if you don't already have it,
+   skip this alternative):
+
+   ```bash
+   brew install --cask claude-code
+   ```
+
+   Homebrew offers two casks: `claude-code` follows the **stable** channel (typically one week behind,
+   it skips releases with serious regressions), `claude-code@latest` follows the **latest** channel. Neither
+   auto-updates.
+   </TabItem>
+   <TabItem label="Windows" icon="seti:windows">
+   In **PowerShell**:
+
+   ```powershell
+   irm https://claude.ai/install.ps1 | iex
+   ```
+
+   In **CMD** (a different command, not interchangeable):
+
+   ```batch
+   curl -fsSL https://claude.ai/install.cmd -o install.cmd && install.cmd && del install.cmd
+   ```
+
+   You don't need to run as Administrator. How to tell which shell you are in: the prompt shows `PS C:\` in
+   PowerShell and `C:\` without `PS` in CMD.
+
+   Alternatively, with WinGet:
+
+   ```powershell
+   winget install Anthropic.ClaudeCode
+   ```
+
+   WinGet does not auto-update: you will need to run `winget upgrade Anthropic.ClaudeCode` periodically.
+   </TabItem>
+   </Tabs>
+
+3. **Verify the installation.**
+
+   <Tabs syncKey="os">
+   <TabItem label="macOS" icon="apple">
+   ```bash
+   claude --version
+   claude doctor
+   ```
+   </TabItem>
+   <TabItem label="Windows" icon="seti:windows">
+   ```powershell
+   claude --version
+   claude doctor
+   ```
+   </TabItem>
+   </Tabs>
+
+   `claude doctor` prints a read-only diagnostic of installation and settings — without starting
+   a session — including the installation status, any validation errors in the
+   settings files and warnings with suggestions to fix them. It is the first command to run whenever
+   something doesn't add up.
+
+4. **Log in with your account.**
+
+   Move into a project folder and start a session. The key point: **Claude Code
+   works on the folder you start it from** — that is its perimeter. Replace the example path
+   with a real folder of yours (a code project if you have one; otherwise any folder
+   with some text files is perfectly fine to begin with).
+
+   <Tabs syncKey="os">
+   <TabItem label="macOS" icon="apple">
+   ```bash
+   # cd = "change directory": enter the project folder
+   cd ~/progetti/il-mio-progetto
+   # start Claude Code in that folder
+   claude
+   ```
+   </TabItem>
+   <TabItem label="Windows" icon="seti:windows">
+   ```powershell
+   # cd = "change directory": enter the project folder
+   cd $env:USERPROFILE\progetti\il-mio-progetto
+   # start Claude Code in that folder
+   claude
+   ```
+   </TabItem>
+   </Tabs>
+
+   On first launch Claude Code opens the browser for login — it is the
+   ["sign in with"](/en/glossario/#oauth) mechanism you know from a thousand other services: you authorize from the browser, without
+   ever typing your password in the terminal. Choose **Claude Pro/Max** (or your team's account) and
+   complete the sign-in. When login succeeds, the terminal shows `Login successful` and
+   asks you to press `Enter` to continue.
+
+   If the browser doesn't open by itself, press `c` to copy the login URL to the clipboard and paste it
+   manually. If the browser shows you a **code** instead of returning to the terminal, paste it at the prompt
+   `Paste code here if prompted`: this happens when the browser cannot reach the local callback server,
+   typical of WSL2, SSH sessions and containers.
+
+   <Aside type="tip" title="No API key">
+   An **API key** is a secret key that pays for requests **pay-as-you-go** — it is the other way to use
+   Claude, designed for programs, and in this course we never need it: we use the subscription. If in
+   the past you set one in the [environment variable](/en/glossario/#environment-variable)
+   `ANTHROPIC_API_KEY`, Claude Code would use it instead of the login (and you would pay per use without
+   noticing). Remove it from the current session with `unset ANTHROPIC_API_KEY` (macOS) or
+   `Remove-Item Env:\ANTHROPIC_API_KEY` (PowerShell), and check with `/status` that the active method
+   is your subscription. Careful: `unset` applies **only to the open terminal window** — if
+   the key is set permanently (an `export ANTHROPIC_API_KEY=...` line in `~/.zshrc` or
+   in Windows environment variables), it will come back next time you open one: in that case remove the
+   line from there.
+   </Aside>
+
+5. **Ask your first question.**
+
+   You are inside the session. The prompt shows the version, active model and working directory. Write in
+   natural language:
+
+   ```text
+   what does this project do?
+   ```
+
+   *(= "what does this project do?" — you can also write to models in Italian or other languages, but in this course the prompts
+   are in English because it is the language in which models work best on code)*
+
+   Claude reads the files it needs on its own: you don't have to add context by hand. Also try:
+
+   ```text
+   explain the folder structure
+   ```
+
+   *(= "explain how this folder is organized")*
+
+6. **Make your first change and your first commit.**
+
+   ```text
+   add a hello world function to the main file
+   ```
+
+   Claude finds the right file, shows you the proposed changes and — depending on the active **permission
+   mode** — asks for your approval before writing. On Pro, Max and Team plans the
+   starting mode is `auto` (a supervisor checks actions in the background and blocks the
+   risky ones); in `default` mode you are asked to confirm every change. With `Shift+Tab` you cycle
+   through the modes. We cover them all in detail in [module 6](/en/fondamenta/plan-mode/).
+
+   Then close the loop by asking for a [commit](/en/glossario/#commit) — git's "signed save"
+   that records the change in the project history (if git is a mystery, two minutes on
+   [The basics](/en/basi/#git-in-10-minutes) and come back here):
+
+   ```text
+   commit my changes with a descriptive message
+   ```
+
+   *(in plain words: "save my changes with a descriptive message")*
+
+   To exit, `/exit` or `Ctrl+D` twice.
+
+7. **Install the desktop app.**
+
+   Download the installer and run it:
+
+   <Tabs syncKey="os">
+   <TabItem label="macOS" icon="apple">
+   [Download for macOS](https://claude.ai/api/desktop/darwin/universal/dmg/latest/redirect) — universal
+   build for Intel and Apple Silicon. Open the `.dmg`, drag Claude into the Applications folder and
+   launch it from there.
+   </TabItem>
+   <TabItem label="Windows" icon="seti:windows">
+   [Download for Windows x64](https://claude.ai/api/desktop/win32/x64/setup/latest/redirect) — or the
+   [ARM64 installer](https://claude.ai/api/desktop/win32/arm64/setup/latest/redirect) if you have an ARM PC.
+   Run the setup and launch Claude from the Start menu.
+
+   For local sessions to work on Windows,
+   [Git](https://git-scm.com/downloads/win) must be installed.
+   </TabItem>
+   </Tabs>
+
+   Sign in with the same account, then click the **Code** tab at the top center. Choose **Local**,
+   press **Select folder** and select the same project as before: you will find your `CLAUDE.md`, MCP
+   servers and skills, because desktop and CLI share the configuration.
+
+</Steps>
+
+## Exercise
+
+Set up your workstation and check it in a verifiable way, not by eye.
+
+1. Install the CLI with the native installer and confirm that `claude --version` prints a version.
+2. Run `claude doctor` and read the output: which installation method does it report? Does it auto-update?
+3. Make sure your login is the subscription one and not an API key.
+4. Create a `claude-tutorial-esercizi/` folder, enter it, start `claude` and have it create a
+   `README.md` describing the course in three lines.
+
+<details class="soluzione">
+<summary>Solution</summary>
+
+**Steps 1–2.**
+
+<Tabs syncKey="os">
+<TabItem label="macOS" icon="apple">
+```bash
+curl -fsSL https://claude.ai/install.sh | bash
+claude --version
+claude doctor
+```
+</TabItem>
+<TabItem label="Windows" icon="seti:windows">
+```powershell
+irm https://claude.ai/install.ps1 | iex
+claude --version
+claude doctor
+```
+</TabItem>
+</Tabs>
+
+`claude doctor` distinguishes the native installation from the others. If you installed with the native installer,
+auto-update is active in the background and you don't need to do anything. If you used Homebrew or WinGet, updating
+is manual: `brew upgrade claude-code` or `winget upgrade Anthropic.ClaudeCode`.
+
+**Step 3.** Before starting the session, get any API key in the environment out of the way:
+
+<Tabs syncKey="os">
+<TabItem label="macOS" icon="apple">
+```bash
+echo $ANTHROPIC_API_KEY   # if it prints something, it is set
+unset ANTHROPIC_API_KEY
+```
+</TabItem>
+<TabItem label="Windows" icon="seti:windows">
+```powershell
+$env:ANTHROPIC_API_KEY    # if it prints something, it is set
+Remove-Item Env:\ANTHROPIC_API_KEY
+```
+</TabItem>
+</Tabs>
+
+Then, inside the session, `/status`: the `Login method` line must show your subscription account.
+If an `API key` line also appears, the key is still active and **it wins**: in Claude Code's order of precedence,
+a key in the environment variable beats the login done through the browser. That is why
+we removed it before checking.
+
+**Step 4.**
+
+<Tabs syncKey="os">
+<TabItem label="macOS" icon="apple">
+```bash
+# create the folder and, IF creation succeeds ("&&"), enter it
+mkdir claude-tutorial-esercizi && cd claude-tutorial-esercizi
+claude
+```
+</TabItem>
+<TabItem label="Windows" icon="seti:windows">
+```powershell
+# create the folder, then enter it (";" = run in sequence)
+mkdir claude-tutorial-esercizi; cd claude-tutorial-esercizi
+claude
+```
+</TabItem>
+</Tabs>
+
+Then, at the prompt:
+
+```text
+create a README.md describing this folder as my Claude Code course exercises, three lines max
+```
+
+Claude shows you the proposed content and asks for confirmation before writing the file. Approve and check with
+`/exit` followed by `cat README.md` (macOS) or `type README.md` (Windows).
+
+</details>
+
+## Common mistakes & troubleshooting
+
+| Symptom | Cause | Solution |
+| --- | --- | --- |
+| `command not found: claude` / `'claude' is not recognized` | The installation directory is not in the PATH | See below: add `~/.local/bin` (macOS) or `%USERPROFILE%\.local\bin` (Windows) to the PATH and reopen the terminal |
+| `'irm' is not recognized as an internal or external command` | You are using the PowerShell command inside CMD | Use the CMD command, or switch to PowerShell |
+| `The token '&&' is not a valid statement separator` | You are using the CMD command inside PowerShell | Use `irm https://claude.ai/install.ps1 \| iex` |
+| `'bash' is not recognized as the name of a cmdlet` | You pasted the macOS command on Windows | Use the PowerShell or CMD command |
+| `syntax error near unexpected token '<'` or `curl: (22) ... error: 403` | The installer returned HTML instead of the script (proxy or captive portal) | Check that the network reaches `downloads.claude.ai`, then retry |
+| `Claude Code on Windows requires either Git for Windows (for bash) or PowerShell` | No usable shell is available | Install [Git for Windows](https://git-scm.com/downloads/win) |
+| `Error: claude native binary not installed` | Incomplete npm install: the optional dependencies were not downloaded | Reinstall allowing optional dependencies |
+| Login: the browser shows a code instead of returning to the terminal | The browser cannot reach the local callback server (WSL2, SSH, container) | Paste the code at the `Paste code here if prompted` prompt |
+| Login works but responses fail with authorization errors | `ANTHROPIC_API_KEY` in the environment takes precedence over the subscription | `unset ANTHROPIC_API_KEY`, then check with `/status` |
+| `App unavailable in region` | Claude Code is not available in your country | See the [supported countries](https://www.anthropic.com/supported-countries) |
+
+### Fixing the PATH
+
+First the concept, then the commands. The **PATH** is the list of folders where the terminal looks for
+programs when you type a name: you type `claude`, and the terminal goes through those folders until it
+finds a file with that name. If the installer put `claude` in a folder that is **not**
+in the list, the program exists but the terminal can't find it — hence the `command not found`.
+The cure is to add that folder to the list. It is a small but **permanent** change to your
+environment: that is exactly why the commands below are commented line by line.
+
+<Tabs syncKey="os">
+<TabItem label="macOS" icon="apple">
+Check whether the folder is already in the PATH:
+
+```bash
+# prints the PATH, one path per line, and looks for the exact line "~/.local/bin"
+echo $PATH | tr ':' '\n' | grep -Fx "$HOME/.local/bin"
+```
+
+If it prints the path, the PATH is fine and the problem is elsewhere. If it **prints nothing**,
+add it. On macOS the default shell is Zsh, and its personal configuration file is
+`~/.zshrc` — it is reread in every new terminal window:
+
+```bash
+# adds ONE line at the end of ~/.zshrc (">>" = "append, don't overwrite"):
+# the line says "from now on, also look for programs in ~/.local/bin"
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+
+# reloads the configuration in the current window, without having to close it
+source ~/.zshrc
+
+# check: now it must answer with the version
+claude --version
+```
+
+If you suspect you have **multiple conflicting installations** (for example an old one via npm and a
+new native one):
+
+```bash
+# lists ALL the "claude" the terminal finds in the PATH, in order of precedence
+which -a claude
+```
+</TabItem>
+<TabItem label="Windows" icon="seti:windows">
+Check whether the folder is already in the PATH:
+
+```powershell
+# prints the PATH split on ";" and looks for the lines containing ".local\bin"
+$env:PATH -split ';' | Select-String '\.local\\bin'
+```
+
+If it prints the path, the PATH is fine and the problem is elsewhere. If it **prints nothing**,
+add it to your user PATH (a permanent change, valid for all future windows):
+
+```powershell
+# reads the user's current PATH...
+$currentPath = [Environment]::GetEnvironmentVariable('PATH', 'User')
+# ...and saves it again with Claude's folder added at the end
+[Environment]::SetEnvironmentVariable('PATH', "$currentPath;$env:USERPROFILE\.local\bin", 'User')
+```
+
+Restart the terminal (windows already open don't see the change) and check with
+`claude --version`.
+
+If you suspect you have **multiple conflicting installations**:
+
+```powershell
+# lists ALL the "claude" the terminal finds, in order of precedence
+where.exe claude
+```
+</TabItem>
+</Tabs>
+
+<Aside type="caution" title="The VS Code extension is not enough">
+The VS Code extension does **not** install `claude` in the PATH: it uses a private copy of the CLI inside the
+extension's directory, for its own panel. If you installed only the extension,
+`~/.local/bin/claude` does not exist. To use `claude` from the terminal you need the standalone installation.
+</Aside>
+
+## Cheat sheet
+
+| Command | What it does |
+| --- | --- |
+| `curl -fsSL https://claude.ai/install.sh \| bash` | Native installer — macOS, Linux, WSL |
+| `irm https://claude.ai/install.ps1 \| iex` | Native installer — Windows PowerShell |
+| `brew install --cask claude-code` | Installation via Homebrew (stable channel) |
+| `winget install Anthropic.ClaudeCode` | Installation via WinGet |
+| `npm install -g @anthropic-ai/claude-code` | Installation via npm (requires Node.js 22+) |
+| `claude --version` | Prints the installed version |
+| `claude doctor` | Installation and settings diagnostics, without starting a session |
+| `claude update` | Applies an available update right away |
+| `claude` | Starts an interactive session in the current directory |
+| `claude "task"` | Starts a session and runs the given task right away |
+| `/login` | Logs in again or switches account, from inside the session |
+| `/logout` | Signs out of the account and resets the first-launch state |
+| `/status` | Shows active account, login method and configuration |
+| `/help` | Lists the available commands |
+| `/exit` or `Ctrl+D` twice | Closes the session |
+| `Shift+Tab` | Cycles through the permission modes |
+
+**Where things end up**
+
+| Item | macOS / Linux | Windows |
+| --- | --- | --- |
+| CLI binary | `~/.local/bin/claude` | `%USERPROFILE%\.local\bin\claude.exe` |
+| Installed versions | `~/.local/share/claude/versions/` | `%USERPROFILE%\.local\share\claude` |
+| Credentials | macOS Keychain (encrypted) · on Linux `~/.claude/.credentials.json`, mode `0600` | `%USERPROFILE%\.claude\.credentials.json` |
+| User configuration | `~/.claude/` and `~/.claude.json` | `%USERPROFILE%\.claude\` and `%USERPROFILE%\.claude.json` |
+
+## Sources
+
+Official pages consulted, checked on **16 August 2026**:
+
+- [Advanced setup](https://code.claude.com/docs/en/setup) — system requirements, installation methods, updates, uninstalling
+- [Quickstart](https://code.claude.com/docs/en/quickstart) — first launch, login, essential commands
+- [Get started with the desktop app](https://code.claude.com/docs/en/desktop-quickstart) — installation and first session of the desktop app
+- [Authentication](https://code.claude.com/docs/en/authentication) — account types, credential management, authentication precedence
+- [Troubleshoot installation and login](https://code.claude.com/docs/en/troubleshoot-install) — installation and login errors
+- [Supported countries](https://www.anthropic.com/supported-countries) — geographic availability

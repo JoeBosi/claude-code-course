@@ -1,0 +1,744 @@
+---
+title: "18 · Reusable agentic boilerplates"
+description: "Build an agentic template folder once and reuse it for every project: anatomy file by file, three downloadable boilerplates, an init script, versioning and maintenance."
+---
+
+import { Tabs, TabItem, Steps, Aside, FileTree, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+<div class="meta-modulo">
+	<span><strong>Estimated time:</strong> 70 minutes</span>
+	<span><strong>Prerequisites:</strong> the whole <a href="/en/personalizzazione/slash-commands/">Customization</a> section and <a href="/en/professionale/stack-architetture/">module 17</a>.</span>
+</div>
+
+First of all, the word in the title. A **[boilerplate](/en/glossario/#boilerplate)** is a model
+project: a ready-made folder with structure, configuration and conventions, which you copy every time you
+start a new project — like a pre-printed form, where only a few fields need filling in and everything
+else is already written correctly. (Careful: in [module 14](/en/automazione/pipeline-locali/) you met
+the same word in its other sense, "repetitive code you are forced to write". Here it is the first one:
+*project template*.) An **agentic** boilerplate is a model project in which the ready-made part
+is not so much the code as everything this course has taught you to configure: `CLAUDE.md`,
+hooks, commands, permissions, subagents.
+
+## Objectives
+
+- Know what to put in an agentic boilerplate, file by file, and why.
+- Download and use the three boilerplates of this course.
+- Write an init script that customizes the template in one command.
+- Tell what to parametrize from what to keep fixed.
+- Maintain a boilerplate over time and propagate updates to derived projects.
+
+## Key concepts
+
+**The value of an agentic boilerplate is not the code: it is the configuration.** A framework scaffold
+is what `npm create` gives you. What it does not give you is the `CLAUDE.md` that explains the conventions, the hooks that
+prevent mistakes, the commands that wrap your workflows, the permissions already decided. That is the part
+you rewrite every time, and it is the part worth putting in a template.
+
+**The time you save is that of the first three hours, multiplied by every project.** It is not the time to
+type `npm init`: it is the time you spend repeating the same conventions to Claude, discovering yet again
+that it modified an already-applied migration, rewriting the command that opens PRs in your
+team's format.
+
+**A boilerplate nobody maintains becomes an obstacle.** A template with year-old dependencies and
+outdated conventions wastes more time than it saves. The chapter on maintenance
+is not optional.
+
+**Parametrize little.** Every placeholder is something that can be left unreplaced. The project name and
+description are almost always enough: everything else is either the same in every project, or has to be decided by hand.
+
+## Anatomy of a boilerplate
+
+<FileTree>
+
+- your-boilerplate/
+  - **CLAUDE.md** Conventions and rules — the heart of the template
+  - **README.md** For humans: what it contains, what to customize, what not to touch
+  - **init.sh** Customizes the placeholders and removes itself
+  - **PLAN.md** The current plan, written in Plan Mode
+  - **STATE.md** Progress status, to resume after an interruption
+  - **.gitignore** Includes `.claude/settings.local.json` and `CLAUDE.local.md`
+  - **.env.example** Every variable documented, `.env` never committed
+  - **.mcp.json** Shared MCP servers, with variables in place of secrets
+  - .claude/
+    - **settings.json** Permissions (allow **and** deny) and hook registration
+    - commands/ The workflows you invoke with `/name`
+    - skills/ The conventions loaded on demand
+    - agents/ The subagents: who explores, who implements, who reviews
+    - hooks/ The scripts: the safety net
+
+</FileTree>
+
+### What goes in each file
+
+**`CLAUDE.md`** — the piece that matters most. Five sections, in this order:
+
+<Steps>
+
+1. **Commands** that Claude cannot guess, indicating which ones are mandatory.
+2. **Structure**, in a table *"if you are writing… → it goes in…"*.
+3. **Non-negotiable rules**: few, concrete, verifiable.
+4. **What NOT to do without discussing it** — the section that stops an agent from introducing a message queue
+   because you asked it to "make something more robust".
+5. **Pitfalls** specific to the project: what you would only discover by getting it wrong.
+
+</Steps>
+
+Under 200 lines. Area-specific rules go in `.claude/rules/` with `paths:`.
+
+**`.claude/settings.json`** — the `deny` list matters more than the `allow` list. A serious boilerplate denies
+reading environment files and running commands that touch production.
+
+**`.claude/hooks/`** — this is what distinguishes a boilerplate from a folder of notes. The instructions in
+`CLAUDE.md` are advice; hooks are code. Two categories:
+
+| Type | Event | Example |
+| --- | --- | --- |
+| **Defensive** | `PreToolUse` | Blocks changes to applied migrations, `.env`, lockfiles |
+| **Corrective** | `PostToolUse` | Lint, format and typecheck after every change, with errors fed back to Claude |
+
+<Aside type="tip" title="The field that makes a block useful">
+In a defensive hook, `permissionDecisionReason` **is read by Claude**. Writing *what to do instead* in it
+turns a block into a pointer, and in practice Claude corrects itself on the next attempt:
+
+```text
+Le migrazioni applicate non si modificano. Modifica src/db/schema.ts e lancia
+`npm run db:generate` per creare una migrazione nuova.
+```
+</Aside>
+
+**`PLAN.md` and `STATE.md`** — the pair that makes a session interruptible. `PLAN.md` holds the current
+plan, written in Plan Mode and corrected by you; `STATE.md` the progress checklist. When a
+session is interrupted, resuming starts from `STATE.md` instead of from scratch.
+
+---
+
+## The three boilerplates
+
+Consistent with the three examples of [module 17](/en/professionale/stack-architetture/). Inside every zip
+you will find scripts already clean for `shellcheck` (the [linter](/en/glossario/#linter) for shell scripts:
+it flags typical bash mistakes before they bite you) and, in `agentic-rag`, a suite of 7 tests that
+runs right away, offline: the first `uv run pytest` is also the acceptance test of your setup.
+
+<CardGrid>
+	<LinkCard
+		title="⬇ web-fullstack.zip"
+		description="Next.js 16 + Supabase. Supabase and Vercel MCP, frontend skill, protection and lint+typecheck hooks, /review and /ship commands, reviewer subagent with memory."
+		href="/downloads/web-fullstack.zip"
+	/>
+	<LinkCard
+		title="⬇ headless-pipeline.zip"
+		description="Bash + claude -p + cron. Four stages of which only one uses the LLM, output validated with --json-schema, shellcheck and logging hooks, examples for cron and GitHub Actions."
+		href="/downloads/headless-pipeline.zip"
+	/>
+	<LinkCard
+		title="⬇ agentic-rag.zip"
+		description="Python + FastAPI + hexagonal architecture. Three subagents, filesystem and database MCP, a hook that defends the domain boundary, 7 tests that pass right away without network."
+		href="/downloads/agentic-rag.zip"
+	/>
+</CardGrid>
+
+### A · `web-fullstack`
+
+| Component | What it contains |
+| --- | --- |
+| `CLAUDE.md` | Next.js/Supabase conventions, with the rule *every table has an RLS policy* |
+| `.mcp.json` | Supabase and Vercel MCP servers, with the token from an environment variable |
+| `.claude/hooks/protect.sh` | **Blocks** changes to applied migrations, `.env` and lockfiles |
+| `.claude/hooks/lint-and-typecheck.sh` | Formats with Prettier, then ESLint and `tsc`: errors go back to Claude |
+| `.claude/commands/review.md` | `/review` — correctness and security only, with a mandatory failure scenario |
+| `.claude/commands/ship.md` | `/ship` — verify, commit, push, PR in the team's format |
+| `.claude/skills/frontend/` | Server vs client components, the shape of Server Actions |
+| `.claude/agents/reviewer.md` | Read-only, Opus, `memory: project` |
+
+The piece worth copying even if you do not use this stack is `/ship`: it wraps the sequence
+verify → commit → push → PR **stopping at the first step that fails**, and without fixing anything on its own
+initiative. Here it is in full (the syntax — frontmatter, `` !`command` ``, `$ARGUMENTS` — is the one
+from [module 7](/en/personalizzazione/slash-commands/)):
+
+<details>
+<summary>The complete <code>/ship</code> command</summary>
+
+```markdown title=".claude/commands/ship.md"
+---
+description: Prepara la modifica corrente per il rilascio: verifica, commit, push e apertura della PR.
+argument-hint: "[descrizione della modifica]"
+disable-model-invocation: true
+allowed-tools: Bash(git *), Bash(npm run typecheck), Bash(npm run lint*), Bash(npm test*), Bash(gh pr *)
+---
+
+## Stato corrente
+
+!`git status --short`
+
+## Commit sul branch
+
+!`git log --oneline origin/main..HEAD`
+
+## Istruzioni
+
+Porta questa modifica fino alla pull request, **fermandoti al primo passo che fallisce**.
+
+1. **Verifica.** Nell'ordine: `npm run typecheck`, `npm run lint`, `npm test`.
+   Se uno fallisce, **fermati e riporta l'errore**. Non correggere di tua iniziativa:
+   la correzione è una decisione dell'utente.
+
+2. **Branch.** Se sei su `main`, crea un branch prima di committare.
+   Nome: `tipo/descrizione-breve`, per esempio `feat/billing-webhook`.
+
+3. **Commit.** Conventional commit, in inglese, minuscolo dopo il prefisso.
+   Il corpo spiega **perché**, non cosa: il cosa si legge dalla diff.
+
+4. **Push** con `-u` se il branch è nuovo.
+
+5. **Pull request** con `gh pr create`. Corpo in italiano, con esattamente queste sezioni:
+
+   ### Cosa cambia
+   Due o tre bullet, dal punto di vista di chi usa il prodotto.
+
+   ### Perché
+   Una frase. Se c'è una issue collegata, linkala.
+
+   ### Come verificarlo
+   Passi concreti che il revisore può eseguire.
+
+   ### Rischi
+   Cosa può rompersi. Se niente, scrivi "nessuno noto" e spiega perché.
+
+6. **Riporta l'URL della PR.**
+
+Contesto aggiuntivo dall'utente: $ARGUMENTS
+```
+
+(The file is reproduced exactly as it ships in the zip, so it is in Italian. In short: it shows `git status` and
+the branch commits, then runs typecheck, lint and tests and **stops on the first failure without fixing it**;
+creates a `type/short-description` branch if you are on `main`; makes a conventional commit whose body explains *why*;
+pushes with `-u`; opens the PR with `gh pr create` using four sections — what changes, why, how to verify it,
+risks; and reports the PR URL.)
+
+The two `` !`command` `` at the top inject the real state of the repository at the moment of
+invocation into the prompt; the instructions are numbered because the order **is** the contract — and the bold line
+in step 1 is the reason this command is reliable: a `/ship` that "fixes and
+retries" on its own would end up committing fixes you have never seen.
+
+</details>
+
+### B · `headless-pipeline`
+
+| Component | What it contains |
+| --- | --- |
+| `bin/run.sh` | Orchestrator with `flock`, logs by date, stages that stop at the first error |
+| `bin/01…04` | Four stages. **Only `02` calls Claude** |
+| `schemas/analisi.json` | The output contract, used with `--json-schema` |
+| `.claude/skills/analizza/` | The prompt, versioned instead of inline in the scripts |
+| `.claude/hooks/shellcheck.sh` | `shellcheck` after every change to the scripts |
+| `.claude/hooks/stato.sh` | `SessionStart`: injects the latest raw data, latest output, latest log line |
+| `crontab.example` · `.github-workflow.example.yml` | The two ways to schedule it |
+
+Two details born from real bugs, found while trying out the pipeline:
+
+- **Write to a temporary file, then `mv`.** A direct redirection leaves an empty file if `jq` fails, and
+  the next day's run mistakes it for data already collected.
+- **Distinct exit codes**: `1` = the pipeline failed, `2` = the tool did not work. The
+  monitoring must be able to tell them apart to wake up the right person.
+
+### C · `agentic-rag`
+
+| Component | What it contains |
+| --- | --- |
+| `src/domain/` | Models, three ports as `Protocol`, two use cases. **Zero external imports** |
+| `tests/domain/test_no_external_imports.py` | The architectural rule **as an executable test** |
+| `tests/adapters/` | Contract tests: every adapter of the same port passes the same tests |
+| `.claude/hooks/confine-dominio.sh` | Blocks forbidden imports **before** they are written |
+| `.claude/agents/` | `researcher` (read-only), `coder`, `reviewer` (Opus, memory) |
+| `.mcp.json` | Filesystem and database, read-only |
+
+The transferable piece is the **hook + test** pair on the same rule: the hook defends it beforehand, the test
+verifies it afterwards. An architectural rule that lives only in the documentation does not survive three months of
+work with an agent.
+
+<Aside type="note" title="What is already implemented and what is not">
+In `agentic-rag`, domain and tests are **complete and passing** (7 tests, offline). The three adapters are
+`NotImplementedError` on purpose, and the message of each one says what it must return: they are the point
+where the template ends and your project begins.
+</Aside>
+
+---
+
+## Practical reuse
+
+### The init script
+
+All three boilerplates have the same `init.sh`. It does four things and then gets out of the way:
+
+```bash title="init.sh"
+#!/usr/bin/env bash
+set -euo pipefail   # stop at the first error, on undefined variables, and on errors inside pipes
+
+# $1 and $2 are the first and second argument; ${1:-} = "the first argument,
+# or an empty string if missing" (without :-, with set -u the script would die here)
+NOME="${1:-}"
+DESCR="${2:-}"
+
+if [ -z "$NOME" ]; then   # -z = "is it empty?"
+  echo "Uso: ./init.sh <nome-progetto> [descrizione]" >&2   # >&2 = on the error channel
+  exit 1
+fi
+[ -z "$DESCR" ] && DESCR="$NOME"   # without a description, use the name
+
+# Find all files that contain the placeholders.
+#   grep -rl  = search recursively (-r) and print only the file names (-l)
+#   < <(...)  = "process substitution": feeds the grep output to mapfile
+#   mapfile -t FILE = loads those lines into the FILE array, one per element
+mapfile -t FILE < <(grep -rl '{{PROJECT_NAME}}\|{{PROJECT_DESCRIPTION}}' . \
+  --exclude-dir=node_modules --exclude-dir=.git 2>/dev/null || true)
+
+for f in "${FILE[@]}"; do
+  # sed replaces the placeholders inside the file, in place.
+  #   -i.bak  = edit the file, keeping a .bak copy (needed because macOS
+  #             sed refuses -i without a suffix; the copy is deleted right after)
+  #   s|A|B|g = replace A with B, everywhere in the line (g = global)
+  sed -i.bak \
+    -e "s|{{PROJECT_NAME}}|$NOME|g" \
+    -e "s|{{PROJECT_DESCRIPTION}}|$DESCR|g" "$f"
+  rm -f "$f.bak"
+  echo "  aggiornato  $f"
+done
+
+# Today's date in STATE.md ($(date +%F) = 2026-08-17)
+sed -i.bak "s|^Ultimo aggiornamento: —|Ultimo aggiornamento: $(date +%F)|" STATE.md && rm -f STATE.md.bak
+
+# If the folder is not already a git repository, initialize it (-q = no output)
+[ -d .git ] || { git init -q; echo "  git init"; }
+
+echo "✔ Progetto '$NOME' inizializzato."
+rm -- "$0"   # the script deletes ITSELF: $0 is its path, -- protects against names starting with -
+```
+
+The two lines that make the difference are the last one and the `grep -rl`: the script **removes itself**, so it does not
+linger in the repository confusing whoever comes next; and it searches for the placeholders instead of having a hardcoded
+list of files, so adding a file to the template does not require remembering to update the init.
+
+<Aside type="caution" title="The flip side of the recursive search">
+That `grep -rl` touches **every** file that contains the placeholder — including those you were not
+thinking of: a sample zip, an image that happens to contain that byte sequence, a build folder.
+The `--exclude-dir` options cover the common cases; if you add generated folders or binary files to the template,
+add them to the exclusions. And run the init **only once, right after extracting**: running it again later
+no longer finds the placeholders (good), but on a repository with history it would also rewrite files that
+you have modified in the meantime.
+</Aside>
+
+### What to parametrize and what not to
+
+| Parametrize | Keep fixed |
+| --- | --- |
+| Project name and description | The folder structure |
+| The date in `STATE.md` | The hooks |
+| — | The format of `PLAN.md` and `STATE.md` |
+| — | The `/review` and `/ship` commands |
+| — | The non-negotiable rules in `CLAUDE.md` |
+
+Anything vaguely project-specific — table names, endpoints, providers — **should not be
+parametrized**: leave it as a realistic example to modify. A template full of `{{TABLE_NAME}}`
+is unreadable and produces projects in which half the placeholders were left behind.
+
+### How to use it
+
+<Tabs syncKey="os">
+<TabItem label="macOS" icon="apple">
+**From the zip** — or download it by clicking the card above:
+
+```bash
+# if you are reading the course from another address, use that instead of the domain
+curl -O https://claude-tutorial.giuseppebosi.com/downloads/web-fullstack.zip
+unzip web-fullstack.zip && cd web-fullstack
+./init.sh "fatture-app" "Gestione fatture per studi professionali"
+```
+
+**From a GitHub template repo**, if you have put yours on GitHub and marked it as a template:
+
+```bash
+gh repo create fatture-app --template tuo-utente/boilerplate-web --private --clone
+cd fatture-app && ./init.sh "fatture-app" "Gestione fatture"
+```
+
+**With degit**, if you want the folder without the git history:
+
+```bash
+npx degit tuo-utente/boilerplate-web fatture-app
+cd fatture-app && ./init.sh "fatture-app" "Gestione fatture"
+```
+</TabItem>
+<TabItem label="Windows" icon="seti:windows">
+**From the zip** — or download it by clicking the card above:
+
+```powershell
+# if you are reading the course from another address, use that instead of the domain
+Invoke-WebRequest -Uri "https://claude-tutorial.giuseppebosi.com/downloads/web-fullstack.zip" -OutFile web-fullstack.zip
+Expand-Archive web-fullstack.zip -DestinationPath .
+cd web-fullstack
+bash ./init.sh "fatture-app" "Gestione fatture per studi professionali"
+```
+
+**From a GitHub template repo:**
+
+```powershell
+gh repo create fatture-app --template tuo-utente/boilerplate-web --private --clone
+cd fatture-app; bash ./init.sh "fatture-app" "Gestione fatture"
+```
+
+`init.sh` is a bash script: you need Git Bash or WSL. If you prefer native PowerShell, rewrite it — but
+remember to keep the final self-removal.
+</TabItem>
+</Tabs>
+
+---
+
+## Maintenance
+
+This is the part that decides whether the boilerplate will still be useful a year from now.
+
+### Versioning
+
+Put the boilerplate in a git repository and **tag** it — a tag is a label pinned to a specific
+commit, git's way of saying "this is version 1.2.0". The numbers follow **semver**
+(*semantic versioning*), the `MAJOR.MINOR.PATCH` convention: you bump the first number when the
+change breaks compatibility with derived projects, the second when you add something, the
+third when you fix something. A derived project must be able to say which version it started from:
+
+```bash
+git tag -a v1.2.0 -m "hook di typecheck, comando /ship"
+git push --tags
+```
+
+And record it in the derived project, in one line of `README.md`:
+
+```markdown
+Generated from [boilerplate-web](https://github.com/tuo-utente/boilerplate-web) v1.2.0
+```
+
+Without this line, six months from now you will not know which updates concern you.
+
+### Changelog
+
+The *changelog* is the diary of versions: what changed, version by version. The most
+widespread convention ([Keep a Changelog](https://keepachangelog.com/it-IT/)) groups entries into *Added /
+Changed / Fixed* — and it is the one used below. A boilerplate, however, needs one thing more that
+normal changelogs do not have: for each entry, **is action needed on already derived projects?**
+
+```markdown title="CHANGELOG.md"
+# Changelog
+
+## v1.2.0 — 2026-08-16
+
+### Added
+- `PostToolUse` hook that runs `tsc --noEmit` after TypeScript changes
+  → **Propagate**: copy `.claude/hooks/lint-and-typecheck.sh` and the entry in `settings.json`
+
+### Changed
+- `/ship` now stops at the first failing verification step, instead of fixing
+  → **Propagate** if you use `/ship`: replace `.claude/commands/ship.md`
+
+### Fixed
+- `protect.sh` did not block `.env.production` files
+  → **Propagate immediately**: it is a security hole
+
+### New projects only
+- Bump Next.js to 16.3
+  → Do not propagate to an ongoing project without a reason
+```
+
+### Propagating updates
+
+Three strategies, in order of effort:
+
+<Steps>
+
+1. **By hand, from the changelog.** For a template used on a few projects it is the right way: read the entries
+   marked *Propagate*, copy the files, verify. It looks primitive and it is the method with the fewest surprises.
+
+2. **With a dedicated command.** Add to the boilerplate an `/aggiorna-boilerplate` ("update boilerplate") that does the work:
+
+   ```markdown title=".claude/commands/aggiorna-boilerplate.md"
+   ---
+   description: Compare this project with the latest version of the boilerplate and propose the updates to apply.
+   disable-model-invocation: true
+   allowed-tools: Bash(git *), Bash(curl *), Read, Grep, Glob
+   ---
+
+   ## Starting version of this project
+
+   !`grep -o 'boilerplate-web) v[0-9.]*' README.md || echo "non registrata"`
+
+   ## Boilerplate changelog
+
+   !`curl -sf https://raw.githubusercontent.com/tuo-utente/boilerplate-web/main/CHANGELOG.md`
+
+   ## Instructions
+
+   1. Identify the version this project starts from
+   2. List **only** the later entries marked "Propagate"
+   3. For each one, compare the corresponding file in this project with the one
+      in the boilerplate and tell me what would change
+   4. **Do not apply anything.** Present a plan and stop: local customizations
+      are legitimate and only I know which ones to keep
+   ```
+
+   The last line is the important one: an automatic update that overwrites customizations does
+   more damage than an old boilerplate.
+
+3. **With a git remote.** If the project was born from a clone, you can keep the boilerplate as an additional
+   remote and do selective merges:
+
+   ```bash
+   # register the boilerplate repo as a second "remote" and download its state
+   git remote add boilerplate https://github.com/tuo-utente/boilerplate-web.git
+   git fetch boilerplate
+   # look at the differences in the .claude/ folder before touching anything
+   git diff HEAD boilerplate/main -- .claude/
+   # take ONE file from the boilerplate version
+   git checkout boilerplate/main -- .claude/hooks/lint-and-typecheck.sh
+   ```
+
+   Watch out for the last command: `git checkout <ref> -- <file>` **overwrites your copy of the file
+   without asking** — uncommitted local changes to that file are lost. That is why the
+   `git diff` comes first: look, then overwrite.
+
+   It works well for `.claude/`, which rarely diverges, and badly for code, which always diverges.
+
+</Steps>
+
+### When to prune
+
+A boilerplate grows. Every six months, three questions about each component:
+
+- **Have I used it?** A command you have not invoked in three projects should go.
+- **Does it cost context?** Skills and MCP servers are paid for in every session. `/context` in a derived project
+  tells you how much.
+- **Is the rule still true?** A rule in `CLAUDE.md` that describes an abandoned convention is
+  worse than no rule at all: it sends Claude confidently in the wrong direction.
+
+---
+
+## Guided example
+
+<Steps>
+
+1. **Download and open the boilerplate closest to your work** — from the card at the top of the page, or:
+
+   ```bash
+   # same domain you are reading the course from
+   curl -O https://claude-tutorial.giuseppebosi.com/downloads/agentic-rag.zip
+   unzip agentic-rag.zip && cd agentic-rag
+   ```
+
+2. **Read `README.md` before anything else.** It has two sections worth more than the code: *Da personalizzare*
+   (to customize) and *Da lasciare com'è* (leave as is).
+
+3. **Initialize.**
+
+   ```bash
+   ./init.sh "kb-interna" "Base di conoscenza interna sui runbook"
+   ```
+
+4. **Check that it runs.** `uv` is the Python package manager used by the boilerplate (the equivalent
+   of `npm` for Python, very fast — [installation instructions](https://docs.astral.sh/uv/)):
+   `uv sync` installs the dependencies, `uv run pytest` runs the tests in the right environment.
+
+   ```bash
+   uv sync
+   uv run pytest
+   ```
+
+   Expected output:
+
+   ```text
+   7 passed
+   ```
+
+   Seven tests passing before you have written a single line: they are the domain tests and the contract tests.
+
+5. **Try the defensive hook.** Open `claude` and ask for something that violates the architectural rule:
+
+   ```text
+   In src/domain/usecases/answer_question.py, call the Anthropic API directly with httpx
+   ```
+
+   The hook blocks the write and returns the reason. Claude reads *"define a Protocol in
+   domain/ports.py, implement it in adapters/"* and usually corrects itself. **That is the difference between a
+   written rule and an enforced rule.**
+
+6. **Build your own.** Start from one of these and replace what is specific:
+
+   ```bash
+   cp -r agentic-rag ~/boilerplate-mio && cd ~/boilerplate-mio
+   git init && git add -A && git commit -m "chore: fork dal boilerplate agentic-rag del corso"
+   git tag -a v1.0.0 -m "prima versione"
+   ```
+
+   Then put the repository on GitHub and mark it as a template: **Settings → Template repository**.
+
+</Steps>
+
+## Final exercise
+
+Build your own boilerplate and start two projects with it, measuring how much you save.
+
+1. Start from one of the three and adapt it to your stack and your conventions.
+2. **Measure the time** to start the first project **without** a boilerplate.
+3. Measure the time to start the second **with** the boilerplate.
+4. Compare, and fix the boilerplate based on what was missing.
+
+<details class="soluzione">
+<summary>Solution</summary>
+
+**Step 1 — what to really change.**
+
+The temptation is to change everything. In practice, on a boilerplate from this course, what is yours can be counted
+on your fingers:
+
+| What | How much is yours |
+| --- | --- |
+| `CLAUDE.md` → *Rules* and *Pitfalls* sections | **Entirely yours** |
+| `.claude/commands/ship.md` → PR format | Yours: it is your team's convention |
+| `.claude/settings.json` → the `deny` list | Yours: it depends on what must not be touched |
+| `.mcp.json` | Yours: your services |
+| The hooks | **Almost always reusable as they are** |
+| `PLAN.md` / `STATE.md` | Reusable |
+| The folder structure | Reusable, if the stack is the same |
+
+**Steps 2–3 — measuring honestly.**
+
+Time the same thing in both cases: **from the first command to the first commit of a real feature that
+works**. Not "until `npm run dev`" — that is fast anyway, and it is not where time is lost.
+
+Keep a rough log:
+
+```markdown title="misura.md"
+## Project 1 — without boilerplate
+
+| Activity | Minutes |
+| --- | --- |
+| Scaffold and dependencies | 12 |
+| Configure lint, format, typecheck | 25 |
+| Write the CLAUDE.md | 40 |
+| Discover and fix: Claude modified an applied migration | 20 |
+| Re-explain the PR convention to Claude, three times | 15 |
+| First feature | 55 |
+| **Total** | **167** |
+
+## Project 2 — with boilerplate
+
+| Activity | Minutes |
+| --- | --- |
+| `init.sh` + `npm install` | 4 |
+| Adapt CLAUDE.md to the specific domain | 12 |
+| First feature | 40 |
+| **Total** | **56** |
+```
+
+**Step 4 — the part that matters.**
+
+The number is not the result of the exercise. The result is the list of **what was missing** in the second
+project, which becomes v1.1 of the boilerplate.
+
+From a real run, the kind of things that come up:
+
+| What was missing | What to add |
+| --- | --- |
+| "I explained three times how branches are named" | A line under *Repository etiquette* in `CLAUDE.md` |
+| "Claude created a documentation file I did not want" | *"Do not create documentation files unless requested"* in the rules |
+| "I had to configure the permissions for the test runner by hand" | The entry in `permissions.allow` |
+| "The `/ship` command assumed `main`, here the base branch is `develop`" | Parametrize it, or read it from git |
+| "Nobody updated `STATE.md`" | A reminder in `CLAUDE.md`, or a `Stop` hook that checks it |
+
+Note the second-to-last row: it is a case where **parametrization really is needed**, and you only discover it by using the
+template on a second project. That is exactly why the exercise asks for **two** projects and not
+one.
+
+Close the loop:
+
+```bash
+cd ~/boilerplate-mio
+# apply the fixes
+git commit -am "feat: convenzioni branch, permessi test runner, /ship legge il branch base da git"
+git tag -a v1.1.0 -m "correzioni dal secondo progetto"
+git push --tags
+```
+
+And update `CHANGELOG.md`, marking which entries must be propagated to the two projects already started.
+
+</details>
+
+## Common mistakes & troubleshooting
+
+| Symptom | Cause | Solution |
+| --- | --- | --- |
+| `{{...}}` placeholders remain in the new project | `init.sh` did not cover that file | Search for the placeholders instead of listing the files: `grep -rl '{{PROJECT_'` |
+| `init.sh` is still in the repository weeks later | It does not remove itself | Last line: `rm -- "$0"` |
+| Hooks do not run in the new project | The execute bit gets lost in some transfers | `chmod +x .claude/hooks/*.sh`, and check it by extracting the zip |
+| A hook works for you and not for your colleagues | Absolute path from your machine | `${CLAUDE_PROJECT_DIR}` |
+| A hook reads an empty stdin | Two `jq` in a pipeline on the same stdin: the first consumes it | Read stdin **once** into a variable |
+| The boilerplate is huge and nobody uses it | It contains everything that might have been useful | Prune: if you have not used it in three projects, it is not needed |
+| Derived projects diverge and are no longer updated | No version recorded | Tag the boilerplate and record the version in the derived project's `README.md` |
+| An automatic update overwrote customizations | The command applied instead of proposing | An update command must **stop at the plan** |
+| Files inside `.claude/` do not end up in the zip | Many archiving tools skip hidden files | Always check with `unzip -l` that the dotfiles are there |
+| The boilerplate's `CLAUDE.md` has grown beyond 200 lines | You also put area-specific rules in it | Move them to `.claude/rules/` with `paths:` |
+| Cache files from the tests end up in the zip | `__pycache__`, `.pytest_cache`, `node_modules` | Exclude them in the packaging script |
+
+## Cheat sheet
+
+**The minimal anatomy**
+
+```text
+CLAUDE.md          conventions · structure · rules · what NOT to do · pitfalls
+README.md          what to customize / what to leave as is
+init.sh            replaces the placeholders and removes itself
+PLAN.md STATE.md   current plan and progress
+.gitignore         includes settings.local.json and CLAUDE.local.md
+.env.example       every variable documented
+.mcp.json          MCP servers, secrets from variables
+.claude/
+  settings.json    permissions (allow AND deny) + hook registration
+  commands/        your workflows, invocable with /name
+  skills/          conventions loaded on demand
+  agents/          researcher · coder · reviewer
+  hooks/           defensive (PreToolUse) and corrective (PostToolUse)
+```
+
+**Parametrize / keep fixed**
+
+```text
+Parametrize:   project name, description, date
+Keep fixed:    structure, hooks, PLAN/STATE format, commands, rules
+Don't touch:   realistic examples — better to modify than to fill in
+```
+
+**Maintenance**
+
+| What | How |
+| --- | --- |
+| Versioning | `git tag -a v1.2.0`, and record the version in the derived project's `README.md` |
+| Changelog | With a *needs propagating?* column |
+| Propagating | By hand from the changelog · a command that **proposes** · `git remote` for `.claude/` |
+| Pruning | Every six months: have I used it? does it cost context? is the rule still true? |
+
+**The three lines that make a boilerplate useful rather than decorative**
+
+```text
+1. A hook that blocks, with a permissionDecisionReason that says what to do instead
+2. An architectural rule written as an executable test
+3. A "What NOT to do without discussing it" section in CLAUDE.md
+```
+
+## Sources
+
+Official documentation consulted, checked on **16 August 2026**:
+
+- [Explore the .claude directory](https://code.claude.com/docs/en/claude-directory) — what to put in `.claude/` and what gets committed
+- [Best practices](https://code.claude.com/docs/en/best-practices) — effective `CLAUDE.md`, hooks, skills, subagents
+- [Hooks reference](https://code.claude.com/docs/en/hooks) — events, `permissionDecisionReason`, `${CLAUDE_PROJECT_DIR}`
+- [Extend Claude with skills](https://code.claude.com/docs/en/skills) — structure of `SKILL.md` and frontmatter
+- [Subagents](https://code.claude.com/docs/en/sub-agents) — agent definitions and persistent memory
+- [Settings](https://code.claude.com/docs/en/settings) — permissions, scopes and precedence
+- [Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp) — `.mcp.json` and variable expansion
+- [Run Claude Code programmatically](https://code.claude.com/docs/en/headless) — `--bare`, `--json-schema` and `--max-turns` used by the pipeline

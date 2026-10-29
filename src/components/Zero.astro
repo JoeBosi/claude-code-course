@@ -1,4 +1,5 @@
 ---
+import { isInglese } from './lingua';
 /**
  * Box collassabile "Se parti da zero": il secondo binario del corso.
  *
@@ -14,11 +15,12 @@ interface Props {
 	title: string;
 }
 const { title } = Astro.props;
+const etichetta = isInglese(Astro.url) ? 'Starting from zero' : 'Se parti da zero';
 ---
 
 <details class="zero">
 	<summary>
-		<span class="zero-etichetta">Se parti da zero</span>
+		<span class="zero-etichetta">{etichetta}</span>
 		<span class="zero-titolo">{title}</span>
 	</summary>
 	<div class="zero-corpo"><slot /></div>

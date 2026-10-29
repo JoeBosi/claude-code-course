@@ -1,0 +1,611 @@
+---
+title: "12 · CLI scripting"
+description: "Claude Code's headless mode: claude -p, bare mode, the main flags, permissions in scripts, resuming sessions and exit codes to make your scripts branch."
+---
+
+import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
+import Zero from '@/components/Zero.astro';
+
+<div class="meta-modulo">
+	<span><strong>Estimated time:</strong> 50 minutes</span>
+	<span><strong>Prerequisites:</strong> the <a href="/en/fondamenta/setup/">Foundations</a> section and <a href="/en/personalizzazione/mcp/">module 9</a>. You need to be comfortable with bash or PowerShell.</span>
+</div>
+
+So far you have always *conversed* with Claude. This module turns it into a **cog**: a
+command that starts, does one thing, returns the result and exits — with nobody at the keyboard. It is
+called **headless** mode (without a head, that is, without an interface) or *non-interactive*, and it opens a
+new category of uses: the automatic check on every change before saving, the report that
+generates itself every morning, the same fix applied to two hundred files in a row. The whole
+Automation section of the course rests on this module.
+
+<Zero title="The three tools of this module: stdin, stdout, exit code">
+Every terminal command has an input ([stdin](/en/glossario/#stdin--stdout--stderr)), an output
+(stdout) and a channel for errors (stderr); the [pipe](/en/glossario/#pipe) `|` connects the output of one
+command to the input of the next. And when it finishes, every command leaves an
+[exit code](/en/glossario/#exit-code): 0 = all good, anything else = problem. Claude, in this mode, is
+a command like any other: you feed it data through the pipe, and you check how it went
+by reading the exit code. If these three concepts are new, [The basics](/en/basi/#the-terminal) shows them
+in practice.
+</Zero>
+
+## Objectives
+
+- Run Claude Code non-interactively and use its output in a script.
+- Know what `claude -p` loads by default, and why CI needs `--bare`.
+- Handle permissions in a context where nobody can click "approve".
+- Continue and resume conversations across separate invocations.
+- Make a script branch on Claude's outcome, instead of hoping.
+
+## Key concepts
+
+**`-p` turns Claude Code into a Unix command.** Add `-p` (or `--print`) to any invocation and
+Claude runs the task, prints the result and exits. It reads from stdin, writes to stdout, returns an exit
+code: it behaves like `grep` or `jq`.
+
+```bash
+claude -p "Find and fix the bug in auth.py" --allowedTools "Read,Edit,Bash"
+```
+
+**Exit code 0 on success**, non-zero on failure — so scripts can
+branch. An invalid flag is reported on **stderr before** the run starts; a failure **inside**
+the run, such as missing authentication, is printed as the result on **stdout**.
+
+**By default `-p` loads everything an interactive session would load:** hooks, skills, plugins,
+MCP servers, the auto memory from [module 4](/en/fondamenta/memoria-e-contesto/), `CLAUDE.md`. Locally that is what you want. In CI it is a problem: a hook in a
+colleague's `~/.claude` or an MCP server in the project's `.mcp.json` change the result from machine to
+machine.
+
+**`--bare` is the answer.** It skips the auto-discovery of hooks, skills, plugins, MCP servers, auto memory and
+`CLAUDE.md`. Same result on every machine.
+
+<Aside type="danger" title="What runs in `-p` without your approval">
+Without `--bare`, Claude Code runs the hooks in a project's `.claude/settings.json` **even in a
+folder you have never trusted**, because a `-p` session cannot show the
+*workspace trust* dialog — the "do you trust this folder?" question seen in
+[module 8](/en/personalizzazione/skills/). And it connects the servers in the project's `.mcp.json`, because it cannot show the per-server
+approval prompt either.
+
+Put another way: `claude -p` inside a repository cloned from the internet runs code from that repository.
+In CI, and on any code that is not yours, use `--bare`.
+</Aside>
+
+<Aside type="note" title="When to use `--bare` and when not — the course rule">
+There is one detail that decides everything: in bare mode Claude Code **never reads** your
+login credentials — it needs an API key or a token in the environment. So the practical rule is:
+
+- **On your machine, for trying things and for the exercises**: `claude -p` **without** `--bare`. It uses your
+  subscription, and locally loading your hooks and your `CLAUDE.md` is perfectly fine.
+- **In CI, and on code that is not yours**: **always with** `--bare`, authenticating with a token generated
+  by `claude setup-token` ([module 14](/en/automazione/pipeline-locali/)). There reproducibility and
+  security matter more than convenience.
+
+When you see `--bare` in the examples, it is because that command is meant for CI.
+</Aside>
+
+In bare mode Claude has access to the Bash, file read and file edit tools. Context must be passed by hand:
+
+| To load | Use |
+| --- | --- |
+| Additions to the system prompt | `--append-system-prompt`, `--append-system-prompt-file` |
+| Settings | `--settings <file-o-json>` |
+| MCP servers | `--mcp-config <file-o-json>` |
+| Custom subagents | `--agents <json>` |
+| A plugin | `--plugin-dir <path>`, `--plugin-url <url>` |
+
+## The flags you will actually use
+
+A [flag](/en/glossario/#flag) is an option of the command, recognizable by the dashes. These ten cover
+almost all real scripts — learn these, and look up the rest when needed:
+
+| Flag | What it does |
+| --- | --- |
+| `-p`, `--print` | Non-interactive mode: run, print, exit |
+| `--bare` | Minimal mode for CI: no automatic loading |
+| `--output-format` | Response format: `text` (default), `json`, `stream-json` — [module 13](/en/automazione/output-json/) is all about this |
+| `--json-schema` | Response validated against a schema: data, not prose |
+| `--allowedTools` | Pre-approved tools, which run without asking |
+| `--permission-mode` | The starting permission mode ([module 6](/en/fondamenta/plan-mode/)) |
+| `--continue`, `-c` | Continues the most recent conversation |
+| `--resume`, `-r` | Resumes a session by ID or name |
+| `--max-turns` | Cap on turns: the seat belt of unattended runs |
+| `--append-system-prompt` | Adds role instructions ("you are a security reviewer…") |
+
+<details class="soluzione">
+<summary>The full flag reference, for when you need it</summary>
+
+**Input/output**
+
+| Flag | What it does |
+| --- | --- |
+| `--input-format` | `text` or `stream-json` |
+| `--verbose` | Detailed output — required with `stream-json` |
+| `--include-partial-messages` | Includes partial streaming events |
+
+**Permissions**
+
+| Flag | What it does |
+| --- | --- |
+| `--disallowedTools` | Deny rules |
+| `--tools` | Limits which built-in tools Claude can use |
+| `--permission-prompt-tool` | MCP tool that handles permission requests on your behalf |
+| `--dangerously-skip-permissions` | Skips every confirmation — only in isolated environments |
+
+**Sessions**
+
+| Flag | What it does |
+| --- | --- |
+| `--session-id` | Uses a specific session ID (valid UUID) |
+| `--fork-session` | When resuming, creates a new ID instead of reusing the original |
+| `--no-session-persistence` | Does not save the transcript (only with `-p`) |
+| `--name`, `-n` | Display name of the session |
+
+**System prompt and context**
+
+| Flag | What it does |
+| --- | --- |
+| `--append-system-prompt-file` | Like `--append-system-prompt`, but from a file |
+| `--system-prompt` / `--system-prompt-file` | **Replaces** the entire system prompt |
+| `--add-dir` | Additional working directories |
+| `--setting-sources` | Which settings sources to load: `user`, `project`, `local` |
+| `--settings` | Settings JSON file, or inline JSON |
+
+**Limits, model, diagnostics**
+
+| Flag | What it does |
+| --- | --- |
+| `--max-budget-usd` | Spending cap (for those using a pay-as-you-go API key) |
+| `--model` / `--fallback-model` | Model for the session, with an optional fallback |
+| `--effort` | How much the model "thinks about it": from `low` to `max` |
+| `--debug` / `--debug-file <path>` | Debug log, optionally to a file |
+| `--safe-mode` | All customizations disabled, for diagnosis |
+| `--strict-mcp-config` | Only the servers passed with `--mcp-config`, ignores the rest |
+
+</details>
+
+## Permissions in scripts
+
+In a `-p` session there is nobody who can click "approve". Three strategies, from the most permissive
+to the most locked down:
+
+<Steps>
+
+1. **Listing the tools** — the granular approach:
+
+   ```bash
+   claude -p "Run the test suite and fix any failures" \
+     --allowedTools "Bash,Read,Edit"
+   ```
+
+2. **Using the permission rule syntax** — much more precise:
+
+   ```bash
+   claude -p "Look at my staged changes and create an appropriate commit" \
+     --allowedTools "Bash(git diff *),Bash(log *),Bash(git status *),Bash(git commit *)"
+   ```
+
+   <Aside type="caution" title="The space before the asterisk matters">
+   The trailing ` *` enables prefix matching: `Bash(git diff *)` allows any command that starts with
+   `git diff`. **The space is important**: without it, `Bash(git diff*)` would also match
+   `git diff-index`.
+   </Aside>
+
+3. **Setting a base mode.** Two modes serve the two extremes:
+
+   `acceptEdits` for local tasks where file edits are fine without confirmation:
+
+   ```bash
+   claude -p "Apply the lint fixes" --permission-mode acceptEdits
+   ```
+
+   *(= "apply the linter fixes" — file edits go through, other commands
+   still ask)*
+
+   `dontAsk` for locked-down CI: it **denies** everything that is not already in your
+   `permissions.allow` rules or in the set of read-only commands:
+
+   ```bash
+   claude -p "Run the checks" --permission-mode dontAsk
+   ```
+
+   Note for edge cases: some tools stay denied in `dontAsk` **even** with an allow rule —
+   those that by nature require a human, such as `AskUserQuestion` (asks the user questions) and tools
+   marked as interactive by their MCP server.
+
+</Steps>
+
+## Pipes and redirection
+
+Non-interactive mode reads from stdin:
+
+```bash
+cat build-error.txt | claude -p 'concisely explain the root cause of this build error' > output.txt
+```
+
+<Aside type="note" title="The stdin limit is 10 MB">
+Beyond that, Claude Code exits with an error and a non-zero status. For larger inputs, write the
+content to a file and mention the path in the prompt instead of piping.
+</Aside>
+
+An example people actually use, as a `package.json` script:
+
+```json title="package.json"
+{
+  "scripts": {
+    "lint:claude": "git diff main | claude -p \"you are a typo linter. for each typo in this diff, report filename:line on one line and the issue on the next. return nothing else.\""
+  }
+}
+```
+
+Piping the diff instead of letting Claude read it has a concrete advantage: **Claude does not
+need the Bash permission** to get it.
+
+## Continuing conversations
+
+```bash
+# First request
+claude -p "Review this codebase for performance issues"
+
+# Continue the most recent one
+claude -p "Now focus on the database queries" --continue
+claude -p "Generate a summary of all issues found" --continue
+```
+
+With several conversations in parallel, capture the ID:
+
+```bash
+session_id=$(claude -p "Start a review" --output-format json | jq -r '.session_id')
+claude -p "Continue that review" --resume "$session_id"
+```
+
+The two commands can run from **different directories**: Claude Code finds the session by ID in any
+project on the machine.
+
+## Skills and commands in `-p`
+
+Skills and custom user-invocable commands **work** in `-p` mode: put `/skill-name`
+in the prompt string and Claude Code expands it before running.
+
+```bash
+claude -p "/pre-commit"
+```
+
+Built-in commands that exist only in the terminal interface, such as `/login`, are not available.
+`/model`, `/effort`, `/fast`, `/color` and `/rename` accept the value as an argument — `/model sonnet` —
+and `/mcp` without arguments prints a text summary of the servers' status. To change
+a setting from a `-p` invocation, pass `key=value` to `/config`, for example
+`/config thinking=false`.
+
+## Guided example
+
+<Steps>
+
+1. **The simplest form.**
+
+   <Tabs syncKey="os">
+   <TabItem label="macOS" icon="apple">
+   ```bash
+   cd ~/progetti/il-tuo-progetto
+   claude -p "What does the auth module do?"
+   ```
+   </TabItem>
+   <TabItem label="Windows" icon="seti:windows">
+   ```powershell
+   cd $env:USERPROFILE\progetti\il-tuo-progetto
+   claude -p "What does the auth module do?"
+   ```
+   </TabItem>
+   </Tabs>
+
+2. **Check the exit code.** It is the basis of every serious script.
+
+   <Tabs syncKey="os">
+   <TabItem label="macOS" icon="apple">
+   ```bash
+   claude -p "What does the auth module do?" > /dev/null
+   echo "exit code: $?"
+   ```
+   </TabItem>
+   <TabItem label="Windows" icon="seti:windows">
+   ```powershell
+   claude -p "What does the auth module do?" | Out-Null
+   Write-Host "exit code: $LASTEXITCODE"
+   ```
+   </TabItem>
+   </Tabs>
+
+3. **Piping data.** A real case: explaining a build error.
+
+   ```bash
+   npm run build 2>&1 | tail -50 | claude -p \
+     'concisely explain the root cause of this build error. one paragraph, no preamble.'
+   ```
+
+4. **A typo linter on the diff.** Note that Claude needs no permission: the diff arrives via stdin.
+
+   ```bash
+   git diff main | claude -p \
+     "you are a typo linter. for each typo in this diff, report filename:line on one line and the issue on the next. return nothing else."
+   ```
+
+5. **A task that edits files.** Here permissions are needed:
+
+   ```bash
+   claude -p "Fix all ESLint errors in src/" \
+     --allowedTools "Read,Edit,Bash(npx eslint *)" \
+     --max-turns 20
+   ```
+
+   `--max-turns` is the seat belt: without it, a task that does not converge runs until you run out of
+   tokens.
+
+6. **A reusable security reviewer.** Save it as `review.sh`:
+
+   ```bash title="review.sh"
+   #!/usr/bin/env bash
+   set -euo pipefail
+
+   # gh is the official GitHub CLI (installed separately: cli.github.com);
+   # "gh pr diff" downloads the diff of the PR given as the first argument
+   gh pr diff "$1" | claude -p \
+     --append-system-prompt "You are a security engineer. Review for vulnerabilities. Report only findings that have a concrete exploit path; ignore style." \
+     --output-format json
+   ```
+
+   ```bash
+   chmod +x review.sh
+   ./review.sh 123
+   ```
+
+   `"$1"` is the first argument: `bash review.sh 123` downloads the diff of PR 123.
+
+7. **A chain of invocations that share context.**
+
+   ```bash title="audit.sh"
+   #!/usr/bin/env bash
+   set -euo pipefail
+
+   sid=$(claude -p "Map the error handling patterns in src/. Don't propose changes yet." \
+         --output-format json | jq -r '.session_id')
+
+   echo "sessione: $sid"
+
+   claude -p "Now list the three places where error handling is inconsistent." \
+     --resume "$sid" --output-format json | jq -r '.result'
+
+   claude -p "Write the fix for the first one only. Run the tests." \
+     --resume "$sid" \
+     --allowedTools "Read,Edit,Bash(npm test *)"
+   ```
+
+8. **See with your own eyes what `-p` loads (and what `--bare` would remove).** Ask Claude to
+   list the equipment it started with:
+
+   ```bash
+   # without --bare: your machine's skills, hooks and CLAUDE.md are on board
+   claude -p "list the skills and hooks you have available" | head -20
+   ```
+
+   *(= "list the skills and hooks you have available")*
+
+   You will see **your** skills and **your** hooks: they started with the session, and on another machine
+   the same invocation would start with different equipment — that is the reproducibility
+   problem `--bare` solves. The counter-check with `--bare` needs a token (the subscription
+   login is not read), so it takes the form you will use in CI:
+
+   ```bash
+   # in CI: --bare + token generated once with `claude setup-token`
+   CLAUDE_CODE_OAUTH_TOKEN=... claude --bare -p "list the skills and hooks you have available"
+   ```
+
+   Here the answer would be: no skills, no hooks. Same command, zero equipment,
+   identical result on any machine.
+
+</Steps>
+
+## A detail that bites: background tasks
+
+If Claude starts a **background Bash task** during a `-p` run — a dev server, a build in watch mode —
+that shell is terminated about **five seconds** after Claude has returned the final result and
+stdin has closed.
+
+**Background subagents and workflows** are exempt from that grace period, because their result is part
+of the final output: `claude -p` waits for them. The wait is however capped at **ten minutes** by default, so a
+stuck agent does not keep the process open forever. The cap is set with
+`CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS`, or `0` to wait with no limit.
+
+If you stop a run with SIGTERM — `kill`, a process supervisor — Claude Code interrupts the current
+turn, terminates the process tree of any active Bash command, runs the `SessionEnd` hooks and
+exits with **code 143**.
+
+## Exercise
+
+Write a script that uses Claude as a quality gate, and that behaves well when something goes wrong.
+
+1. The script takes a branch as input and produces a verdict on a diff.
+2. It must exit with `0` if the diff is clean and `1` if there are blocking problems.
+3. It must not need any Bash permission.
+4. It must degrade cleanly if `claude` fails.
+
+<details class="soluzione">
+<summary>Solution</summary>
+
+```bash title="gate.sh"
+#!/usr/bin/env bash
+# bash careful mode: stop at the first error, using never-defined
+# variables is forbidden, no errors hidden in pipes
+set -euo pipefail
+
+# the comparison branch: the script's first argument, or
+# "main" if you pass none (that is what ${1:-main} means)
+BASE="${1:-main}"
+
+# the differences of your work relative to the point where you branched off
+# BASE (the "..." notation of git diff). We capture them in a
+# variable: we will pass them to Claude via stdin, so it needs
+# no permission to read them.
+DIFF=$(git diff "$BASE"...HEAD)
+
+# no differences, no review: we exit with 0 ("all good")
+if [ -z "$DIFF" ]; then
+  echo "Nessuna differenza rispetto a $BASE."
+  exit 0
+fi
+
+# The heart of the script: the diff enters Claude through the pipe, and
+# --json-schema forces the response to have EXACTLY the shape
+# described below — an object with a "bloccanti" (blocking) list, where
+# each entry has file, line, problem and scenario (all mandatory:
+# "required"). So the verdict is data the script can read,
+# not prose to interpret.
+RISPOSTA=$(printf '%s' "$DIFF" | claude -p \
+  "Review this diff. Report only defects that affect correctness or security and that have a concrete failure scenario. Ignore style, naming and formatting." \
+  --output-format json \
+  --json-schema '{
+    "type": "object",
+    "properties": {
+      "bloccanti": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "file":     { "type": "string" },
+            "riga":     { "type": "integer" },
+            "problema": { "type": "string" },
+            "scenario": { "type": "string" }
+          },
+          "required": ["file", "riga", "problema", "scenario"]
+        }
+      }
+    },
+    "required": ["bloccanti"]
+  }' \
+  --max-turns 10) || {
+    # Claude could not run: this is not a review failure.
+    echo "gate: claude non ha completato il run" >&2
+    exit 2
+  }
+
+# With --json-schema, the validated output is not the whole response: it lives in the
+# structured_output field of the JSON envelope (details in module 13). From there
+# we read the "bloccanti" list defined by the schema above.
+N=$(printf '%s' "$RISPOSTA" | jq '.structured_output.bloccanti | length')
+
+if [ "$N" -eq 0 ]; then
+  echo "✔ Nessun problema bloccante."
+  exit 0
+fi
+
+echo "✘ $N problemi bloccanti:"
+printf '%s' "$RISPOSTA" | jq -r '
+  .structured_output.bloccanti[]
+  | "  \(.file):\(.riga)  \(.problema)\n      → \(.scenario)"
+'
+exit 1
+```
+
+The choices that matter:
+
+| Choice | Why |
+| --- | --- |
+| The diff via **stdin** | Claude needs no permission: no `--allowedTools` |
+| `--json-schema` | The verdict is **structured data**, not prose to parse with regex |
+| `scenario` mandatory in the schema | Forces the model to justify every finding, and cuts false positives |
+| `--max-turns 10` | The task must not iterate forever |
+| Exit **2** distinct from **1** | `1` = review failed, `2` = the tool did not work. A CI must be able to tell them apart |
+| The `|| { ... }` on the invocation | `set -e` alone would exit with `claude`'s code, indistinguishable from a failed review |
+
+Try it:
+
+```bash
+chmod +x gate.sh
+./gate.sh main; echo "exit: $?"
+```
+
+In a GitHub Action it becomes:
+
+```yaml title=".github/workflows/gate.yml"
+- name: Claude gate
+  env:
+    CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+  run: ./gate.sh origin/main
+```
+
+The token is generated once with `claude setup-token` and goes into the repository secrets — see
+[module 14](/en/automazione/pipeline-locali/).
+
+</details>
+
+## Common mistakes & troubleshooting
+
+| Symptom | Cause | Solution |
+| --- | --- | --- |
+| The script hangs waiting for a permission | In `-p` nobody can approve | `--allowedTools` or `--permission-mode` |
+| The result changes from machine to machine | `-p` loads the host's hooks, skills, MCP and `CLAUDE.md` | `--bare` in CI |
+| `--bare` fails with an authentication error | Bare mode does not read OAuth credentials | `ANTHROPIC_API_KEY`, or `apiKeyHelper` in `--settings` |
+| `Bash(git diff*)` allows more than expected | The space before the asterisk is missing | `Bash(git diff *)` |
+| Error on stdin too large | The limit is 10 MB | Write to a file and mention the path in the prompt |
+| The run never ends | A background Bash task, or a stuck subagent | Bash tasks die after ~5 s; for subagents set `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS` |
+| The script runs forever consuming tokens | No turn limit | `--max-turns` |
+| You cannot tell a review failure from a tool error | Same exit code | Catch the error and use distinct codes |
+| A project MCP server is loaded without you wanting it | `-p` sessions do not ask for approval | `--bare`, or `--strict-mcp-config`, or `disabledMcpjsonServers` |
+| A repo hook runs in an untrusted folder | `-p` sessions do not show the trust dialog | `--bare` on code that is not yours |
+| `/login` does not work in `-p` | Terminal-only commands are not available | Authenticate first, or use `CLAUDE_CODE_OAUTH_TOKEN` |
+| Unexpected exit code 143 | The process received SIGTERM | It is the expected behavior: turn interrupted and `SessionEnd` run |
+
+## Cheat sheet
+
+**The basic forms**
+
+```bash
+claude -p "prompt"                                # runs and prints
+cat file | claude -p "prompt"                     # reads from stdin
+claude -p "prompt" --output-format json           # structured output
+claude -p "prompt" --continue                     # continues the last conversation
+claude -p "prompt" --resume "$sid"                # resumes a session by ID
+claude --bare -p "prompt" --allowedTools "Read"   # reproducible, for CI
+```
+
+**The flags to remember**
+
+| Flag | |
+| --- | --- |
+| `-p`, `--print` | Non-interactive mode |
+| `--bare` | No auto-discovery — for CI |
+| `--output-format json` | Structured output with metadata |
+| `--json-schema '<schema>'` | Output validated against a schema |
+| `--allowedTools "A,B(pattern *)"` | Granular pre-approval |
+| `--permission-mode dontAsk` | Only what is already in allow |
+| `--max-turns N` | Seat belt |
+| `--max-budget-usd N` | Spending cap |
+| `--append-system-prompt "..."` | Adds instructions to the system prompt |
+| `--strict-mcp-config` | Only the servers passed with `--mcp-config` |
+| `--safe-mode` | Everything disabled, for diagnosis |
+
+**Exit code**
+
+```text
+0    → success
+≠0   → run failure
+143  → interrupted by SIGTERM
+```
+
+**Useful CLI commands in scripts**
+
+| Command | |
+| --- | --- |
+| `claude setup-token` | Generates a long-lived OAuth token for CI and scripts |
+| `claude auth status` | Authentication status in JSON |
+| `claude doctor` | Installation and settings diagnostics |
+| `claude project purge <path>` | Deletes a project's local state |
+
+## Sources
+
+Official pages consulted, checked on **16 August 2026**:
+
+- [Run Claude Code programmatically](https://code.claude.com/docs/en/headless) — `-p`, bare mode, permissions, pipes, resuming sessions, background tasks
+- [CLI reference](https://code.claude.com/docs/en/cli-reference) — full list of commands and flags
+- [Permission modes](https://code.claude.com/docs/en/permission-modes) — `dontAsk`, `acceptEdits` and what they auto-approve
+- [Permissions](https://code.claude.com/docs/en/permissions) — rule syntax and what runs before trust
+- [Authentication](https://code.claude.com/docs/en/authentication) — `claude setup-token` and `CLAUDE_CODE_OAUTH_TOKEN`
+- [Manage sessions](https://code.claude.com/docs/en/sessions) — resuming by ID from different directories
+- [Environment variables](https://code.claude.com/docs/en/env-vars) — `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS`

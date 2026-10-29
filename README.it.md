@@ -2,9 +2,9 @@
 
 [English](README.md) · **Italiano**
 
-Corso web gratuito in italiano su [Claude Code](https://code.claude.com/docs), lo strumento di coding agentico di Anthropic: la CLI, l'estensione VS Code e l'app desktop, dalla prima installazione ai workflow agentici di produzione.
+Corso web gratuito, in italiano e in inglese, su [Claude Code](https://code.claude.com/docs), lo strumento di coding agentico di Anthropic: la CLI, l'estensione VS Code e l'app desktop, dalla prima installazione ai workflow agentici di produzione.
 
-**Sito:** <https://claude-tutorial.giuseppebosi.com>
+**Sito:** <https://claude-tutorial.giuseppebosi.com> · inglese: <https://claude-tutorial.giuseppebosi.com/en/>
 
 ## Cosa contiene
 
@@ -30,7 +30,8 @@ npm run preview   # serve dist/, ricerca compresa
 ## Struttura
 
 ```text
-src/content/docs/   le pagine del corso (MDX), una cartella per parte
+src/content/docs/   le pagine del corso (MDX), una cartella per parte; l'inglese in en/
+docs/               glossario e istruzioni per la traduzione italiano → inglese
 src/components/     override di Starlight (titolo nell'header, footer) e il box "Zero"
 src/pages/          gli endpoint llms.txt e llms-full.txt
 boilerplates/       i tre template scaricabili

@@ -1,0 +1,620 @@
+---
+title: "9 · MCP and remote servers"
+description: "Model Context Protocol in Claude Code: the four transports, the three installation scopes, .mcp.json shared with the team, OAuth authentication, resources with @ and tool search."
+---
+
+import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
+import Zero from '@/components/Zero.astro';
+
+<div class="meta-modulo">
+	<span><strong>Estimated time:</strong> 60 minutes</span>
+	<span><strong>Prerequisites:</strong> <a href="/en/fondamenta/anatomia-file/">module 2</a> and <a href="/en/fondamenta/memoria-e-contesto/">module 4</a>. To reproduce the guided example you need Node.js and a Postgres database with some data: if you do not have them, the example is perfectly easy to follow just by reading it.</span>
+</div>
+
+On its own, Claude sees only the files of your project. **MCP** — *Model Context Protocol*, a "protocol for
+model context" — is the open standard that opens the rest of the world to it: the database,
+the issue tracker, the monitoring service. It works like electrical sockets: one common standard,
+and any compatible "plug" connects. The plug is called an **MCP server**: a connector for a
+specific service that, once installed, gives Claude new capabilities — querying that database,
+reading those issues — without you having to act as the go-between by copying data into the chat.
+
+## Objectives
+
+- Connect a remote MCP server and a local one, knowing which transport to use.
+- Choose the right scope: personal, project or valid everywhere.
+- Share servers with the team via `.mcp.json`, without committing credentials.
+- Authenticate to an OAuth server, even over SSH without a browser.
+- Understand why twenty MCP servers do not wreck your context.
+
+## Key concepts
+
+**MCP is an open standard for connecting Claude to external tools.** An MCP server exposes tools, resources
+and prompts; Claude Code connects and uses them. The signal that you need an MCP server is simple: **you find yourself
+copying data into the chat from another tool** — an issue tracker, a dashboard, a database.
+
+**Four transports, three to use.**
+
+| Transport | When | Command |
+| --- | --- | --- |
+| **HTTP** | Cloud services. It is the recommended and best-supported option | `claude mcp add --transport http <nome> <url>` |
+| **stdio** (from *standard input/output*: the server is a local program that talks over the [standard channels](/en/glossario/#stdin--stdout--stderr)) | Processes on your machine: direct system access, custom scripts | `claude mcp add [opzioni] <nome> -- <comando> [args...]` |
+| **SSE** (*Server-Sent Events*) | **Deprecated.** Only for services that still expose only this | `claude mcp add --transport sse <nome> <url>` |
+| **WebSocket** | Remote servers that push unsolicited events. Supports neither OAuth nor the `--transport` flag | Only via `.mcp.json` or `claude mcp add-json` |
+
+**Three scopes, which decide who sees what.**
+
+| Scope | Loaded in | Shared with the team | Saved in |
+| --- | --- | --- | --- |
+| **Local** (default) | Current project only | No | `~/.claude.json` |
+| **Project** | Current project only | **Yes, via version control** | `.mcp.json` in the root |
+| **User** | All your projects | No | `~/.claude.json` |
+
+<Aside type="caution" title="'Local' here does not mean what you think">
+The MCP **local** scope saves to `~/.claude.json`, in your **home**, under that project's path. It
+has nothing to do with `.claude/settings.local.json`, which lives in the project folder. Two different things with
+the same adjective.
+</Aside>
+
+**Precedence**, when the same server is defined in several places: Claude Code connects **once**,
+using the highest-priority definition, and uses **the entire entry** from that source — fields are not merged
+across scopes.
+
+```text
+1. Local  →  2. Project  →  3. User  →  4. Server dei plugin  →  5. Connettori claude.ai
+```
+
+*(4 = plugin servers, 5 = claude.ai connectors.)*
+
+The three scopes compare duplicates **by name**; plugins and connectors compare them **by endpoint**,
+so one that points to the same URL or command as a server above is treated as a duplicate.
+
+**Tool search is the reason you can afford many servers.** By default MCP tool schemas
+are **deferred**: at startup only the tool names and the server instructions enter the context, and Claude
+loads the schemas on demand when needed. There is no fixed limit of tools per server: the practical limit
+is the budget of your context window.
+
+## Connecting a server
+
+### Remote HTTP server
+
+```bash
+# Syntax
+claude mcp add --transport http <nome> <url>
+
+# Real example: Notion
+claude mcp add --transport http notion https://mcp.notion.com/mcp
+
+# With a Bearer token — literally "payable to the bearer": a secret string that
+# works as a credential for whoever presents it, to be kept out of versioned files
+claude mcp add --transport http secure-api https://api.example.com/mcp \
+  --header "Authorization: Bearer your-token"
+```
+
+In the JSON, the `type` field accepts `streamable-http` as an alias of `http`: configurations copied from
+server documentation work without changes.
+
+<Aside type="caution" title="`url` without `type` is an error">
+A JSON entry that has a `url` but no `type` is read as a **stdio** server and skipped, with the error
+`MCP server "<nome>" has a "url" but no "type"`. Always add `"type": "http"` (or `"sse"` / `"ws"`).
+</Aside>
+
+### Local stdio server
+
+```bash
+# Syntax
+claude mcp add [opzioni] <nome> -- <comando> [args...]
+
+# Real example: Airtable
+claude mcp add --env AIRTABLE_API_KEY=YOUR_KEY --transport stdio airtable \
+  -- npx -y airtable-mcp-server
+  # npx (ships with Node.js) downloads and runs an npm package on the fly,
+  # without installing it permanently; -y skips the confirmation prompt
+```
+
+The **double dash `--` is mandatory** and separates Claude's options — `--transport`, `--env`,
+`--scope` — from the command that starts the server. Everything after `--` is passed to the server untouched.
+Without it, Claude Code would try to interpret the server's flags as its own:
+
+```bash
+claude mcp add --transport stdio myserver -- npx server
+# → runs: npx server
+
+claude mcp add --env KEY=value --transport stdio myserver -- python server.py --port 8080
+# → runs: python server.py --port 8080, with KEY=value in the environment
+```
+
+<Aside type="note" title="A detail that wastes time">
+`--env` accepts several `KEY=value` pairs. If the server name comes **right after** `--env`, the CLI
+reads it as another pair and rejects it. Put at least one other option between `--env` and the name, as in the
+examples above.
+</Aside>
+
+In the server's environment, Claude Code sets `CLAUDE_PROJECT_DIR` to the project root: the server can
+resolve project-relative paths without depending on the working directory.
+
+### WebSocket server
+
+```bash
+claude mcp add-json events-server \
+  '{"type":"ws","url":"wss://mcp.example.com/socket","headers":{"Authorization":"Bearer YOUR_TOKEN"}}'
+```
+
+Authentication is **header-only**: a static token in `headers`, or one generated at connection
+time with `headersHelper`.
+
+## Managing servers
+
+```bash
+claude mcp list          # lists all configured servers, with their health status
+claude mcp get notion    # details of a server
+claude mcp remove notion # removes a server
+```
+
+From inside a session, `/mcp` opens the panel.
+
+`claude mcp add` confirms with an `Added ...` line, which means **configuration written** — not
+"connection succeeded". The command **does not validate credentials**: a placeholder token is accepted and the
+server fails later. The check is `claude mcp list` or `/mcp`:
+
+| Status | Meaning |
+| --- | --- |
+| `✔ Connected` | All good |
+| `! Needs authentication` | You need to log in |
+| `✘ Failed to connect` | Connection failed — the line includes the HTTP status and the server's error text |
+| `⏸ Pending approval` | Server from `.mcp.json` awaiting your approval: run `claude` interactively |
+| `cached 2h ago · connects on first use` | Tool list loaded from the previous session; it connects on first use |
+
+To **disable** a server without removing it, use the toggle in the `/mcp` panel: the choice is
+recorded per project in `~/.claude.json`.
+
+## Project scope: sharing with the team
+
+This is the case that matters most in a team. Add with `--scope project`:
+
+```bash
+claude mcp add --transport http shared-server --scope project https://example.com/mcp
+```
+
+Claude Code creates or updates `.mcp.json` in the project root:
+
+```json title=".mcp.json"
+{
+  "mcpServers": {
+    "shared-server": {
+      "type": "http",
+      "url": "https://example.com/mcp"
+    }
+  }
+}
+```
+
+Commit `.mcp.json` and the whole team has the same tools.
+
+### Credentials do not get committed
+
+`.mcp.json` supports **environment variable expansion**:
+
+- `${VAR}` — expands to the value of the [environment variable](/en/glossario/#environment-variable) `VAR`
+- `${VAR:-default}` — uses `VAR` if set, otherwise the value after `:-` (read it as "or else"):
+  it is the way to provide a sensible fallback when the variable is missing
+
+Expansion works in `command`, `args`, `env`, `url` and `headers`:
+
+```json title=".mcp.json"
+{
+  "mcpServers": {
+    "api-server": {
+      "type": "http",
+      "url": "${API_BASE_URL:-https://api.example.com}/mcp",
+      "headers": {
+        "Authorization": "Bearer ${API_KEY}"
+      }
+    }
+  }
+}
+```
+
+If a referenced variable is not set and has no default, the config still loads: a
+warning is reported in `claude mcp list` and the `${VAR}` text stays unexpanded. Always add a `:-default`
+where it makes sense.
+
+### Approval and trust
+
+For security reasons, Claude Code **asks for approval** in interactive sessions before using
+project servers from `.mcp.json`. To reset the choices made: `claude mcp reset-project-choices`.
+
+<Aside type="danger" title="Non-interactive sessions do not ask">
+`claude -p` runs, Agent SDK sessions and cloud sessions **cannot show that prompt**: they load
+project servers without asking. To keep one out anyway, put it in `disabledMcpjsonServers`,
+which blocks it in every mode, or exclude project settings entirely with
+`--setting-sources`.
+
+And a cloned repository **cannot auto-approve its own servers**: `enableAllProjectMcpServers` or
+`enabledMcpjsonServers` committed in the project's `.claude/settings.json` are **ignored** in an
+untrusted folder. The server stays at `⏸ Pending approval` until you accept the trust dialog.
+</Aside>
+
+## OAuth authentication
+
+Many remote servers need to know **who you are** before giving you access to your data. The
+mechanism is [OAuth](/en/glossario/#oauth) — the same "sign in with…" you use everywhere: the
+browser opens, you authorize on the service's website, and Claude Code receives a time-limited permission **without ever seeing
+your password**. It also has a huge practical advantage over keys copied by hand: the
+permissions renew themselves and can be revoked with a click.
+
+<Steps>
+
+1. **Add the server.**
+
+   ```bash
+   claude mcp add --transport http sentry https://mcp.sentry.dev/mcp
+   ```
+
+2. **Log in.** From inside a session:
+
+   ```text
+   /mcp
+   ```
+
+   Then follow the steps in the browser. Alternatively, directly from the shell:
+
+   ```bash
+   claude mcp login sentry
+   ```
+
+3. **Over SSH** (connected via terminal to a remote machine) **or without a display server** (a system
+   without a graphical interface), the command notices and **prints the URL** instead of trying to
+   open a browser. Open it on your machine, then paste the full redirect URL at the prompt. It needs an
+   interactive terminal, so connect with `ssh -t`. To force this behavior even when a browser is
+   available:
+
+   ```bash
+   claude mcp login sentry --no-browser
+   ```
+
+4. **To revoke**, "Clear authentication" in the `/mcp` menu, or:
+
+   ```bash
+   claude mcp logout sentry
+   ```
+
+</Steps>
+
+Tokens are stored securely and refreshed automatically. When a request to an OAuth server
+you are already authenticated with returns `401`, Claude Code refreshes the token, reconnects and retries
+once; it flags the server in `/mcp` only if the retry fails too.
+
+<Aside type="note" title="Headers and OAuth do not mix">
+If you have configured `headers.Authorization` and the server rejects that header, Claude Code reports the
+connection as **failed** instead of falling back to OAuth. Either the token is valid for that endpoint, or remove
+the header to use the OAuth flow.
+</Aside>
+
+## MCP resources with `@`
+
+MCP servers can expose **resources**, which you can reference with @-mentions like files. Type `@` in the
+prompt: resources appear in autocomplete next to files.
+
+The format is `@server:protocollo://percorso/risorsa` (server, protocol, path to the resource):
+
+```text
+Can you analyze @github:issue://123 and suggest a fix?
+```
+
+```text
+Please review the API documentation at @docs:file://api/authentication
+```
+
+```text
+Compare @postgres:schema://users with @docs:file://database/user-model
+```
+
+Resources are fetched and included as attachments when you reference them.
+
+## Tool search: why the context holds up
+
+This is the mechanism previewed in Key concepts, seen up close: MCP tools are **deferred** —
+at startup only the names enter the context, and the full definitions are loaded when needed. Here
+is the operational part: the behavior is controlled with the `ENABLE_TOOL_SEARCH` environment variable:
+
+| Value | Behavior |
+| --- | --- |
+| *(not set)* | All tools deferred, loaded on demand. This is the default |
+| `true` | All deferred, forcing the beta header even through proxies |
+| `auto` | Threshold-based: loads everything upfront as long as the definitions stay under **10%** of the context window, then defers everything |
+| `auto:N` | Threshold-based with a custom percentage, `N` from 0 to 100. E.g. `auto:5` |
+| `false` | All loaded upfront, no deferral |
+
+It requires a model that supports `tool_reference` blocks: Claude Sonnet 4.5, Haiku 4.5, Opus 4.5 and
+later.
+
+**Only for those who build MCP servers** (if you only use them, feel free to skip this paragraph): with tool
+search active, the server instructions field
+becomes more important: it helps Claude understand when to search for your tools, like the `description` of a
+skill does. Tool descriptions and server instructions are **truncated to 2 KB each**: put the critical details
+at the beginning.
+
+## Guided example: from zero to a queryable database
+
+Let's connect a Postgres database in read-only mode, which is the most useful example and the one people most
+often get wrong.
+
+<Steps>
+
+1. **Prepare a read-only user.** This is not a matter of style: it is **the** precaution that makes
+   everything else safe. The idea: instead of giving Claude the house keys, we create a database "guest
+   user" for it that can **only look**, never change anything.
+
+   <Zero title="What SQL is and what you are about to run">
+   **SQL** is the language of relational databases: data lives in *tables* (like
+   spreadsheets), and SQL commands create, read and modify them. A database also has its own *users*,
+   each with different permissions — like the accounts on a shared computer. The commands below are
+   run in the database console (e.g. `psql` for Postgres), **not** in the normal terminal, and
+   they create the guest user. If someone else manages the database, these commands are the
+   thing to ask them for.
+   </Zero>
+
+   ```sql
+   -- creates the user "claude_ro" (ro = read-only) with its password
+   CREATE USER claude_ro WITH PASSWORD 'una-password-lunga';
+   -- allows it to connect to the "analytics" database...
+   GRANT CONNECT ON DATABASE analytics TO claude_ro;
+   -- ...to "enter" the table namespace...
+   GRANT USAGE ON SCHEMA public TO claude_ro;
+   -- ...and to READ (SELECT) all existing tables. Read only.
+   GRANT SELECT ON ALL TABLES IN SCHEMA public TO claude_ro;
+   -- same for tables created in the future
+   ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO claude_ro;
+   ```
+
+2. **Add the server.** We will use [DBHub](https://github.com/bytebase/dbhub), the
+   `@bytebase/dbhub` package, which connects Claude to a relational database. The connection goes through the
+   **connection string** (or *DSN*): the "full address" of the database in one line — user, password,
+   host, port and database name, all together in the format
+   `postgresql://utente:password@host:porta/nome` (user, password, host, port, name):
+
+   ```bash
+   claude mcp add --transport stdio db -- npx -y @bytebase/dbhub \
+     --dsn "postgresql://claude_ro:una-password-lunga@localhost:5432/analytics"
+   ```
+
+3. **Check that it connected.** The `Added ...` is not enough:
+
+   ```bash
+   claude mcp list
+   ```
+
+   You should see `db` with `✔ Connected`. If you read `✘ Failed to connect`, the line includes the status or the error
+   code: it is almost always the connection string.
+
+4. **Query in natural language.** Start `claude` and try (the questions assume a sales
+   database with tables like `orders` and `customers` — adapt them to **your** tables):
+
+   ```text
+   Show me the schema for the orders table
+   ```
+
+   *(Claude will use the server's tools to read the columns and types, and summarize them for you)*
+
+   ```text
+   What's our total revenue this month?
+   ```
+
+   *(here Claude writes the SQL query on its own, runs it through the server and reports the number back to you:
+   that is the point of the whole exercise)*
+
+   ```text
+   Find customers who haven't made a purchase in 90 days
+   ```
+
+   *(Claude finds the customers with no purchases in the last 90 days)*
+
+5. **See how much it costs you in context.**
+
+   ```text
+   /mcp
+   ```
+
+   The panel shows the number of tools next to each connected server. With tool search active, only the
+   **names** are in context.
+
+6. **Move it to project scope, without committing the password.** Remove the local version and rewrite it
+   with a variable:
+
+   ```bash
+   claude mcp remove db
+   ```
+
+   ```json title=".mcp.json"
+   {
+     "mcpServers": {
+       "db": {
+         "type": "stdio",
+         "command": "npx",
+         "args": [
+           "-y",
+           "@bytebase/dbhub",
+           "--dsn",
+           "${DATABASE_URL_RO}"
+         ]
+       }
+     }
+   }
+   ```
+
+   Each colleague exports their own `DATABASE_URL_RO` and you commit `.mcp.json` with no secrets inside.
+
+7. **Document it in `CLAUDE.md`.** An MCP server that requires an undeclared environment variable is
+   a trap for the next person who clones the repo:
+
+   ```markdown title="CLAUDE.md"
+   ## Server MCP
+
+   Il server `db` richiede `DATABASE_URL_RO` nell'ambiente, con l'utente di
+   sola lettura `claude_ro`. Vedi `docs/setup-db.md` per come ottenerla.
+   ```
+
+   *(The note says that the `db` server requires `DATABASE_URL_RO` in the environment, with the read-only user
+   `claude_ro`, and points to `docs/setup-db.md` for how to get it.)*
+
+8. **A second server, remote and with OAuth.** To see the other flow:
+
+   ```bash
+   claude mcp add --transport http sentry https://mcp.sentry.dev/mcp
+   claude mcp login sentry
+   ```
+
+   Then, in a session, you can cross-reference the two sources:
+
+   ```text
+   Take the top 3 errors from Sentry this week and check in the database
+   how many distinct users each one affected.
+   ```
+
+</Steps>
+
+## Exercise
+
+Set up an MCP environment that a colleague can reproduce in five minutes.
+
+1. Connect a local stdio server and a remote HTTP one.
+2. Bring them to the right scope: one personal, one project.
+3. Make sure no credential ends up in git.
+4. Check that the configuration really works **starting from a clean clone**.
+
+<details class="soluzione">
+<summary>Solution</summary>
+
+**Steps 1–2.** Choosing the scope follows a simple rule: **the server goes in the project if it is needed by
+anyone working on the project; personal if you need it everywhere.**
+
+A web search server or a personal tool of yours → `user` scope:
+
+```bash
+claude mcp add --transport http hubspot --scope user https://mcp.hubspot.com/anthropic
+```
+
+The project database → `project` scope:
+
+```bash
+claude mcp add --transport stdio db --scope project -- npx -y @bytebase/dbhub --dsn "${DATABASE_URL_RO}"
+```
+
+**Step 3.** Three checks:
+
+```bash
+# 1. No secrets in .mcp.json
+grep -nE "postgres://|Bearer [A-Za-z0-9]|password|token|sk-" .mcp.json
+
+# 2. .mcp.json is the only tracked MCP file
+git ls-files | grep -i mcp
+
+# 3. Your personal config is NOT tracked (it lives in ~/.claude.json, outside the repo)
+git check-ignore -v .claude/settings.local.json
+```
+
+The first command must print nothing. If it prints something, the credential is already in the git history:
+fixing the file is not enough, it must be rotated.
+
+**Step 4.** It is the step almost nobody does, and it is the only one that proves anything:
+
+```bash
+cd /tmp
+git clone <url-del-repo> prova-pulita
+cd prova-pulita
+claude mcp list
+```
+
+What you expect to see, and why it is fine:
+
+- Project servers show up as **`⏸ Pending approval`**. That is correct: a cloned repo cannot
+  auto-approve its own servers, not even if `enableAllProjectMcpServers` is committed. Run `claude`
+  interactively and approve.
+- The server with `${DATABASE_URL_RO}` shows a **missing variable warning** until you export it.
+  That is the intended behavior: the config loads, the value does not.
+- Your personal servers **are not there**, because they live in `~/.claude.json` and not in the repo.
+
+If in this test the server connects **without** you having exported anything, you have a secret committed
+somewhere: go back to step 3.
+
+</details>
+
+## Common mistakes & troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| `MCP server "<x>" has a "url" but no "type"` | JSON entry without `type`: it is read as stdio | Add `"type": "http"` (or `"sse"` / `"ws"`) |
+| `claude mcp add` succeeds but the server does not work | The command **does not validate credentials** | Always check with `claude mcp list` or `/mcp` |
+| The server's flags are interpreted by Claude | The `--` before the command is missing | `claude mcp add ... <nome> -- <comando> [args]` |
+| The CLI rejects the server name after `--env` | It reads it as another `KEY=value` pair | Put another option between `--env` and the name |
+| `MCP server X already exists in local config` | Same name, same scope | `claude mcp remove X` first, or use a different scope |
+| The project server stays `⏸ Pending approval` | Untrusted folder: committed approvals are ignored | Run `claude` interactively and accept the trust dialog |
+| `claude -p` uses a server you did not want | Non-interactive sessions load project servers without asking | `disabledMcpjsonServers`, or `--setting-sources` |
+| A variable in `.mcp.json` does not expand | It is not set and has no default | Warning in `claude mcp list`: export it or add `${VAR:-default}` |
+| The server is skipped at startup with a warning about its name | Reserved names: `workspace`, `claude-in-chrome`, `computer-use`, `Claude Preview`, `Claude Browser` | Rename it |
+| Warning about whitespace in the config | Token pasted with a trailing newline | Claude Code does **not** strip it: fix the file by hand |
+| The OAuth login does not open over SSH | No local browser | `claude mcp login <nome> --no-browser`, and connect with `ssh -t` |
+| The server has status `failed` instead of asking for OAuth | `headers.Authorization` configured and rejected | Fix the token, or remove the header to use OAuth |
+| MCP servers eat too much context | Tool search disabled or incompatible model | You need Sonnet 4.5 / Haiku 4.5 / Opus 4.5 or later; check `ENABLE_TOOL_SEARCH` |
+| A WebSocket server does not show up in `claude mcp list` | `ws` servers are not listed there | `claude mcp get <nome>` or the `/mcp` panel |
+| Duplicate server defined in several scopes | The highest-priority one wins, and the entry is **not** merged | Order: local → project → user → plugin → claude.ai connectors |
+
+## Cheat sheet
+
+**Commands**
+
+| Command | What it does |
+| --- | --- |
+| `claude mcp add --transport http <nome> <url>` | Remote HTTP server |
+| `claude mcp add [opz] <nome> -- <comando> [args]` | Local stdio server |
+| `claude mcp add-json <nome> '<json>'` | Adds from JSON — the only way for WebSocket |
+| `claude mcp add ... --scope project` | Writes to `.mcp.json`, shared with the team |
+| `claude mcp add ... --scope user` | Applies to all your projects |
+| `claude mcp add ... --env KEY=value` | Environment variable for the server |
+| `claude mcp add ... --header "K: V"` | HTTP header |
+| `claude mcp list` | List with health status |
+| `claude mcp get <nome>` | Details, including the reason for a failure |
+| `claude mcp remove <nome>` | Removes |
+| `claude mcp login <nome>` | OAuth flow from the shell |
+| `claude mcp logout <nome>` | Clears saved credentials |
+| `claude mcp reset-project-choices` | Resets project server approvals |
+| `/mcp` | Panel: status, tools, toggle, authentication |
+
+**Scope**
+
+```text
+local   (default)  →  ~/.claude.json, sotto il percorso del progetto  →  solo tu, solo qui
+project            →  .mcp.json nella root                            →  il team, si committa
+user               →  ~/.claude.json                                  →  solo tu, ovunque
+```
+
+*(local: under the project's path, only you, only here; project: `.mcp.json` in the root, the team, committed;
+user: only you, everywhere.)*
+
+**Precedence:** local → project → user → plugin → claude.ai connectors
+
+**Minimal `.mcp.json`**
+
+```json
+{
+  "mcpServers": {
+    "nome": {
+      "type": "http",
+      "url": "${BASE_URL:-https://api.example.com}/mcp",
+      "headers": { "Authorization": "Bearer ${API_KEY}" }
+    }
+  }
+}
+```
+
+## Sources
+
+Official pages consulted, checked on **16 August 2026**:
+
+- [Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp) — transports, scopes, `.mcp.json`, authentication, resources, tool search
+- [MCP quickstart](https://code.claude.com/docs/en/mcp-quickstart) — first server step by step
+- [Model Context Protocol](https://modelcontextprotocol.io/introduction) — the standard
+- [Settings](https://code.claude.com/docs/en/settings) — `enabledMcpjsonServers`, `disabledMcpjsonServers`, `enableAllProjectMcpServers`
+- [Permissions](https://code.claude.com/docs/en/permissions) — workspace trust and working directories
+- [Environment variables](https://code.claude.com/docs/en/env-vars) — `ENABLE_TOOL_SEARCH`, `MCP_DISCOVERY_CACHE`
+- [DBHub](https://github.com/bytebase/dbhub) — the MCP server used in the Postgres example

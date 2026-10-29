@@ -1,0 +1,660 @@
+---
+title: "1 · Claude in IDEs"
+description: "The Claude Code extension for VS Code and Google Antigravity 2.0: installation, configuration, key features, comparison with the terminal, and the same feature built in both environments."
+---
+
+import { Tabs, TabItem, Steps, Aside, Badge } from '@astrojs/starlight/components';
+import Zero from '@/components/Zero.astro';
+
+<div class="meta-modulo">
+	<span><strong>Estimated time:</strong> 60 minutes</span>
+	<span><strong>Prerequisites:</strong> <a href="/en/fondamenta/setup/">module 0</a> completed, VS Code installed and a Google account (for the Antigravity part).</span>
+</div>
+
+An **IDE** (*Integrated Development Environment*) is the program
+in which developers write code: editor, search, terminal and tools in a single window.
+VS Code is the most widespread. In module 0 you used Claude from the terminal; here you bring it **inside**
+the editor, where changes are shown side by side and plans are commented on like a document. And
+you meet Antigravity, Google's environment that can use Claude models: knowing it exists, and when
+it is worth it, is part of the craft.
+
+## Objectives
+
+- Install and configure the Claude Code extension for VS Code, and know which settings really change your workflow.
+- Use the features the terminal lacks: dedicated panel, side-by-side diffs, @-mentions with active selection, checkpoints.
+- Install Google Antigravity 2.0 and select a Claude model from the model selector.
+- Choose deliberately between terminal, VS Code extension and Antigravity, knowing who bills what.
+- Build the same mini-feature in both environments and compare the two workflows.
+
+## Key concepts
+
+**One engine, three different surfaces.** The VS Code extension and the CLI are the same Claude Code:
+they share the configuration — the [`CLAUDE.md`](/en/glossario/#claudemd) instructions file,
+[hooks](/en/glossario/#hook), [skills](/en/glossario/#skill), [MCP](/en/glossario/#mcp) servers: each will have
+its own module later on, for now it is enough to know they are the ways to customize Claude — and, importantly,
+the **same conversation history**. You can start a conversation in the extension panel and
+continue it in the terminal with `claude --resume`. You are not using two products: you are looking at the same
+process from two windows.
+
+Antigravity, on the other hand, is a **different** product, from Google: an agentic environment that can use Claude models
+as its reasoning engine, but shares nothing of Claude Code's configuration. Comparing it with
+the VS Code extension means comparing two platforms, not two interfaces.
+
+**What the extension really adds.** It is not "the CLI in a window". It adds four things that in the
+terminal don't exist or cost more: **side-by-side diffs** with the option to edit Claude's proposal
+before accepting it; the editor's **active selection** seen automatically by Claude, with
+`Option+K` / `Alt+K` to insert an @-mention complete with line range; **plans as
+Markdown documents** on which you leave inline comments before Claude starts; and **parallel conversations**
+in separate tabs or windows, each with its own context.
+
+**What stays CLI-only.** The extension exposes a *subset* of the commands. Exclusive to the
+terminal remain the `!` shortcut to run bash, tab completion, and full configuration of MCP
+servers (in the extension you add them via the CLI and then manage them with `/mcp`). If you need a
+CLI-only feature while you are in VS Code, open the integrated terminal and run `claude`.
+
+<Aside type="caution" title="The extension does not put `claude` on the PATH">
+Installing the extension does **not** install the CLI. The extension includes a private copy of the binary for its
+own panel, but to type `claude` in a terminal you need the standalone installation from
+[module 0](/en/fondamenta/setup/). It is the most frequent misunderstanding of this module.
+</Aside>
+
+**Antigravity 2.0 in one line.** It is an agentic platform from Google: a desktop app that launches,
+monitors and orchestrates multiple agents in parallel, plus an IDE, a CLI and a Python SDK. The agents run
+commands, read and write files, search the web, drive Chrome, manage subagents and use MCP servers.
+The reasoning model is chosen from a selector, and the options include **Claude Sonnet 4.6** and
+**Claude Opus 4.6**, billed by Google on your Google plan — not by Anthropic.
+
+---
+
+## Part A · The Claude Code extension for VS Code
+
+### Prerequisites
+
+- **VS Code 1.94.0 or higher.**
+- An Anthropic account with a paid subscription (Pro, Max, Team or Enterprise) or a Claude
+  Console account. **No API key required**: the first time you open the panel you sign in with your account.
+
+### Installation
+
+<Steps>
+
+1. **Install from the Marketplace.**
+
+   Open the Extensions view with `Cmd+Shift+X` (Mac) or `Ctrl+Shift+X` (Windows/Linux), search for **Claude
+   Code** and click **Install**. Alternatively, open the link
+   `vscode:extension/anthropic.claude-code` directly.
+
+   The extension also installs in VS Code forks: search for it in the editor's Extensions view, or
+   install it from the [Open VSX](https://open-vsx.org/extension/Anthropic/claude-code) registry. If your
+   editor can't install it, the way out is always the same: install the CLI and run `claude`
+   in its integrated terminal — the CLI works in any terminal.
+
+   If the extension doesn't appear after installation, restart VS Code or run **Developer: Reload Window**
+   from the Command Palette.
+
+2. **Open the panel.**
+
+   The **Spark** icon identifies Claude Code throughout VS Code. The quickest way is to click it in the
+   **Editor Toolbar** at the top right — it only appears when you have a file open. The alternatives:
+
+   - **Activity Bar**: the Spark icon in the left sidebar opens the session list. It is always visible.
+   - **Command Palette**: `Cmd+Shift+P` / `Ctrl+Shift+P`, type "Claude Code" and choose, for example, **Open in New Tab**.
+   - **Status Bar**: click **✱ Claude Code** at the bottom right. It works even with no files open.
+
+3. **Sign in.**
+
+   The first time you open the panel the login screen appears: click **Sign in** and complete
+   authorization in the browser. If later you see **Not logged in · Please run /login**, the extension
+   reopens the screen on its own; if it doesn't, reload the window with **Developer: Reload Window**.
+
+   After login the **Learn Claude Code** checklist appears. You can follow it or close it with the X; to
+   reopen it, uncheck **Hide Onboarding** in the settings.
+
+4. **Send the first prompt.**
+
+   Select a few lines in a file and ask something in the panel. Claude **automatically sees the
+   selected text**: the prompt box footer shows how many lines are selected. Press
+   `Option+K` (Mac) / `Alt+K` (Windows/Linux) to also insert an explicit @-mention with the path and
+   line range, like `@app.ts#5-10`.
+
+   Click the selection indicator to decide whether Claude can see it: the crossed-out eye icon
+   means the selection is hidden.
+
+5. **Review the changes.**
+
+   When Claude wants to edit a file it shows a **side-by-side comparison** of original and proposal, then
+   asks for permission. You can accept, reject, or tell Claude what to do instead. If you edit the
+   proposed content directly in the diff before accepting, Claude is told that you changed it,
+   so it doesn't assume the file matches its original proposal.
+
+</Steps>
+
+### Key features of the prompt box
+
+- **Permission modes** — how much Claude can do without asking you for confirmation. Click the indicator at the
+  bottom of the prompt box to change it. The three you see here: **Manual** asks for permission before
+  file edits and most commands; **Plan** describes what it will do and waits for
+  approval, and VS Code opens the plan as a Markdown document on which you can leave **inline
+  comments**; **Edit automatically** applies changes without asking. The full list of
+  modes (there are six) is in [module 6](/en/fondamenta/plan-mode/).
+- **Command menu** — type `/` to open it: attach files, switch model, turn on *extended
+  thinking* (Claude thinks longer before answering, useful on
+  hard problems), see your plan usage with `/usage`, start a **Remote
+  Control** session — the mode that lets you follow and steer the session from your phone, the focus of
+  [module 15](/en/automazione/sessioni-remote/) — with `/remote-control`. The
+  *Customize* section gives access to MCP servers, hooks, memory, permissions and plugins.
+- **Side questions** — `/btw` followed by a question opens the answer in a panel next to the chat,
+  without adding it to the main conversation.
+- **Context indicator** — shows how much of the context window you are using. Claude compacts on its own
+  when needed, or you can run `/compact` by hand (we cover it in [module 4](/en/fondamenta/memoria-e-contesto/)).
+- **Focus view** — hides tool calls, results and thinking behind expandable rows, leaving only
+  your prompts and the replies. Toggle it with `Ctrl+Option+F` / `Ctrl+Alt+F`.
+- **Multi-line input** — `Shift+Enter` adds a new line without sending.
+
+### Context: files, folders and terminal
+
+An **@-mention** is the way to tell Claude "look at exactly this file": type `@` followed by the
+name, and the content enters the conversation. Two examples, with a paraphrase:
+
+```text
+Explain the logic in @auth
+What's in @src/components/
+```
+
+*(= "explain the logic in @auth" · "what is in @src/components/?")*
+
+@-mentions support **fuzzy matching**: `@auth` finds `auth.js`,
+`AuthService.ts` and the like even without the exact name. For folders, add the trailing slash. You can also drag files into the prompt box while holding `Shift` to
+attach them.
+
+A feature people often forget: `@terminal:name` inserts the **output of a terminal** into the prompt,
+where `name` is the terminal's title. It lets Claude see an error or logs without copy-pasting them.
+
+### Commands and shortcuts
+
+| Command | Shortcut | What it does |
+| --- | --- | --- |
+| Focus Input | `Cmd+Esc` / `Ctrl+Esc` | Moves focus between editor and Claude |
+| Open in New Tab | `Cmd+Shift+Esc` / `Ctrl+Shift+Esc` | New conversation as an editor tab |
+| New Conversation | `Cmd+N` / `Ctrl+N` | New conversation (requires focus on Claude and `enableNewConversationShortcut` set to `true`) |
+| Reopen Closed Session | `Cmd+Shift+T` / `Ctrl+Shift+T` | Reopens the last closed Claude session |
+| Insert @-Mention Reference | `Option+K` / `Alt+K` | Inserts a reference to the current file and selection |
+| Toggle Focus view | `Ctrl+Option+F` / `Ctrl+Alt+F` | Hides or shows tool activity |
+| Open in Side Bar · Open in Terminal · Open in New Window · Show Logs · Logout | — | From the Command Palette |
+
+### Settings worth changing
+
+They are in `Cmd+,` / `Ctrl+,` → Extensions → Claude Code.
+
+| Setting | Default | Why change it |
+| --- | --- | --- |
+| `preferredLocation` | `panel` | Set `sidebar` if you want Claude always visible while you code |
+| `initialPermissionMode` | — | `plan` to always start in Plan Mode; values: `default`, `plan`, `acceptEdits`, `bypassPermissions` (`manual` is an alias of `default`) |
+| `useTerminal` | `false` | `true` if you prefer the CLI interface inside VS Code |
+| `useCtrlEnterToSend` | `false` | `true` if you tend to send prompts halfway through |
+| `focusView` | `false` | `true` for much more readable conversations |
+| `autosave` | `true` | Saves files before Claude reads or writes them: leave it on |
+| `respectGitIgnore` | `true` | Excludes `.gitignore` patterns from searches |
+| `enableNewConversationShortcut` | `false` | `true` to enable `Cmd/Ctrl+N` |
+
+The settings **shared with the CLI** live instead in `~/.claude/settings.json`: allowed commands,
+[environment variables](/en/glossario/#environment-variable), hooks and MCP servers. A useful trick: add
+`"$schema": "https://json.schemastore.org/claude-code-settings.json"` at the top of the file — it is the
+reference to a [schema](/en/glossario/#json-schema), the formal description of which fields are
+valid — and VS Code will give you automatic suggestions and highlight errors as you type.
+
+### Checkpoints: going back
+
+The extension supports **checkpoints**. Hover over a message and click the rewind button:
+
+- **Fork conversation from here** — new conversation branch, the code stays as it is.
+- **Rewind code to here** — brings the files back to their state at that point, the conversation stays intact.
+- **Fork conversation and rewind code** — both.
+
+### Extension or CLI?
+
+| Feature | CLI | VS Code extension |
+| --- | --- | --- |
+| Commands and skills | All | A subset (type `/` to see which) |
+| MCP server configuration | Yes | Partial: add via CLI, manage with `/mcp` |
+| Checkpoints | Yes | Yes |
+| `!` shortcut for bash | Yes | No |
+| Tab completion | Yes | No |
+
+To switch from one to the other: `claude --resume` in the terminal opens an interactive picker with the
+conversations, including those started in the extension. If you use an external terminal, run `/ide` inside
+Claude Code to connect it to VS Code.
+
+---
+
+## Part B · Google Antigravity 2.0
+
+Why does a course on Claude Code devote half a lesson to a Google product? For two concrete reasons:
+Antigravity can use **Claude models without an Anthropic subscription** (Google bills it), so it is a
+way to let a colleague try Claude without making them open an account; and its approach — you delegate
+a whole task and review the results, instead of working side by side — is the other way to use
+agents, and knowing it helps you choose. At the end of the module we build the same thing in both
+environments precisely to feel the difference.
+
+<Aside type="note" title="A moving ecosystem">
+Antigravity was born in November 2025 as an agentic IDE in preview, with the Editor and Manager views. With
+**2.0**, presented at Google I/O in May 2026, it became a platform: desktop app, IDE, CLI and SDK.
+The source for this part is [antigravity.google/docs](https://antigravity.google/docs): it is the page
+to keep an eye on, because on such a young product the details change from month to month.
+</Aside>
+
+### What it is
+
+Antigravity 2.0 is **a standalone desktop application for managing AI agents** that carry out complex
+knowledge and coding tasks. The agents can: run system commands, read and write files, do
+web searches, integrate with external tools via skills and MCP servers, manage subagents, interact
+with Chrome and produce artifacts and implementation plans.
+
+Three surfaces revolve around the desktop app:
+
+| Surface | Version (16 Aug 2026) | What it is for |
+| --- | --- | --- |
+| **IDE** | 2.5.5 | Editor with visual agent management |
+| **CLI** | 1.1.13 | Autonomous agents from the terminal, with subagents |
+| **SDK** | 0.1.12 | Python framework to prototype custom agents and automate |
+
+### Requirements and installation
+
+The download is at **[antigravity.google/download](https://antigravity.google/download)**.
+
+<Tabs syncKey="os">
+<TabItem label="macOS" icon="apple">
+- **macOS 12 (Monterey) or higher** — the current version and the two previous ones are supported.
+- Separate builds for Apple Silicon and Intel.
+
+Download the package for your architecture and install it. If during setup you are asked **Keep
+Both** or **Replace**, choose **Replace**.
+</TabItem>
+<TabItem label="Windows" icon="seti:windows">
+- **64-bit Windows 10** or higher.
+- x64 and ARM64 editions.
+
+Download the installer for your architecture and run it. If during setup you are asked **Keep Both**
+or **Replace**, choose **Replace**.
+</TabItem>
+</Tabs>
+
+Installing the **IDE is optional** during initial setup: you can download it later, if you find you
+want it. Sign in with your Google account.
+
+### First project
+
+<Steps>
+
+1. Click the folder icon with the **+** in the left sidebar.
+2. Choose **New Project** and add local folders or Git repositories.
+3. Write the goal in the chat, for example `Help me add a new feature`, and press Enter.
+4. Choose the execution mode:
+   - **Local Mode** — the agent works directly on the folder.
+   - **New Worktree Mode** — the agent works in an isolated git [worktree](/en/glossario/#worktree): a
+     **second working folder of the same project**, on a separate line, like a second
+     desk drawing from the same archive. It is the right choice when you run multiple agents in
+     parallel on the same [repository](/en/glossario/#repository-repo).
+
+</Steps>
+
+### Selecting a Claude model
+
+The model selector is in the prompt panel (and in **Settings → Model**). The reasoning models
+available as of 16 August 2026:
+
+| Model | Provider |
+| --- | --- |
+| Gemini 3.7 Flash | Google |
+| Gemini 3.6 Flash | Google |
+| Gemini 3.5 Flash | Google |
+| Gemini 3.1 Pro | Google |
+| **Claude Sonnet 4.6 (thinking)** | Anthropic |
+| **Claude Opus 4.6 (thinking)** | Anthropic |
+| GPT-OSS-120b | OpenAI |
+
+The two Claude models are available on the **Free**, **Google AI Plus** and **Google AI Pro** plans, and
+are **not** available on Enterprise plans (where GPT-OSS-120b isn't available either). The Gemini
+models remain available on all plans. Antigravity also uses *Nano Banana 2* for image
+generation, but it is not user-selectable.
+
+The point that matters to you: using Claude inside Antigravity **you don't need an Anthropic API key and you don't pay
+Anthropic**. Usage goes against the rate limits of your Google plan.
+
+### Artifacts
+
+An **Artifact** is a structured deliverable the agent creates to complete the task and to
+communicate its progress and reasoning to you. The main types: rich Markdown plans (**Implementation Plan**),
+code diffs, architecture diagrams, images and browser recordings.
+
+They are produced mainly during **Planning Mode** and are accessible both from the desktop app and from the
+CLI. In the desktop app you have a visual sidebar and a review panel: you can inspect the interactive
+plans, review the diffs and **replay the recordings** of the actions the agent performed
+on the interface in Chrome. In the CLI the review is a quick keyboard-driven panel, with terminal
+notifications when generated files require approval.
+
+The key mechanism is **inline feedback**: on Implementation Plans you write your corrections before
+the agent executes. It is the conceptual equivalent of Claude Code's Plan Mode, with visual
+review on top.
+
+### MCP
+
+[MCP](/en/glossario/#mcp) is the standard that connects an AI to external tools — databases, web services,
+issue trackers (we will cover it in depth in [module 9](/en/personalizzazione/mcp/)). Antigravity
+supports it too. In the IDE the simplest route is the built-in **MCP Store**, from which you browse, discover and
+install supported servers; once installed, their resources and tools are automatically available
+to the editor. In the CLI you type `/mcp` in the prompt panel to open the **MCP Manager Overlay**, with
+status indicators for active, disconnected or loading servers.
+
+<Aside type="tip" title="If you read around that Antigravity doesn't support MCP">
+That information is old: it was true at launch (late 2025), it isn't anymore. When you look for online guides on
+these tools, always check the date — the ecosystem changes in months, not years, and that is why
+every module of this course closes with the official sources and the date they were checked.
+</Aside>
+
+---
+
+## Terminal, VS Code or Antigravity?
+
+| | **Terminal (CLI)** | **VS Code extension** | **Antigravity 2.0** |
+| --- | --- | --- | --- |
+| **Who makes it** | Anthropic | Anthropic | Google |
+| **Models** | Claude | Claude | Gemini, Claude Sonnet/Opus 4.6, GPT-OSS-120b |
+| **Billing** | Your Anthropic plan (Pro/Max/Team/Enterprise) | Your Anthropic plan | Your Google plan (Free / AI Plus / AI Pro). No Anthropic API key |
+| **Configuration** | `~/.claude/`, `CLAUDE.md`, `.mcp.json` | The same, shared with the CLI | Its own, separate |
+| **Commands and skills** | All | A subset | Its own skills, not compatible |
+| **MCP** | Full configuration | Partial (add via CLI, manage with `/mcp`) | MCP Store in the IDE, `/mcp` in the CLI |
+| **Hooks** | Yes | Yes (shared with the CLI) | No (different extension model) |
+| **Visual diff** | In the terminal | Side by side and editable | Artifact review panel |
+| **Visual multi-agent** | Subagents from the terminal | Conversations in parallel tabs | It is the main use case |
+| **[Headless](/en/glossario/#headless) automation** (no interface, from scripts) | `claude -p`, JSON output, CI | No | CLI and Python SDK |
+
+**When to use what, in practice:**
+
+- **You need MCP, skills, hooks, subagents or headless automation** → Claude Code. It is the only one of the three with
+  a complete, scriptable extension model, and it is the one the rest of this course is built on.
+- **You spend your day in VS Code and want diffs and plans you can review on screen** → VS Code extension, with the
+  integrated terminal at hand for CLI-only features.
+- **You need to orchestrate multiple agents in parallel visually, or want to try Claude without touching your Anthropic
+  plan** → Antigravity.
+- **You are evaluating costs** → they are two different wallets. The same Claude model consumes the Anthropic
+  plan inside Claude Code and the Google plan inside Antigravity.
+
+---
+
+## Guided example: the same feature, twice
+
+We build the same micro-project in both environments: a **REST endpoint `GET /health`** with a test.
+At the end we compare the two workflows.
+
+### Preparation (shared)
+
+We create a mini Node.js project. **npm** is JavaScript's package manager — the "store" from which
+libraries are installed — and **Express** is the most used library for building web services.
+
+<Tabs syncKey="os">
+<TabItem label="macOS" icon="apple">
+```bash
+# create the project folder and enter it
+mkdir health-api && cd health-api
+# initialize a Node project ("-y" = accept the default answers)
+npm init -y
+# install the Express library
+npm install express
+```
+</TabItem>
+<TabItem label="Windows" icon="seti:windows">
+```powershell
+# create the project folder and enter it
+mkdir health-api; cd health-api
+# initialize a Node project ("-y" = accept the default answers)
+npm init -y
+# install the Express library
+npm install express
+```
+</TabItem>
+</Tabs>
+
+Add `"type": "module"` to `package.json` and a test script:
+
+```json title="package.json" {3,6}
+{
+  "name": "health-api",
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}
+```
+
+### Version A — with the VS Code extension
+
+<Steps>
+
+1. Open the folder in VS Code (`code .` if you have the shell command installed).
+
+2. Open the Claude Code panel by clicking the Spark icon in the Status Bar, at the bottom right.
+
+3. Set the permission mode to **Plan** from the indicator at the bottom of the prompt box, then send:
+
+   ```text
+   Create src/server.js with an Express app exposing GET /health that returns
+   { status: "ok", uptime } as JSON, and export the app without calling listen.
+   Then create src/server.test.js using node:test and node:assert that starts the
+   app on an ephemeral port and asserts the response status is 200 and status is "ok".
+   ```
+
+   *In plain words: "create a web service with a `/health` address that answers «I'm fine» in
+   JSON format, and an automated test that starts it and checks that it really answers". A `/health`
+   [endpoint](/en/glossario/#endpoint) is the classic "heartbeat" of a service: it is used to
+   ask it whether it is alive.*
+
+4. VS Code opens the **plan as a Markdown document**. Read it and leave an inline comment, for example on the
+   line where it proposes the file structure:
+
+   ```text
+   Use `node:test` and `node:assert/strict`, no external test runner.
+   ```
+
+   Approve the plan.
+
+5. Claude writes the files. For each one you see the **side-by-side diff**: original on the left, proposal on the right.
+   If something doesn't look right, edit directly in the diff before accepting — Claude will be told that
+   you changed it.
+
+6. Open the integrated terminal with `` Ctrl+` `` / `` Cmd+` `` and run the tests:
+
+   ```bash
+   npm test
+   ```
+
+   Expected output, in the form produced by `node --test`:
+
+   ```text
+   ✔ GET /health returns 200 and status ok
+   # pass 1
+   # fail 0
+   ```
+
+7. If the test fails, don't copy the error by hand: there is the @-mention for terminal output.
+   Mind the syntax: here `bash` is **the name of the terminal panel** (you read it on its
+   tab in VS Code), not a command.
+
+   ```text
+   @terminal:bash the test fails, fix it
+   ```
+
+   *(= "the test fails — look at the terminal output and fix it")*
+
+8. Close the loop:
+
+   ```text
+   commit these changes
+   ```
+
+</Steps>
+
+### Version B — with Antigravity and a Claude model
+
+<Steps>
+
+1. Open Antigravity. In the left sidebar click the folder icon with the **+** and choose
+   **New Project**, pointing to the same `health-api/` folder.
+
+2. In the model selector choose **Claude Sonnet 4.6 (thinking)**.
+
+3. Choose **New Worktree Mode**: the agent will work in its own isolated folder (the worktree seen
+   above), so it doesn't overwrite what you just built in version A and you can compare
+   the two solutions with a clean [diff](/en/glossario/#diff).
+
+4. Send the exact same prompt as version A. Don't rephrase it: half the comparison lies here.
+
+5. The agent enters **Planning Mode** and produces an **Implementation Plan** as an artifact. Open it from the
+   review panel and leave the inline feedback:
+
+   ```text
+   Use `node:test` and `node:assert/strict`, no external test runner.
+   ```
+
+   Then approve.
+
+6. The agent executes. In the artifact panel you find the code diff; if it used
+   Chrome during the task, you also find the recording of its actions.
+
+7. Run the tests from Antigravity's integrated terminal with `npm test` and check you get the same output.
+
+</Steps>
+
+### Comparing the two workflows
+
+| | **VS Code extension** | **Antigravity** |
+| --- | --- | --- |
+| Where you review the plan | Markdown document in an editor tab, with inline comments | Implementation Plan as an artifact, with inline feedback |
+| Where you review the code | Side-by-side diff, editable before accepting | Diff in the artifact panel |
+| Isolation | Edits the working copy; to isolate you use Git worktrees by hand | Worktree Mode is an explicit choice at startup |
+| Context from the editor | Active selection seen automatically, `Option+K` for the @-mention | The project as a whole; no integration with the VS Code selection |
+| Test loop | Integrated terminal, `@terminal:` to bring the error into the chat | Integrated terminal, the agent reads the output |
+| Billing | Anthropic plan | Google plan |
+
+The point of the exercise is not to declare a winner. It is to notice **where the friction is**: in the extension
+you work on one file at a time with fine control and continuous feedback; in Antigravity you delegate a whole task
+and focus on reviewing the artifacts. The first approach rewards those who already know the code, the
+second rewards those who want to parallelize.
+
+## Exercise
+
+Go back to the `health-api/` project and, without switching environment halfway:
+
+1. With the **VS Code extension**, add a `GET /version` endpoint that reads the version from
+   `package.json` and returns it as JSON, with its test.
+2. Configure the extension so that it always starts in Plan Mode and lives in the right sidebar.
+3. Continue the same conversation from the terminal and ask Claude to summarize what it did.
+
+<details class="soluzione">
+<summary>Solution</summary>
+
+**Step 1.** In the editor, select the block that defines `/health` in `src/server.js`, press
+`Option+K` / `Alt+K` to insert the @-mention with the line range, then type:
+
+```text
+Following the same pattern as this endpoint, add GET /version that reads the version
+field from package.json and returns { version } as JSON. Add a matching test in
+src/server.test.js using node:test.
+```
+
+The @-mention with the lines makes the difference compared with "add an endpoint": you are telling Claude
+*which* pattern to follow, and the diff it proposes will be consistent with the existing code.
+
+**Step 2.** Open the settings with `Cmd+,` / `Ctrl+,`, go to Extensions → Claude Code and set:
+
+```json title="settings.json (VS Code user settings)"
+{
+  "claudeCode.initialPermissionMode": "plan",
+  "claudeCode.preferredLocation": "sidebar"
+}
+```
+
+Watch out: VS Code reads `initialPermissionMode` from the **user** settings and ignores the workspace
+ones. If you put it in the project's `.vscode/settings.json` it has no effect.
+
+**Step 3.** Open the integrated terminal with `` Ctrl+` `` / `` Cmd+` `` and run:
+
+```bash
+claude --resume
+```
+
+An interactive picker opens: look for the extension's conversation — the extension assigns titles
+generated automatically from the first message — select it and ask:
+
+```text
+summarise what you changed in this session, file by file
+```
+
+If `claude` is not found, it is not a bug in the extension: the standalone CLI installation is missing,
+see [module 0](/en/fondamenta/setup/).
+
+</details>
+
+## Common mistakes & troubleshooting
+
+| Symptom | Cause | Solution |
+| --- | --- | --- |
+| `claude` not found in the terminal, but the extension works | The extension doesn't put `claude` on the PATH: it uses a private copy of the binary | Install the standalone CLI ([module 0](/en/fondamenta/setup/)) |
+| The extension doesn't appear after installation | Window not reloaded | **Developer: Reload Window** from the Command Palette, or restart VS Code |
+| The Spark icon isn't in the Editor Toolbar | It only appears with a file open | Use the Activity Bar or the Status Bar, which are always available |
+| `Cmd+Esc` does nothing on macOS | Conflict with a system shortcut | Remap the *Focus Input* command from VS Code's Keyboard Shortcuts |
+| You see the login screen even with `ANTHROPIC_API_KEY` set | VS Code didn't inherit the shell environment | Launch VS Code from a terminal with `code .`, or sign in with your account (recommended in this course) |
+| `initialPermissionMode` set in the workspace has no effect | VS Code reads this setting only from user settings | Move it to the user settings |
+| A slash command you use in the CLI doesn't exist in the panel | The extension exposes a subset of the commands | Open it in the integrated terminal with `claude` |
+| An MCP server can't be added from the panel | Full MCP configuration is CLI-only | Add it with `claude mcp add` from the terminal, then manage it with `/mcp` |
+| In Antigravity you don't see the Claude models in the selector | Claude models are not available on Enterprise plans | Check your plan on antigravity.google; on Free/AI Plus/AI Pro plans they are available |
+| Two Antigravity agents step on each other's toes on the same repo | They are both running in Local Mode | Start them in **New Worktree Mode** |
+
+## Cheat sheet
+
+**VS Code extension**
+
+| Action | How |
+| --- | --- |
+| Install | Extensions view (`Cmd/Ctrl+Shift+X`) → "Claude Code", or `vscode:extension/anthropic.claude-code` |
+| Open the panel | Spark icon in Editor Toolbar / Activity Bar / Status Bar |
+| Focus editor ↔ Claude | `Cmd+Esc` / `Ctrl+Esc` |
+| New conversation in a tab | `Cmd+Shift+Esc` / `Ctrl+Shift+Esc` |
+| Reopen the last closed session | `Cmd+Shift+T` / `Ctrl+Shift+T` |
+| @-mention the selection | `Option+K` / `Alt+K` |
+| Hide tool activity | `Ctrl+Option+F` / `Ctrl+Alt+F` |
+| Mention a file / folder | `@filename` (fuzzy) · `@folder/` |
+| Mention a terminal's output | `@terminal:name` |
+| New line without sending | `Shift+Enter` |
+| See plan usage | `/usage` |
+| Side question | `/btw question` |
+| Integrated terminal | `` Cmd+` `` / `` Ctrl+` `` |
+| Continue the conversation in the CLI | `claude --resume` |
+| Connect an external terminal to VS Code | `/ide` |
+
+**Antigravity 2.0**
+
+| Action | How |
+| --- | --- |
+| Download | [antigravity.google/download](https://antigravity.google/download) |
+| Requirements | macOS 12+ · Windows 10 64-bit+ |
+| New project | Folder `+` icon in the sidebar → **New Project** |
+| Execution mode | **Local Mode** or **New Worktree Mode** |
+| Claude models | Claude Sonnet 4.6 (thinking) · Claude Opus 4.6 (thinking) |
+| Plans with Claude | Free, Google AI Plus, Google AI Pro (not Enterprise) |
+| Artifacts | Implementation Plan, diffs, diagrams, images, browser recordings |
+| Manage MCP | MCP Store in the IDE · `/mcp` in the CLI |
+
+## Sources
+
+Official pages consulted, checked on **16 August 2026**:
+
+- [Use Claude Code in VS Code](https://code.claude.com/docs/en/vs-code) — installation, UI, shortcuts, settings, comparison with the CLI
+- [Authentication](https://code.claude.com/docs/en/authentication) — extension login without an API key
+- [Settings](https://code.claude.com/docs/en/settings) — settings shared between extension and CLI
+- [Checkpointing](https://code.claude.com/docs/en/checkpointing) — how checkpoints work and their limits
+- [Antigravity — Getting started](https://antigravity.google/docs/getting-started) — requirements, download, first project
+- [Antigravity — Overview](https://antigravity.google/docs/overview) — agentic model, IDE, CLI and SDK
+- [Antigravity — Models](https://antigravity.google/docs/models) — available models and availability by plan
+- [Antigravity — Artifacts](https://antigravity.google/docs/artifacts) — artifact types and review
+- [Antigravity — MCP](https://antigravity.google/docs/mcp) — MCP support in IDE and CLI

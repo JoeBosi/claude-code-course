@@ -2,11 +2,14 @@
 // Override del titolo nell'header: sotto il nome del corso resta sempre
 // visibile la firma dell'autore, con link alla sua home page.
 import Default from '@astrojs/starlight/components/SiteTitle.astro';
+import { isInglese } from './lingua';
+
+const en = isInglese(Astro.url);
 ---
 
 <div class="titolo-con-autore">
 	<Default><slot /></Default>
-	<a class="autore" href="https://www.giuseppebosi.com">Prof. Giuseppe Bosi</a>
+	<a class="autore" href={en ? 'https://www.giuseppebosi.com/en/' : 'https://www.giuseppebosi.com'}>{en ? 'by Prof. Giuseppe Bosi' : 'Prof. Giuseppe Bosi'}</a>
 </div>
 
 <style>

@@ -1,0 +1,776 @@
+---
+title: "19 · Professional workflows"
+description: "AI-assisted TDD, multi-level code review, git worktrees for parallel work and agent teams: the workflows that hold up in a real project and in a team."
+---
+
+import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
+
+<div class="meta-modulo">
+	<span><strong>Estimated time:</strong> 65 minutes</span>
+	<span><strong>Prerequisites:</strong> the previous sections, in particular modules <a href="/en/personalizzazione/agents-subagents/">11</a>, <a href="/en/automazione/pipeline-locali/">14</a> and <a href="/en/professionale/boilerplate/">18</a>.</span>
+</div>
+
+## Objectives
+
+- Use TDD (*Test-Driven Development*) as a **verification mechanism** for an agent, not as a ritual.
+- Combine the four available levels of code review, knowing which one to use when.
+- Isolate parallel sessions with git worktrees and understand what Claude Code blocks inside a worktree.
+- Know when an agent team beats subagents, and when it is just more expensive.
+- Bring all of this into a team, without it becoming a rule nobody follows.
+
+## Key concepts
+
+**TDD is not discipline: it is the cheapest way to close the agentic loop.** As seen in
+[module 3](/en/fondamenta/agentic-coding/), Claude stops when the work *looks* finished. A failing
+test turns "looks finished" into a binary signal, and the loop closes by itself. The sequence *tests
+first, then implementation* is not for you: it is there to give the agent something to verify itself against.
+
+**Review must be done from a different context than the one that wrote the code.** A reviewer who has
+seen the reasoning that produced a change is influenced by it. All the review levels below
+share the same principle: fresh context, only the diff and the criteria.
+
+**Worktrees isolate files; subagents and teams coordinate work.** They are orthogonal and combine.
+Confusing the two leads to using an agent team where a worktree was enough, paying ten times as much.
+
+**Every level of parallelism has a coordination cost.** A subagent is cheap and reports only to whoever
+called it. An agent team is expensive and its members talk to each other. If the work is sequential or
+touches the same files, parallelism is just overhead.
+
+## AI-assisted TDD (Test-Driven Development)
+
+The idea of TDD, for those who have never practiced it, is counterintuitive but simple: **write the test first,
+then the code that makes it pass**. It is like writing the acceptance test before the part: you decide *how
+you will verify* that the handle works — it opens, it closes, it holds ten kilos — and only then do you
+build it. As long as the acceptance test fails, the work is not finished; when it passes, it is by definition.
+With an agent this order stops being a matter of style and becomes the mechanism that closes the
+loop of [module 3](/en/fondamenta/agentic-coding/): the test is the verification the agent runs on its own.
+
+### The loop
+
+<Steps>
+
+1. **Describe the behavior as test cases, not as implementation.**
+
+   ```text
+   Write failing tests for the password reset flow:
+     - a valid token resets the password and invalidates the token
+     - an expired token returns 410 and does not change the password
+     - a token for a deleted user returns 404
+     - reusing a valid token twice: the second attempt returns 410
+
+   Do not write the implementation yet. Run the tests and show me they fail
+   for the right reason.
+   ```
+
+   Watch out for the word **token**, which here has nothing to do with the model's
+   [tokens](/en/glossario/#token): it is the one-time code inside the "reset your
+   password" link in emails. Same word, and a third meaning again in step 2 of the guided example further
+   below, where it refers to *authentication* tokens. Context disambiguates, but it is worth noting.
+
+   The last sentence of the prompt is the part almost everyone skips. A test that fails with
+   `ModuleNotFoundError` is not verifying anything: it fails because the file does not exist, not because the
+   behavior is wrong.
+
+2. **Read the tests before having the code written.** This is the real review moment: fixing a test
+   case costs one line, fixing the implementation costs a session.
+
+   The three things to look for:
+
+   | What | Why |
+   | --- | --- |
+   | A missing case | The agent will implement only what is tested |
+   | A test that verifies the implementation instead of the behavior | It will break at every refactoring, without catching bugs |
+   | An assertion that is too weak | `assert response is not None` verifies nothing |
+
+3. **Have it implemented, with the explicit constraint.**
+
+   ```text
+   Now implement until all four tests pass. Do not modify the tests.
+   Run the suite and show me the output.
+   ```
+
+   *"Do not modify the tests"* is not pedantry: without it, an agent in trouble relaxes the assertion instead
+   of fixing the code, and you get a green suite that verifies nothing.
+
+4. **Ask for evidence, not a claim.** *"Show me the output"* produces the runner's output; without it,
+   you get *"all tests pass"*, which is a different thing.
+
+5. **Make it deterministic with a hook.** Instructions are advice. If the loop must always apply, the
+   place for it is a `Stop` or `PostToolUse` hook — see [module 10](/en/personalizzazione/hooks/) and the
+   `web-fullstack` boilerplate of [module 18](/en/professionale/boilerplate/).
+
+</Steps>
+
+<Aside type="tip" title="The strongest gate: `/goal`">
+For a loop that must hold over a long session, there is `/goal`: a separate evaluator rechecks the
+condition after **every turn**, and Claude keeps working until the goal is met.
+
+```text
+/goal npm test passes with zero failures and npm run typecheck is clean
+```
+
+It is the middle step between "I ask for it in the prompt" and "I enforce it with a `Stop` hook".
+</Aside>
+
+### When TDD is not worth it
+
+TDD costs one extra round. It is not worth it for:
+
+- Exploratory code you will throw away
+- One-line changes with an obvious effect
+- Code whose correct behavior you cannot define yet — there you explore first
+- Graphical interfaces, where the criterion is visual: use a screenshot to compare against
+
+---
+
+## Code review on four levels
+
+Claude Code offers four levels. They are not alternatives: they overlap on purpose.
+
+| Level | When it runs | Cost | What it catches |
+| --- | --- | --- | --- |
+| **`security-guidance` plugin** | While Claude writes | Low | Common vulnerabilities, fixed in the same session |
+| **`/code-review`** | When you ask for it | Medium | Correctness bugs, simplifications, reuse |
+| **Your own reviewer subagent** | When you ask for it | Medium | The criteria **specific to your project** |
+| **Code Review on PRs** | On every PR | $15–25 per review | Bugs with the context of the whole codebase, multi-agent |
+
+### `/code-review`
+
+The command you will use most:
+
+```text
+/code-review
+```
+
+It reviews the branch's commits ahead of its upstream, plus uncommitted changes. To review
+something else, pass a target: a path, a PR number, a branch, or a range like
+`main...my-feature` — the three dots are git's notation for "everything the branch has beyond
+`main`", the same one seen in [module 7](/en/personalizzazione/slash-commands/).
+
+The flags:
+
+| Flag | What it does |
+| --- | --- |
+| `--fix` | Applies the findings to the working tree after the review |
+| `--comment` | Posts the findings as inline comments on the PR |
+| `--post` | On an `ultra` review of a github.com PR, preselects posting the results |
+
+The review runs as a **background subagent** with its own context window: it does not fill your
+conversation, and the results arrive when it is done.
+
+<Aside type="caution" title="`--fix` in the background escapes checkpoints">
+A background review applies its changes **outside the checkpoints** of your session: `/rewind`
+does not undo them. To go back you need git.
+</Aside>
+
+### The effort level changes the trade-off
+
+```text
+/code-review high
+```
+
+At `low` and `medium` the review reports only the findings it is most confident about: fewer false positives. From `high` to
+`max` it widens coverage and may include less certain findings.
+
+If you do not type a level, the last one you typed is reused, **even from a previous session**, and
+a notice like `Reusing high effort, the level you typed last time` appears.
+
+### The Writer/Reviewer pattern
+
+The pattern that makes review truly independent: two separate sessions — one writes (*Writer*),
+the other reviews (*Reviewer*). Read the table **from top to bottom like a timeline**: each
+row is a moment, the filled cell says who acts, the empty cell who waits.
+
+| Session A — Writer | Session B — Reviewer |
+| --- | --- |
+| `Implement a rate limiter for our API endpoints` | |
+| | `Review the rate limiter implementation in @src/middleware/rateLimiter.ts. Look for edge cases, race conditions, and consistency with our existing middleware patterns.` |
+| `Here's the review feedback: [output from B]. Address these issues.` | |
+
+A fresh context improves the review because **Claude is not biased toward code it has just written**.
+
+The same goes for tests: one session writes the tests, another writes the code that makes them pass.
+
+### Governing PR review
+
+First, review jargon — two words you will see in every generated comment. **Important** (🔴) is
+a blocking finding: something that, if ignored, breaks behavior or exposes data. **Nit** (from
+*nitpick*) is the opposite: a minor remark — style, names, a possible refactoring —
+that blocks nothing. The whole battle of this section is right here: keep the real Importants and
+stop the nits from burying them.
+
+The managed service reads two files from the repository, with different weights:
+
+- **`CLAUDE.md`** — project context. Violations introduced by a PR are flagged as **nits**.
+- **`REVIEW.md`** — instructions **for the review only**, injected into the system prompt of every agent in the
+  pipeline as a top-priority block.
+
+`REVIEW.md` is what you need when the review is noisy. The levers that work:
+
+```markdown title="REVIEW.md"
+# Review instructions
+
+## What Important means here
+
+Reserve 🔴 Important for what would break behavior, expose data, or
+prevent a rollback (going back: putting the previous version back into
+production when the new one causes damage): wrong logic, queries not scoped
+to the tenant, PII in logs (personally identifiable information — names,
+emails, addresses), non-backward-compatible migrations. Style, naming and
+refactoring suggestions are Nit at most.
+
+## Limit nits
+
+At most five Nits per review. If you find more, write "plus N more similar"
+in the summary instead of posting them inline. If you found only Nits, open
+the summary with "No blocking issues".
+
+## Do not report
+
+- What CI already enforces: lint, formatting, type errors
+- Generated files under `src/gen/` and any `*.lock`
+- Test code that deliberately violates production rules
+
+## Always check
+
+- New API routes have an integration test
+- Logs do not contain emails, user IDs or request bodies
+- Queries are scoped to the caller's tenant
+
+## On subsequent reviews
+
+After the first review, suppress new nits and report only Importants.
+```
+
+The last two lines solve the problem that makes people abandon automated reviews: a one-line
+fix that arrives at the seventh round of style comments.
+
+<Aside type="note" title="`REVIEW.md` does not expand imports">
+It is pasted **verbatim**: the `@` syntax is not expanded and referenced files are not read.
+Write the rules directly in it. And keep it short: a long `REVIEW.md` dilutes the rules that
+matter.
+</Aside>
+
+---
+
+## Git worktrees
+
+A worktree is a separate working directory with its own files and its own branch, sharing history and
+remotes with the main checkout. One session per worktree means that the changes of one never touch
+the files of another.
+
+### Starting
+
+```bash
+claude --worktree feature-auth
+```
+
+It creates the worktree under `.claude/worktrees/<name>/` in the repository root, on a new branch called
+`worktree-<name>`. Run the command again with another name in another terminal for a second
+isolated session. Without a name, one like `bright-running-fox` is generated.
+
+<Aside type="tip" title="Two lines of configuration that solve half the problems">
+In `.gitignore`:
+
+```text
+.claude/worktrees/
+```
+
+Without it, the contents of the worktrees show up as untracked files in the main checkout.
+
+And a `.worktreeinclude` in the root, with `.gitignore` syntax:
+
+```text title=".worktreeinclude"
+.env
+.env.local
+config/secrets.json
+```
+
+A worktree is a fresh checkout: without this file, your `.env` is not there and the first thing you do in every
+worktree is wonder why nothing starts. Only files that match a pattern
+**and are gitignored** are copied, so tracked files are never duplicated.
+</Aside>
+
+### What Claude Code blocks inside a worktree
+
+It is not a convention: it is enforced. Four checks:
+
+| Check | What it blocks |
+| --- | --- |
+| **File changes** | `Edit`, `Write` or `NotebookEdit` targeting the main checkout |
+| **Command working directory** | A Bash or PowerShell command whose working directory ends up in the main checkout |
+| **Git redirections** | A command that redirects git into the main checkout, via `git -C`, `--git-dir`, `GIT_DIR`, `GIT_WORK_TREE`, or a `cd` before git |
+| **Command shape** | A command that cannot be statically verified to stay in the worktree — brace expansion, heredoc with an unquoted delimiter. **Cannot be disabled** |
+
+Enforcement also covers **every subagent** spawned by the isolated session.
+
+### Cleanup
+
+When you exit an interactive session in a worktree, Claude checks whether there is work that removal
+would destroy:
+
+- **Clean worktree** — for an unnamed session, it is removed automatically along with its branch. A
+  **named** session asks you first, so you can keep it.
+- **Worktree with work in it** — you are asked whether to keep it or remove it.
+
+<Aside type="danger" title="`-p` runs do not clean up">
+Non-interactive runs have no exit prompt: their worktrees remain, with the lock taken
+at creation, until a later sweep releases it. To remove one by hand:
+
+```bash
+git worktree remove <path>
+git worktree unlock <path>   # if git refuses because it is locked
+```
+</Aside>
+
+A periodic sweep removes the worktrees created for **subagents and background sessions** older than
+`cleanupPeriodDays`, skipping those that still contain work. It **never touches** worktrees created with
+`--worktree`.
+
+### Useful options
+
+| What | How |
+| --- | --- |
+| Branch from current work instead of `main` | `worktree.baseRef: "head"` in settings |
+| Start from a PR | `claude --worktree "#1234"` — the quotes are needed, or the shell treats `#` as a comment |
+| Isolate a subagent | `isolation: worktree` in its frontmatter |
+| List | `git worktree list` |
+| Remove | `git worktree remove <path>`, with `--force` if there are changes |
+
+### What a worktree shares with the main checkout
+
+Three things, and that is a good thing:
+
+- **The `.git` directory** — git commands inside a worktree write to the shared `.git`, so
+  `git commit` works even with the sandbox active.
+- **Project-scope plugins** — no need to reinstall them per worktree.
+- **Permission approvals** — a *"Yes, don't ask again"* inside a worktree is saved in the
+  main checkout's `.claude/settings.local.json`, so it applies everywhere and **survives the removal
+  of the worktree**.
+
+---
+
+## Agent teams
+
+They coordinate **multiple Claude Code instances**: one session acts as *team lead* and the others
+are the *teammates*. Each teammate
+works independently, with its own context window, and — the real difference from subagents —
+**teammates talk to each other directly**.
+
+<Aside type="caution" title="Experimental and disabled by default">
+They are enabled with `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`, in the environment or in settings:
+
+```json title="settings.json"
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  }
+}
+```
+
+**Watch out for a side effect:** with teams enabled, a subagent that Claude gives a name to starts
+as a **teammate**, not as a subagent. A flow that waits for a subagent's result can hang, because the
+idle notification of a teammate **does not carry its output**. If this happens to you, set the variable back to `0`.
+</Aside>
+
+### Team or subagents?
+
+| | **Subagent** | **Agent team** |
+| --- | --- | --- |
+| Context | Its own; results return to the caller | Its own; fully independent |
+| Communication | Only toward the main agent | Teammates message each other |
+| Coordination | Handled by the main agent | Self-coordination plus a shared task list |
+| Best for | Focused tasks where only the result matters | Work that requires discussion and collaboration |
+| Token cost | Lower: summarized results | **Much higher**: each teammate is a separate instance |
+
+The cases where a team pays off: research and review along independent axes, new modules with distinct
+owners, debugging with **competing hypotheses**, coordination across different layers of the stack.
+
+The cases where it is just more expensive: sequential tasks, changes to the same files, work with many dependencies.
+
+### The case that is really worth it: competing hypotheses
+
+```text
+Users report the app exits after one message instead of staying connected.
+Spawn 5 agent teammates to investigate different hypotheses. Have them talk to
+each other to try to disprove each other's theories, like a scientific
+debate. Update the findings doc with whatever consensus emerges.
+```
+
+The mechanism is **the debate**. A sequential investigation suffers from *anchoring* (the first
+idea you form acts as an anchor, and drags everything you observe afterwards toward it): once one theory
+has been explored, everything else is interpreted in its light. With independent investigators actively trying to
+disprove each other, the theory that survives is much more likely to be the real cause.
+
+### Sizing
+
+- **3–5 teammates** for most workflows.
+- Token costs scale **linearly** with the number of teammates.
+- **Three focused teammates often beat five scattered ones.**
+- About **5–6 tasks per teammate** keep everyone busy and let the lead reassign.
+
+With 15 independent tasks, three teammates are a good starting point — not fifteen.
+
+### Managing it
+
+| What | How |
+| --- | --- |
+| Select a teammate | Up/down arrows in the agents panel |
+| Open its transcript and talk to it | `Enter` |
+| Interrupt its turn | `Esc` |
+| Stop it | `x` on the selected teammate |
+| Show the task list | `Ctrl+T` |
+| Split panes | `claude --teammate-mode auto` — requires tmux or iTerm2 |
+| Shut down a teammate | *"Ask the researcher teammate to shut down"* |
+
+For risky work, you can require plan approval:
+
+```text
+Spawn an architect teammate to refactor the authentication module.
+Require plan approval before they make any changes.
+```
+
+The teammate works read-only until the lead approves. The lead decides **on its own**: to influence it,
+give it the criteria in the prompt — *"only approve plans that include test coverage"*.
+
+### The limits to know beforehand
+
+- **`/resume` and `/rewind` do not restore in-process teammates.** After resuming, the lead may try to
+  message teammates that no longer exist: tell it to spawn new ones.
+- **Task status can lag**: a teammate sometimes fails to mark a task as completed,
+  blocking the dependent ones.
+- **One team per session**, and **no nested teams**: only the lead can manage the team.
+- **Permissions are set at spawn**: all teammates start with the lead's mode.
+- **Split panes** do not work in the VS Code integrated terminal, in Windows Terminal, or in Ghostty.
+
+---
+
+## Guided example: a feature from start to PR
+
+Let's put everything together on a realistic case.
+
+<Steps>
+
+1. **Isolate the work.**
+
+   ```bash
+   claude --worktree reset-password
+   ```
+
+   Check that `.worktreeinclude` has brought over your `.env`; if it is not there, add it and recreate the worktree.
+
+2. **Explore before planning.** In Plan Mode:
+
+   ```text
+   Read src/auth/ and understand how tokens are issued and validated.
+   Also look at how we send transactional email. Don't propose anything yet.
+   ```
+
+3. **Have it make the plan, and correct it.**
+
+   ```text
+   I want to add a password reset flow. What files need to change?
+   What are the failure modes? Create a plan.
+   ```
+
+   `Ctrl+G` to open it in the editor. Add the verification section at the end, if it is missing.
+
+4. **Tests first.** Approve the plan by choosing *Yes, manually approve edits*, then:
+
+   ```text
+   Write the failing tests from the plan first. Do not implement anything yet.
+   Run them and show me they fail for the right reason.
+   ```
+
+5. **Read the tests.** This is the real checkpoint. Is a case missing? Is an assertion weak?
+
+6. **Implement with the constraint.**
+
+   ```text
+   Now implement until all tests pass. Do not modify the tests.
+   Run the suite and show me the output.
+   ```
+
+7. **Review with fresh eyes**, two levels:
+
+   ```text
+   /code-review high
+   ```
+
+   and then the one with your project's criteria:
+
+   ```text
+   @"reviewer (agent)" review the diff against PLAN.md. Check that every
+   requirement is implemented, the listed edge cases have tests, and nothing
+   outside src/auth/ changed.
+   ```
+
+8. **Ship it.** If you use the boilerplate from [module 18](/en/professionale/boilerplate/):
+
+   ```text
+   /ship add the password reset flow
+   ```
+
+9. **Exit the worktree.** With work in it, you are asked whether to keep it: keep it until the PR is
+   merged, so you can answer comments without recreating it.
+
+</Steps>
+
+## Bringing it into a team
+
+A workflow that lives in one person's head is not a workflow. Three levels of formalization, in
+increasing order of strength:
+
+| Level | Tool | Strength |
+| --- | --- | --- |
+| **Context** | Committed `CLAUDE.md` | Advice: Claude reads it and usually follows it |
+| **Command** | `.claude/commands/`, committed | Wraps the workflow: everyone invokes it the same way |
+| **Constraint** | Hooks in `.claude/settings.json`, committed | Code: it always happens |
+
+And two files that govern the review:
+
+- **`CLAUDE.md`** — the conventions. Violations introduced by a PR become nits.
+- **`REVIEW.md`** — what the review must and must not flag, and with what severity.
+
+<Aside type="tip" title="The rule that makes a workflow take root in a team">
+**If a rule really matters, write it as a hook or as a test, not as a sentence in `CLAUDE.md`.**
+
+A sentence is advice that gets lost in the noise as the file grows. A hook with
+`permissionDecisionReason` that says what to do instead corrects the behavior without anyone having to
+remember it. The `agentic-rag` boilerplate of [module 18](/en/professionale/boilerplate/) shows the complete
+pair: a hook that defends beforehand, a test that verifies afterwards.
+</Aside>
+
+## Exercise
+
+Set up the complete workflow on a real project, and make it shareable.
+
+1. Isolate a feature in a worktree and take it all the way to the PR with TDD.
+2. Add to the project a `REVIEW.md` calibrated on your codebase.
+3. Turn your verification loop from advice into a constraint.
+4. Try an agent team on a case where it pays off, and on one where it does not.
+
+<details class="soluzione">
+<summary>Solution</summary>
+
+**Steps 1–2.** Follow the guided example. For `REVIEW.md`, the way that works is not to write it up front:
+it is **to let the noisy reviews write it**. Run two or three reviews, note down the findings that
+wasted your time, and turn them into rules:
+
+```markdown title="REVIEW.md"
+# Review instructions
+
+## What Important means here
+
+Reserve Important for: wrong logic, queries not scoped to the tenant, secrets
+in logs, non-backward-compatible migrations. Everything else is Nit at most.
+
+## Do not report
+
+- What CI already enforces: lint, prettier, tsc
+- Files under `src/generated/` and `*.lock`
+- "This could be extracted into a function": it is not a defect
+
+## Verification threshold
+
+Claims about behavior require a `file:line` citation in the source,
+not an inference from a variable name.
+
+## On subsequent reviews
+
+After the first one, suppress new nits and report only Importants.
+```
+
+The *Verification threshold* section has the highest value-to-lines ratio: it cuts findings inferred
+from a function's name instead of its body, which are the main source of false positives.
+
+**Step 3 — from advice to constraint.** Three steps, and it pays to climb them in order:
+
+*Step 1 — in the prompt.* Works right away, does not work when you forget it:
+
+```text
+...run the tests and show me the output.
+```
+
+*Step 2 — `/goal`.* A separate evaluator rechecks after every turn:
+
+```text
+/goal npm test passes with zero failures and npm run typecheck is clean
+```
+
+*Step 3 — `Stop` hook.* Blocks the end of the turn until the check passes. The registration
+uses the usual two-level structure from [module 10](/en/personalizzazione/hooks/) — the outer level
+says *when* (the `Stop` event), the inner one *what to run*:
+
+```json title=".claude/settings.json"
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/gate.sh",
+            "timeout": 300
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+```bash title=".claude/hooks/gate.sh"
+#!/usr/bin/env bash
+# Prevents the end of the turn if the tests do not pass.
+# set -uo (without -e): a failing command must NOT kill the script,
+# because failure is exactly the case we want to handle ourselves.
+set -uo pipefail
+
+# Only if something changed: a Stop hook that runs the suite after
+# every question is unbearable. git diff --quiet exits with 0 if there
+# are no changes (--cached = those already staged): if both say
+# "nothing new", exit right away with 0 = all clear.
+git diff --quiet && git diff --cached --quiet && exit 0
+
+# Run the tests, capturing all output in the OUT variable
+if ! OUT=$(npm test --silent 2>&1); then
+  # Tests failed: send the last 30 lines of output back to Claude
+  # (>&2 = on the error channel, the one hooks report)
+  printf '%s\n' "$OUT" | tail -30 >&2
+  exit 2   # exit 2 on a Stop hook = "do not end the turn, keep working"
+fi
+```
+
+Exit 2 on `Stop` **makes the conversation continue**: Claude sees the failure and fixes it instead of
+stopping. Good to know: Claude Code overrides the hook and ends the turn after **8 consecutive blocks**, so a
+gate that cannot be satisfied does not trap you.
+
+The `git diff --quiet` line is what makes the hook usable: without it, the suite runs even when you ask
+"what is this function called".
+
+**Step 4 — where a team pays off and where it does not.**
+
+*A case where it pays off* — a bug whose cause you do not know:
+
+```text
+Users report that uploads over 10MB fail silently, but only in production.
+Spawn 4 teammates to investigate different hypotheses: one on the client-side
+upload, one on the reverse proxy config, one on the storage adapter, one on
+the request timeout chain. Have them challenge each other's theories.
+```
+
+Watch what happens: the teammates contradict each other, and the theory that survives the debate is the right one.
+On your own you would have found the first plausible explanation and stopped there.
+
+*A case where it does not pay off* — a migration across many files:
+
+```text
+Spawn 5 teammates to migrate all our components from the old form library
+to the new one.
+```
+
+What goes wrong, predictably: the teammates touch the same shared utility files, overwrite each other,
+and coordination costs more than the work. **Here the answer was the fan-out of
+[module 14](/en/automazione/pipeline-locali/)**: a `claude -p` loop per file, idempotent, with retries.
+No coordination because none is needed.
+
+The rule that emerges:
+
+```text
+Do the teammates need to discuss?     → agent team
+Do they just need to work?            → subagents, or fan-out with claude -p
+Do they touch the same files?         → do not parallelize, or separate worktrees
+```
+
+</details>
+
+## Common mistakes & troubleshooting
+
+| Symptom | Cause | Solution |
+| --- | --- | --- |
+| Tests written by the agent pass but verify nothing | Assertions too weak, or tests modified to make them pass | Read the tests **before** the implementation; explicitly forbid modifying them |
+| Tests fail for the wrong reason | They fail because of a missing import, not because of the behavior | Always ask *"show me they fail for the right reason"* |
+| The review always flags the same irrelevant things | No `REVIEW.md`, or one that is too generic | Add the *Do not report* and *Verification threshold* sections |
+| The review reaches the seventh round of style comments | No convergence rule | *"After the first review, suppress new nits"* |
+| `/rewind` does not undo the changes of `/code-review --fix` | A background review applies outside the checkpoints | Use git |
+| `/code-review` uses an effort you do not expect | It reuses the last level you typed, even from previous sessions | Type the level: `/code-review high` |
+| The new worktree does not start: `.env` is missing | A worktree is a fresh checkout | `.worktreeinclude` in the root |
+| Worktrees show up as untracked files | They are inside the repository | `.claude/worktrees/` in `.gitignore` |
+| Claude refuses a command inside a worktree | It cannot statically verify that it stays in the worktree | Split it into simple, separate commands: the check cannot be disabled |
+| Worktrees from `-p` runs pile up | Non-interactive runs have no exit prompt | `git worktree remove`, and `git worktree unlock` if it is locked |
+| A flow waiting for a subagent hangs | With teams enabled, a named subagent starts as a teammate, and the idle notification **does not carry the output** | `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=0` |
+| After `/resume` the lead messages nonexistent teammates | In-process teammates are not restored | Tell it to spawn new ones |
+| A team task stays blocked | A teammate did not mark it as completed | Update it by hand, or tell the lead to nudge |
+| The lead starts implementing instead of waiting | Known behavior | *"Wait for your teammates to complete their tasks before proceeding"* |
+| Token consumption explodes with a team | Each teammate is a separate instance, and cost scales linearly | 3–5 teammates; for work without discussion use subagents |
+| A `Stop` hook traps the session | The check can never succeed (broken suite, missing command) | Claude Code overrides it on its own after **8 consecutive blocks**; then fix the check |
+
+## Cheat sheet
+
+**TDD**
+
+```text
+1. "Write failing tests for [behavior]. Do not implement yet.
+    Run them and show me they fail for the right reason."
+2. Read the tests. This is the real review moment.
+3. "Now implement until all tests pass. Do not modify the tests.
+    Run the suite and show me the output."
+4. /goal <condition>    → soft gate
+5. Stop hook            → hard gate (overridden after 8 blocks)
+```
+
+**Code review**
+
+| Level | Command |
+| --- | --- |
+| While Claude writes | `/plugin install security-guidance@claude-plugins-official` |
+| On request | `/code-review [level] [target] [--fix] [--comment]` |
+| With your criteria | `@"reviewer (agent)" review the diff against PLAN.md` |
+| On PRs | Managed Code Review + `REVIEW.md` in the repository |
+| In depth, in the cloud | `/code-review ultra` |
+
+**Worktrees**
+
+| | |
+| --- | --- |
+| `claude --worktree <name>` | Isolated session in `.claude/worktrees/<name>/` |
+| `claude --worktree "#1234"` | From a PR — the quotes are needed |
+| `.worktreeinclude` | Gitignored files to copy into every worktree |
+| `.claude/worktrees/` in `.gitignore` | Avoids untracked files |
+| `worktree.baseRef: "head"` | Branches from current work instead of `main` |
+| `isolation: worktree` | In a subagent's frontmatter |
+| `git worktree list` · `remove` · `unlock` | Manual management |
+
+**Agent teams**
+
+```text
+CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1   → enables them (and changes delegation!)
+arrows · Enter · Esc · x · Ctrl+T        → agents panel
+claude --teammate-mode auto              → split panes (tmux/iTerm2)
+3–5 teammates · 5–6 tasks each
+```
+
+**The question that picks the tool**
+
+```text
+Need verification?           → tests, /goal, Stop hook
+Need a fresh judgment?       → /code-review, or a reviewer subagent
+Need isolated files?         → worktree
+Need parallel work?          → subagents, or fan-out with claude -p
+Need them to discuss?        → agent team
+```
+
+## Sources
+
+Official pages consulted, checked on **16 August 2026**:
+
+- [Best practices](https://code.claude.com/docs/en/best-practices) — verification, Writer/Reviewer pattern, adversarial review, fan-out
+- [Code review](https://code.claude.com/docs/en/code-review) — `/code-review`, effort, `--fix`, `--comment`, `REVIEW.md`, severity and pricing
+- [Run parallel sessions with worktrees](https://code.claude.com/docs/en/worktrees) — `--worktree`, `.worktreeinclude`, enforcement, cleanup
+- [Orchestrate teams of Claude Code sessions](https://code.claude.com/docs/en/agent-teams) — enabling, coordination, sizing, limits
+- [Subagents](https://code.claude.com/docs/en/sub-agents) — delegation and `isolation: worktree`
+- [Hooks reference](https://code.claude.com/docs/en/hooks) — `Stop`, `TeammateIdle`, `TaskCreated`, `TaskCompleted` hooks
+- [Set a goal](https://code.claude.com/docs/en/goal) — `/goal` and how it is evaluated
+- [Security guidance plugin](https://code.claude.com/docs/en/security-guidance) — automatic review during the session
+- [Manage sessions](https://code.claude.com/docs/en/sessions) — resuming and branching sessions

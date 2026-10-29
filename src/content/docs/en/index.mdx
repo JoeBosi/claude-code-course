@@ -1,0 +1,119 @@
+---
+title: Claude Code Tutorial
+description: "A complete, free course on Claude Code — CLI, VS Code extension and desktop app, on macOS and Windows. From zero to professional level, with official sources in every module."
+template: splash
+hero:
+  tagline: "From <code>npm install</code> to production agentic workflows — twenty modules on Claude Code, with runnable examples and official sources."
+  actions:
+    - text: Start with module 0
+      link: /en/fondamenta/setup/
+      icon: right-arrow
+      variant: primary
+    - text: Official Claude Code docs
+      link: https://code.claude.com/docs/en/overview
+      icon: external
+      variant: minimal
+---
+
+import { Aside, Card, CardGrid, LinkCard, Badge } from '@astrojs/starlight/components';
+
+<p>
+	<Badge text="20 modules" variant="note" size="medium" />
+	<Badge text="macOS and Windows" variant="note" size="medium" />
+</p>
+
+## Why this course
+
+Claude Code is an **[agent](/en/glossario/#agent)**: an AI that does not just make suggestions, it acts —
+it reads your project's files, runs commands in the [terminal](/en/glossario/#terminal), edits the
+code, checks the result and corrects itself until the job is done. It changes the way software is
+built, and the old habits are no longer enough.
+
+This course takes you from the first installation to the workflows that are actually used in
+production: managing the AI's memory, the `CLAUDE.md` instructions file, the extensions
+(skills, MCP, hooks, subagents — each explained in its own module, and all of them in the
+[Glossary](/en/glossario/)), headless automation and reusable project templates. Every module ends with links
+to the official documentation: they are the map for going deeper and the place to read about what's new.
+
+<CardGrid>
+	<Card title="Foundations" icon="rocket">
+		Setup on macOS and Windows, Claude in IDEs, anatomy of the configuration files, agentic coding,
+		context management, `CLAUDE.md` and Plan Mode. **Modules 0–6.**
+	</Card>
+	<Card title="Customization and extensions" icon="puzzle">
+		Slash commands, skills, MCP servers, hooks and subagents: how to adapt Claude Code to your project
+		and your way of working. **Modules 7–11.**
+	</Card>
+	<Card title="Automation and integration" icon="setting">
+		Headless mode with `claude -p`, JSON output, Unix pipelines and CI, remote sessions and asynchronous
+		work. **Modules 12–15.**
+	</Card>
+	<Card title="Professional level" icon="approve-check">
+		The ecosystem and evaluating sources, choosing stacks and architectures, downloadable agentic
+		boilerplates and team workflows. **Modules 16–19.**
+	</Card>
+</CardGrid>
+
+## Prerequisites
+
+The only hard requirement is **a Claude account with an active plan** (Pro, Max or Team). The course
+always uses the account login: a paid API key is never needed, and never asked for.
+
+These help, but **are not mandatory**:
+
+- **Familiarity with the terminal** — you can move between folders, run commands, read an error.
+- **The basics of git** — commit, branch and diff, at least as concepts.
+- **Node.js installed**, for the hands-on examples in some modules.
+- **macOS or Windows**: every command is given in both versions, zsh and PowerShell, with the choice
+  of operating system synchronized across all pages.
+
+No previous experience with AI agents or with Claude Code is needed: we start from zero.
+
+<Aside type="tip" title="Not a developer?">
+You can still follow the course. Start with **[The basics](/en/basi/)** — ten minutes on the terminal, git, file
+formats and how an AI model reasons — and keep the **[Glossary](/en/glossario/)** open: every technical
+term in the course is explained there in one sentence, with an analogy. Inside the modules, the more
+technical steps have a collapsible *"Starting from zero"* box with the minimum explanation you need to keep going.
+</Aside>
+
+## Where to start
+
+<CardGrid>
+	<LinkCard
+		title="The basics, before you start"
+		description="Ten minutes on the terminal, git and how an AI model reasons. If you are not a developer by trade, start here."
+		href="/en/basi/"
+	/>
+	<LinkCard
+		title="0 · Setup and installation"
+		description="Install the CLI and the desktop app, log in and open your first project."
+		href="/en/fondamenta/setup/"
+	/>
+	<LinkCard
+		title="2 · Anatomy of the files"
+		description="If you have already installed everything, start here: where the configuration really lives."
+		href="/en/fondamenta/anatomia-file/"
+	/>
+	<LinkCard
+		title="18 · Agentic boilerplates"
+		description="The three downloadable template folders for starting a project in a few minutes."
+		href="/en/professionale/boilerplate/"
+	/>
+	<LinkCard
+		title="16 · Ecosystem and sources"
+		description="Where to find reliable skills, MCP servers and plugins — and how to evaluate them."
+		href="/en/professionale/ecosistema/"
+	/>
+</CardGrid>
+
+## How to read the modules
+
+Every module always has the same structure, so you know what to expect: estimated time and prerequisites,
+objectives, key concepts, a step-by-step guided example with the expected output, an exercise with the
+solution in a collapsible block, common mistakes and troubleshooting, a final cheat sheet and the official
+sources consulted, with the date they were checked.
+
+And the course runs on **two tracks**: the main text is written for developers, but every technical
+term is linked to the [Glossary](/en/glossario/) on its first occurrence, and the steps that assume
+developer knowledge have a collapsible *"Starting from zero"* box with the minimum explanation needed
+to follow along. Those who know skip them; those who don't never get lost.

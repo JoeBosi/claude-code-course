@@ -2,9 +2,9 @@
 
 **English** · [Italiano](README.it.md)
 
-**Learn Claude Code step by step**: a free, open course (in Italian) on Anthropic's AI coding agent, covering the CLI, the VS Code extension and the desktop app, CLAUDE.md, Plan Mode, skills, MCP servers, hooks, subagents and headless automation, with runnable examples and three ready-to-use boilerplates.
+**Learn Claude Code step by step**: a free, open course (in Italian and English) on Anthropic's AI coding agent, covering the CLI, the VS Code extension and the desktop app, CLAUDE.md, Plan Mode, skills, MCP servers, hooks, subagents and headless automation, with runnable examples and three ready-to-use boilerplates.
 
-**Live site:** <https://claude-tutorial.giuseppebosi.com>
+**Live site:** <https://claude-tutorial.giuseppebosi.com> · English: <https://claude-tutorial.giuseppebosi.com/en/>
 
 ## What it covers
 
@@ -30,7 +30,8 @@ npm run preview   # serve dist/, search included
 ## Project structure
 
 ```text
-src/content/docs/   course pages (MDX), one folder per part
+src/content/docs/   course pages (MDX), one folder per part; English under en/
+docs/               Italian → English translation glossary and brief
 src/components/     Starlight overrides (header title, footer) and the "Zero" box
 src/pages/          llms.txt and llms-full.txt endpoints
 boilerplates/       the three downloadable templates

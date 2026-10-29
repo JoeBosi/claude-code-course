@@ -1,0 +1,545 @@
+---
+title: "7 · Slash Commands"
+description: "Claude Code's built-in slash commands, bundled skills such as /code-review and /debug, and how to create your own user-level and project-level custom commands."
+---
+
+import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
+import Zero from '@/components/Zero.astro';
+
+<div class="meta-modulo">
+	<span><strong>Estimated time:</strong> 40 minutes</span>
+	<span><strong>Prerequisites:</strong> the <a href="/en/fondamenta/setup/">Foundations</a> section completed.</span>
+</div>
+
+Slash commands are Claude Code's shortcuts: you type `/` plus a name, and you run a function or
+a ready-made prompt. The interesting part is not the built-in ones — you learn those by using them —
+but the fact that you can **create your own**: every prompt you find yourself rewriting becomes a text
+file, and from that moment on it is a command. It is the first step of customization, and the most
+underrated: five minutes to write one, saved forever.
+
+## Objectives
+
+- Know the built-in commands you would use every day, without having to look them up.
+- Tell built-in commands, bundled skills and your own commands apart.
+- Create a custom command in under a minute, at user or project level.
+- Pass arguments to a command and chain several of them in a single message.
+- Know who wins when two commands have the same name.
+
+## Key concepts
+
+**Three families under the same slash.** What you type after `/` can be one of three things:
+
+1. **Built-in commands** — CLI functions: `/clear`, `/compact`, `/model`, `/login`. They run code.
+2. **Bundled skills** — ready-made prompts that ship with Claude Code: `/code-review`, `/debug`,
+   `/dataviz`, `/init`. They are prompts handed to Claude, which Claude can also invoke on its own.
+3. **Your own commands and skills** — the ones you write.
+
+**Custom commands have been merged with skills.** This is the point that most confuses people coming from
+old guides. A file in `.claude/commands/deploy.md` and a skill in `.claude/skills/deploy/SKILL.md`
+**both** create `/deploy` and work the same way. Your existing `.claude/commands/` keep
+working. Skills add options: a directory for supporting files, frontmatter to control
+who invokes them, and the possibility for Claude to load them on its own when needed.
+
+The practical consequence: **`commands/` is the short form, `skills/` is the full form.** A prompt in a
+single file, with no special options? `commands/`. Need more? `skills/`, which we cover in
+[module 8](/en/personalizzazione/skills/).
+
+**You can chain up to six in a single message** (the first plus five more). Typing
+`/write-tests /fix-issue 123` loads both skills and passes
+the final text `123` as an argument to each. Claude Code expands the first skill plus five more.
+Expansion stops at the first word that is not a user-invocable "inline" skill — where
+*inline* means a skill that expands inside your conversation, which is the default; those that
+run as a separate subagent (like `/code-review`) close the chain. That word and everything that
+follows becomes the argument text.
+
+## The built-in commands
+
+The tables below are **reference material, not study material**: skim them once to
+know what exists, and come back here when you need them. Many commands touch features the course explains in
+later modules — where that is the case, the table says so. The quickest way to discover them is still
+to type `/` in a session: the full menu opens, with search.
+
+### Every day
+
+| Command | What it does |
+| --- | --- |
+| `/help` | Shows help and the available commands |
+| `/clear` (`/reset`, `/new`) | New conversation, context cleared |
+| `/compact` | Summarizes the conversation to free up context |
+| `/context` | Visualizes context usage |
+| `/model` | Changes model |
+| `/exit` (`/quit`) | Exits the CLI |
+| `/diff` | Opens the interactive diff viewer |
+| `/rewind` | Conversation and code rewind menu |
+
+### Context and memory
+
+| Command | What it does |
+| --- | --- |
+| `/memory` | Opens and edits the `CLAUDE.md` files and the auto memory folder |
+| `/init` | Initializes the project with a `CLAUDE.md` |
+| `/autocompact` | Sets the auto-compaction threshold |
+| `/btw` | Side question that does not enter the history |
+| `/recap` | Generates a summary of the session |
+| `/export` | Exports the conversation as text |
+| `/add-dir` | Adds an accessible working directory |
+| `/cd` | Moves the session to another directory |
+
+### Permissions, configuration and diagnostics
+
+| Command | What it does |
+| --- | --- |
+| `/plan` | Enters Plan Mode for the next prompt |
+| `/permissions` (`/allowed-tools`) | Manages tool permissions |
+| `/config` (`/settings`) | Opens the settings interface |
+| `/doctor` (`/checkup`) | Setup diagnostics, with suggested fixes |
+| `/status` | Account, login method, configuration status |
+| `/usage` (`/cost`) | Plan usage, per session and per week |
+| `/insights` | Usage analysis report |
+| `/debug` | Enables debug logging |
+| `/fewer-permission-prompts` | Builds an allowlist to reduce confirmations |
+| `/effort` | Sets the model's effort level |
+| `/fast` | Turns fast mode on or off |
+| `/keybindings` | Opens the keyboard shortcuts file |
+
+### Extensions
+
+| Command | What it does |
+| --- | --- |
+| `/mcp` | Manages connections to MCP servers |
+| `/hooks` | Shows the hook configuration |
+| `/agents` | Manages subagent configuration |
+| `/plugin` | Manages plugins |
+| `/skills` | Skills menu, with the visibility of each |
+| `/reload-skills` | Rescans the skill directories |
+| `/reload-plugins` | Reloads the active plugins |
+| `/ide` | Manages IDE integration |
+| `/chrome` | Configures Claude in Chrome |
+
+### Parallel and asynchronous work
+
+These commands belong to the topics of modules [11](/en/personalizzazione/agents-subagents/) (several agents
+working together) and [15](/en/automazione/sessioni-remote/) (sessions that keep going without you): here
+the names are enough, there you get the how and the why.
+
+| Command | What it does |
+| --- | --- |
+| `/background` (`/bg`) | Sends the session to work on its own in the background, while you do something else |
+| `/fork` | Creates an independent copy of it that carries on in the background |
+| `/branch` | Creates a "branch" of the conversation: you try one path without losing the other |
+| `/subtask` | Delegates a task to a helper that inherits the whole conversation ([module 11](/en/personalizzazione/agents-subagents/)) |
+| `/goal` | Sets a goal: Claude keeps working until it is reached |
+| `/loop` (`/proactive`) | Repeats a prompt at regular intervals |
+| `/batch` | Orchestrates the same change across many files in parallel |
+| `/remote-control` | Makes the session visible from browser and phone ([module 15](/en/automazione/sessioni-remote/)) |
+| `/desktop` (`/app`) | Continues the conversation in the desktop app |
+| `/list-agents` (`/peers`) | Lists the active agents you can send messages to |
+| `/statusline` | Customizes the terminal status bar |
+
+### Bundled skills
+
+| Command | What it does |
+| --- | --- |
+| `/code-review` (`/review`) | Reviews the current diff or a PR looking for bugs |
+| `/deep-research` | Fans out web research and synthesizes a report |
+| `/dataviz` | Design guidance for charts and visualizations |
+| `/autofix-pr` | Watches a PR and fixes CI failures |
+| `/security-review` | Security review of pending changes |
+| `/powerup` | Interactive lessons on the features |
+
+### Git and integrations
+
+| Command | What it does |
+| --- | --- |
+| `/install-github-app` | Installs the Claude GitHub App |
+| `/install-slack-app` | Installs the Claude app for Slack |
+| `/bug` (`/share`) | Reports a bug with the session context |
+| `/feedback` | Sends product feedback |
+| `/release-notes` | Shows the changelog |
+
+<Aside type="tip" title="The fastest way to find your way around">
+Just type `/`: the menu opens with all the commands and skills available in your configuration,
+including the ones you wrote and those from plugins. Tab completes.
+</Aside>
+
+## Creating a custom command
+
+The minimal form is a markdown file. The **file name becomes the command**.
+
+<Steps>
+
+1. **Choose the level.**
+
+   | Level | Path | Available in |
+   | --- | --- | --- |
+   | Personal | `~/.claude/commands/<nome>.md` | All your projects |
+   | Project | `.claude/commands/<nome>.md` | This project only, shared with the team via git |
+
+2. **Write the prompt.** No frontmatter needed:
+
+   ```markdown title="~/.claude/commands/spiega.md"
+   Spiega il codice selezionato o il file indicato a un collega che conosce il
+   linguaggio ma non questo progetto.
+
+   Struttura la risposta così:
+   1. Cosa fa, in una frase
+   2. Perché esiste — quale problema risolve
+   3. Le due o tre decisioni non ovvie, con il motivo
+   4. Cosa può rompersi se lo modifichi
+
+   Niente parafrasi riga per riga: se una cosa si legge dal codice, non ripeterla.
+   ```
+
+   *(The prompt asks Claude to explain the code to a colleague who knows the language but not the project:
+   what it does, why it exists, the non-obvious decisions, what can break — no line-by-line paraphrase.)*
+
+3. **Use it.**
+
+   ```text
+   /spiega
+   ```
+
+   If the command does not show up, `/reload-skills` rescans the directories.
+
+</Steps>
+
+### Arguments
+
+The `$ARGUMENTS` placeholder is replaced with everything that follows the command name:
+
+```markdown title=".claude/commands/fix-issue.md"
+Fix GitHub issue $ARGUMENTS following our coding standards.
+
+1. Read the issue description with `gh issue view`
+2. Understand the requirements
+3. Implement the fix
+4. Write tests
+5. Create a commit
+```
+
+Running `/fix-issue 123`, Claude receives *"Fix GitHub issue 123 following our coding standards..."*.
+
+To access individual arguments by position, use `$ARGUMENTS[N]` or the short form `$N`:
+
+```markdown title=".claude/commands/migrate-component.md"
+Migrate the $0 component from $1 to $2.
+Preserve all existing behavior and tests.
+```
+
+`/migrate-component SearchBar React Vue` replaces `$0` with `SearchBar`, `$1` with `React`, `$2` with `Vue`.
+
+<Aside type="note" title="If you forget $ARGUMENTS">
+If you invoke a command with arguments but the file does not contain `$ARGUMENTS`, Claude Code appends
+`ARGUMENTS: <quello che hai scritto>` at the end of the content, so Claude still sees what you typed.
+Handy, but it is better to be explicit about where they should go.
+</Aside>
+
+### Dynamic context
+
+The `` !`<comando>` `` syntax runs a shell command **before** the content reaches Claude, and
+replaces the placeholder with the output. Claude receives the real data, not the command:
+
+```markdown title="~/.claude/commands/che-ho-cambiato.md"
+## Modifiche correnti
+
+!`git diff HEAD`
+
+## Istruzioni
+
+Riassumi le modifiche qui sopra in due o tre bullet, poi elenca i rischi che noti:
+gestione degli errori mancante, valori hardcoded, test da aggiornare. Se la diff è
+vuota, dillo e basta.
+```
+
+*(The prompt asks for a two-or-three-bullet summary of the changes, then the risks: missing error handling,
+hardcoded values, tests to update; if the diff is empty, just say so.)*
+
+It is the difference between a command that asks Claude to *go and look for* the diff and one that **brings it
+in already**: fewer round trips, less context, an answer anchored to the real working tree.
+
+## Who wins when names collide
+
+The resolution order:
+
+<Steps>
+
+1. **Between levels**: enterprise beats personal, personal beats project.
+   With a `deploy` both in `~/.claude/skills/` and in the project's `.claude/skills/`, `/deploy` runs
+   **the personal one**.
+2. **Over bundled skills**: your skill with the same name replaces the built-in one — but **not its
+   aliases**. A project `code-review` replaces `/code-review`, while typing the alias `/review` always
+   runs the built-in one.
+3. **Plugins do not collide**: they use the `nome-plugin:nome-skill` namespace. `my-plugin/skills/deploy/`
+   becomes `/my-plugin:deploy` and lives alongside a project `deploy`.
+4. **Skill beats command**: if both `.claude/commands/deploy.md` and
+   `.claude/skills/deploy/SKILL.md` exist, `/deploy` runs the **skill**.
+5. **Local beats synced**: a skill saved in your files overrides one with the same name
+   synced from your claude.ai account — skills created on the website follow you into the CLI too, as
+   you will see in [module 8](/en/personalizzazione/skills/).
+
+</Steps>
+
+<Aside type="caution" title="Point 2 is a trap">
+The alias does not follow the override. If you replace `/code-review` and then type `/review` out of habit, you are
+running a different command from the one you think.
+</Aside>
+
+<Aside type="note" title="Watch out: this order is the OPPOSITE of the settings one">
+In [module 2](/en/fondamenta/anatomia-file/) you saw that for **settings** the level closest to the
+project wins (`settings.local.json` beats the shared settings, which beat the user ones). For
+**skills** it is the other way round: your personal skill beats the project one. They are two different mechanisms
+with two different logics — settings *merge* and the most specific wins; skills are *picked*
+by name, and yours takes precedence. Do not try to infer one from the other.
+</Aside>
+
+## Guided example
+
+Let's build two commands that actually get used: one personal, one for the project.
+
+<Steps>
+
+1. **Personal command: pre-commit review.** It applies to all your projects.
+
+   <Tabs syncKey="os">
+   <TabItem label="macOS" icon="apple">
+   ```bash
+   mkdir -p ~/.claude/commands
+   ```
+   </TabItem>
+   <TabItem label="Windows" icon="seti:windows">
+   ```powershell
+   New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\commands"
+   ```
+   </TabItem>
+   </Tabs>
+
+   First, a word on the git command used inside it: **staging** is the "waiting room" of the commit —
+   with `git add` you put in staging the changes you mean to save, and `git diff --staged` shows
+   exactly those. It is the perfect moment for a last check: you are looking at **what is about
+   to enter the project history**, nothing more and nothing less.
+
+   ```markdown title="~/.claude/commands/pre-commit.md"
+   ## Diff da rivedere
+
+   !`git diff --staged`
+
+   ## File modificati
+
+   !`git diff --staged --name-only`
+
+   ## Istruzioni
+
+   Rivedi la diff in staging cercando **solo** questi problemi:
+
+   - Segreti, chiavi o credenziali finiti nel codice
+   - Stampe di debug dimenticate (`console.log`, `print` e simili)
+   - `TODO` o `FIXME` aggiunti in questa diff
+   - File che non c'entrano con il resto della modifica
+
+   Per ciascun problema indica file e riga. Se non trovi nulla, rispondi
+   esattamente `OK` e nient'altro. Non commentare lo stile.
+   ```
+
+   *(The two commands between `` !`…` `` run before Claude reads: the diff arrives already inside the prompt.
+   The instructions ask Claude to look **only** for secrets in the code, forgotten debug prints, new `TODO`/`FIXME`
+   and unrelated files, giving file and line, and to answer exactly `OK` if it finds nothing.)*
+
+2. **Try it.** Stage something and run:
+
+   ```text
+   /pre-commit
+   ```
+
+   Expected output on a clean diff:
+
+   ```text
+   OK
+   ```
+
+3. **Project command: opening a [PR](/en/glossario/#pr-pull-request) with the team convention.**
+   This one gets committed, so the whole team opens PRs in the same format. It uses `gh`, GitHub's official
+   CLI (install it from [cli.github.com](https://cli.github.com), then `gh auth login`): it is the
+   bridge between the terminal and GitHub, and Claude knows how to use it well.
+
+   Inside there are two git notations worth telling apart once and for all:
+   **`origin/main..HEAD`** (two dots) = "the commits I have and main does not" — the list of your
+   commits; **`origin/main...HEAD`** (three dots, in the context of `git diff`) = "the differences from
+   the point where I branched off main" — the overall diff of your work.
+
+   ```markdown title=".claude/commands/pr.md"
+   ## Commit di questo branch
+
+   !`git log --oneline origin/main..HEAD`
+
+   ## Riepilogo delle modifiche
+
+   !`git diff origin/main...HEAD --stat`
+
+   ## Istruzioni
+
+   Apri una pull request per il branch corrente con `gh pr create`.
+
+   Se l'utente ha passato del testo dopo il comando, è il titolo da usare: $ARGUMENTS
+   Altrimenti componi tu il titolo: conventional commit, in inglese, minuscolo
+   dopo il prefisso (es. "feat: add password reset flow").
+
+   Corpo in italiano, con esattamente queste sezioni:
+
+   ### Cosa cambia
+   Due o tre bullet, dal punto di vista di chi usa il software.
+
+   ### Perché
+   Una frase. Se c'è una issue collegata, linkala.
+
+   ### Come verificarlo
+   Passi concreti che il revisore può eseguire.
+
+   Se ci sono meno di due commit sul branch, fermati e chiedi conferma prima
+   di aprire la PR.
+   ```
+
+   *(The prompt opens a PR with `gh pr create`, uses `$ARGUMENTS` as the title if given, otherwise writes a
+   conventional-commit title; the body has three fixed sections — what changes, why, how to verify it — and
+   Claude asks for confirmation if the branch has fewer than two commits.)*
+
+4. **Try it with an argument.**
+
+   ```text
+   /pr aggiunge la validazione degli input
+   ```
+
+5. **Chain them.** In a single message:
+
+   ```text
+   /pre-commit /pr
+   ```
+
+   Both are loaded. Remember the limit: the first skill plus five more.
+
+6. **Commit the project command**, so the whole team has it:
+
+   ```bash
+   git add .claude/commands/pr.md
+   git commit -m "chore: comando /pr con la convenzione PR del team"
+   ```
+
+</Steps>
+
+## Exercise
+
+Create a command that solves a real annoyance in your work.
+
+1. Think of a prompt you have rewritten at least twice this week. Turn it into a command.
+2. Make it work on real data, injecting context with `` !`comando` ``.
+3. Add argument support.
+4. Decide whether it goes at user or project level, and justify the choice.
+
+<details class="soluzione">
+<summary>Solution</summary>
+
+A realistic example: the command that explains why a test fails, instead of making you paste the output
+by hand every time.
+
+A note on the injected command: `2>&1` means "send the **errors** into the same stream
+as normal output too" — failing tests write precisely to the error channel
+([stderr](/en/glossario/#stdin--stdout--stderr)), and without this addition Claude would only see the
+quiet part. `| tail -60` keeps the last 60 lines: the ones where the failures are.
+
+```markdown title=".claude/commands/perche-fallisce.md"
+## Esito dei test
+
+!`npm test 2>&1 | tail -60`
+
+## Modifiche non committate
+
+!`git diff --stat`
+
+## Istruzioni
+
+Il test indicato in $ARGUMENTS (o il primo che fallisce, se non è indicato) non passa.
+
+1. Leggi l'output qui sopra e individua l'asserzione che fallisce davvero — non
+   il primo messaggio rosso, quello che conta.
+2. Apri il file di test e il codice sotto test.
+3. Dimmi in una frase se è il test a essere sbagliato o il codice.
+4. Proponi la correzione minima. Non riscrivere parti che passano già.
+
+Non correggere nulla finché non ti do l'ok.
+```
+
+*(The prompt asks Claude to find the assertion that really fails, open the test and the code under test, say in
+one sentence whether the test or the code is wrong, and propose the minimal fix — without changing anything until you approve.)*
+
+**Why project level and not user level:** it contains `npm test`. A command that assumes a specific test runner
+belongs to the project that uses that runner. If you put it in `~/.claude/commands/`, it would silently break
+in every Python or Go project.
+
+The rule for choosing:
+
+| Put at **user** level | Put at **project** level |
+| --- | --- |
+| Preferences on how you want answers | Commands that assume a specific tool (`npm`, `pytest`, `make`) |
+| Habits that follow you everywhere | Team conventions (PR format, review checklist) |
+| Things that do not depend on the codebase | Everything that makes sense to share and version |
+
+**Check that it really works:** break a test on purpose and run `/perche-fallisce`. If the answer
+starts by asking you to paste the output, the context injection did not work — check the
+backticks and the exclamation mark: the syntax is `` !`comando` ``, with the `!` **outside** the backticks.
+
+</details>
+
+## Common mistakes & troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| The new command does not show up in `/` | The directories have not been rescanned | `/reload-skills` |
+| `/review` does not run your `code-review` | Bundled skill aliases do not follow the override | Use the full name `/code-review`, or give yours a different name |
+| `/deploy` runs a version you did not expect | Personal beats project | Check `~/.claude/skills/` and `~/.claude/commands/` |
+| `` !`comando` `` shows up as text instead of running | Wrong syntax: the `!` goes outside the backticks | The correct form is `` !`git diff` `` |
+| The arguments do not end up where you want | `$ARGUMENTS` is missing from the file | They are appended at the end as `ARGUMENTS: ...`: add the placeholder where needed |
+| When chaining commands only one starts | Expansion stops at the first token that is not an inline skill | Commands that run as a subagent, like `/code-review`, close the chain |
+| A project command does not work for colleagues | The file is not committed, or it assumes tools they do not have | Commit `.claude/commands/` and declare the dependencies in `CLAUDE.md` |
+| You have too many commands and Claude no longer invokes them on its own | Descriptions get shortened to fit the listing budget | See [module 8](/en/personalizzazione/skills/): `skillOverrides` and `skillListingBudgetFraction` |
+
+## Cheat sheet
+
+**Creating a command**
+
+```text
+~/.claude/commands/<nome>.md    → /<nome>, in tutti i progetti
+.claude/commands/<nome>.md      → /<nome>, solo qui, si committa
+```
+
+*(User level: available in all projects. Project level: only here, and it gets committed.)*
+
+| Syntax | What it does |
+| --- | --- |
+| `$ARGUMENTS` | Everything that follows the command name |
+| `$ARGUMENTS[0]` or `$0` | The first positional argument |
+| `` !`comando` `` | Runs the command and inserts the output before Claude reads |
+| `/a /b testo` | Chains several skills — the first plus five more |
+
+**The ten commands to know by heart**
+
+| Command | |
+| --- | --- |
+| `/` | Opens the menu of everything available |
+| `/clear` | Clears the context |
+| `/context` | What is taking up the window |
+| `/compact <focus>` | Summarizes while keeping the focus |
+| `/plan` | Plan Mode for the next prompt |
+| `/rewind` | Goes back in the code or the conversation |
+| `/code-review` | Review of the diff in a fresh subagent |
+| `/doctor` | Setup and configuration diagnostics |
+| `/usage` | How much of the plan you are using |
+| `/reload-skills` | Rescans commands and skills |
+
+## Sources
+
+Official pages consulted, checked on **16 August 2026**:
+
+- [Commands reference](https://code.claude.com/docs/en/commands) — full list of built-in commands and bundled skills
+- [Extend Claude with skills](https://code.claude.com/docs/en/skills) — custom commands, `$ARGUMENTS`, dynamic context, name conflict resolution
+- [Explore the .claude directory](https://code.claude.com/docs/en/claude-directory) — locations of `commands/` and `skills/`
+- [Code review](https://code.claude.com/docs/en/code-review) — the bundled `/code-review` skill
+- [Plugins](https://code.claude.com/docs/en/plugins) — plugin command namespaces

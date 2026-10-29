@@ -1,0 +1,540 @@
+---
+title: "16 · Ecosystem and sources"
+description: "MCP server directories compared, where to find trustworthy skills and plugins, an evaluation checklist to run before installing, and an end-to-end workflow from search to test."
+---
+
+import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
+import Zero from '@/components/Zero.astro';
+
+<div class="meta-modulo">
+	<span><strong>Estimated time:</strong> 50 minutes</span>
+	<span><strong>Prerequisites:</strong> modules <a href="/en/personalizzazione/mcp/">9</a> and <a href="/en/personalizzazione/skills/">8</a>. The final workflow uses a Postgres database: if you don't have one, follow it as a read-through — the method is identical for any service.</span>
+</div>
+
+A three-line recap of the three things this module teaches you to *find*:
+[skills](/en/glossario/#skill) are packaged instructions ([module 8](/en/personalizzazione/skills/)),
+[MCP](/en/glossario/#mcp) servers connect Claude to external services
+([module 9](/en/personalizzazione/mcp/)), [plugins](/en/glossario/#plugin) bundle skills + agents +
+servers into a single installation. There you learned to build them; here you learn the complementary craft:
+**finding ones made by others, and deciding which to trust**. Because installing the wrong extension is
+not like installing a poor app: it means handing someone else the keys to your project — and this module is
+the toolbox for never doing that blindly.
+
+## Objectives
+
+- Know which MCP directory to consult depending on what you are looking for.
+- Tell the source of truth apart from the directories that index it.
+- Find quality skills and plugins, and understand who validated them and how much.
+- Evaluate an extension **before** installing it, with a repeatable checklist.
+- Walk the complete cycle: search, evaluate, install, test.
+
+## Key concepts
+
+**One source of truth, many storefronts.** The "source of truth" is the place that counts
+when versions of the same information disagree. For MCP servers that place is the
+**official Registry** ([registry.modelcontextprotocol.io](https://registry.modelcontextprotocol.io)):
+the protocol's canonical registry, with a public API. All the other directories — Glama, mcp.so, Smithery, PulseMCP, Docker —
+are catalogs that index, enrich and sometimes host. They are very useful for **discovering**, but
+when you need to decide *which server is really a vendor's official one*, the answer lies in the registry or on the
+vendor's site.
+
+**Nobody runs a security audit of MCP servers.** The documentation is explicit: Anthropic reviews
+connectors against its own listing criteria before adding them to the Anthropic Directory, but **does not
+perform security audits or manage any MCP server**. GitHub "stars" — the thumbs-up
+users give the projects they like — measure popularity, not security. And the
+"official" badge on a directory says that the publisher is verified, not that the code is safe.
+
+**The rule that settles most cases:** if the vendor publishes an **official remote server**,
+use that one. An HTTP server managed by the vendor does not run on your machine, has no access to your
+filesystem, and is updated by whoever wrote the service.
+
+**Plugins and marketplaces are highly trusted components.** They can **execute arbitrary code on your
+machine with your privileges**. Anthropic does not control which MCP servers, files or software are included
+in plugins, and cannot verify that they work as intended.
+
+## MCP directories compared
+
+Sizes and numbers are a snapshot from **August 2026**: the directories update them continuously, and the links in the table show the current values.
+
+| Directory | Stated size | Strengths | When to use it |
+| --- | --- | --- | --- |
+| **[Official MCP Registry](https://registry.modelcontextprotocol.io)** | — (API `v0/servers`) | The protocol's **source of truth**, queryable via API, with no editorial layers | Checking which server is the canonical one; automations that need to resolve a name |
+| **[Anthropic Directory](https://claude.ai/directory)** | — | Connectors reviewed against Anthropic's [listing criteria](https://claude.com/docs/connectors/building/review-criteria). They use the same MCP infrastructure as Claude Code | Start here for mainstream services. **Requires login to claude.ai** |
+| **[Glama](https://glama.ai/mcp/servers)** | **72,476** servers | **Letter grades** for license, code quality and maintenance status. MCP Inspector to analyze a server, managed hosting. Categories: Developer Tools 18,068, Search 11,137, Databases 4,492 | The broadest catalog, and the only one with an explicit quality judgment |
+| **[PulseMCP](https://www.pulsemcp.com/servers)** | **22,057** servers | Updated daily. Classification by type — Anthropic reference, official providers, community. Sorting by all-time / monthly / weekly popularity, and a client directory | Understanding what people actually use, and telling official from community at a glance |
+| **[Smithery](https://smithery.ai)** | over **14,936** MCPs | **Handles OAuth, credentials and sessions for you.** One-line installation (`npx -y smithery setup`), publishing and observability on tool usage | When the problem is not finding the server but getting it to authenticate |
+| **[mcp.so](https://mcp.so)** | — | Marketplace with separate sections for Servers, Remote Servers, Clients, CLI, Skills and Agents. Hand-picked featured servers | Discovering new things, including skills and agents beyond MCPs |
+| **[Docker MCP Catalog](https://hub.docker.com/catalogs/mcp)** | — | The largest library of **containerized** MCP servers. MCP Toolkit and MCP Gateway to manage them | When you want isolation: a server in a container does not touch your filesystem |
+| **[awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers)** | — | Curated list on GitHub, with human-written context | A readable overview, to understand what exists in a category |
+| **[modelcontextprotocol/servers](https://github.com/modelcontextprotocol/servers)** | — | The protocol's **reference servers** | Seeing what a well-written server looks like, and for basic uses |
+
+<Aside type="caution" title="The numbers say less than they seem">
+72,000 servers versus 22,000 does not mean one directory is three times better: it means it
+indexes more aggressively. A large catalog contains more duplicates, more abandoned forks and more
+week-long projects. **Size is an indicator of coverage, not of quality.** Glama's grades
+and PulseMCP's classification by type are more useful than the total.
+</Aside>
+
+### Querying the official registry
+
+It is the only one with a public API, and that makes it the only one you can automate:
+
+```bash
+# jq '.' (the Swiss army knife for JSON, module 13) is used here only to print
+# the response indented and readable
+curl -s "https://registry.modelcontextprotocol.io/v0/servers?limit=5" | jq '.'
+```
+
+The response has this shape:
+
+```json
+{
+  "servers": [ { "server": { }, "_meta": { } } ],
+  "metadata": { "nextCursor": "...", "count": 5 }
+}
+```
+
+The `nextCursor` field is used for pagination. For a script that needs to resolve *which server is
+canonical for X*, this is the way.
+
+## Skills and plugins
+
+### Where to find them
+
+| Source | What it contains | How to add it |
+| --- | --- | --- |
+| **Official marketplace** `claude-plugins-official` | Plugins curated by Anthropic: LSP code intelligence, external integrations (`github`, `linear`, `notion`, `figma`, `supabase`, `vercel`, `sentry`…), `security-guidance`, `commit-commands`, `pr-review-toolkit`, `plugin-dev` | **Added automatically** on the first interactive start. If it is missing: `/plugin marketplace add anthropics/claude-plugins-official` |
+| **Web catalog** [claude.com/plugins](https://claude.com/plugins) | The same catalog, browsable from the browser | — |
+| **Community marketplace** [`anthropics/claude-plugins-community`](https://github.com/anthropics/claude-plugins-community) | Third-party plugins that passed Anthropic's **automated validation and security screening**. Each plugin is **pinned to a specific commit SHA** (the unique fingerprint of a precise version of the code: what was checked is what you install, nothing more, nothing less) | `/plugin marketplace add anthropics/claude-plugins-community`, then `/plugin install <nome>@claude-community` |
+| **Demo marketplace** [`anthropics/claude-code`](https://github.com/anthropics/claude-code/tree/main/plugins) | Example plugins, to understand what is possible | `/plugin marketplace add anthropics/claude-code` |
+| **[github.com/anthropics/skills](https://github.com/anthropics/skills)** | Official skills repository | Copy the skill folder into `.claude/skills/` |
+| **[awesome-claude-code](https://github.com/hesreallyhim/awesome-claude-code)** | Community list of commands, skills, hooks and workflows | Copy what you need, after reading it |
+
+<Aside type="note" title="Three different levels of validation">
+The difference between the sources is not a matter of taste:
+
+- **Official** — curated by Anthropic, inclusion at its discretion.
+- **Community** — automated validation and security screening, version pinned to a commit.
+- **Everything else** — no validation. You are the reviewer.
+
+The in-app submission forms add to the **community** marketplace, not the official one.
+</Aside>
+
+### How to install and try a plugin
+
+```text
+/plugin                                        # panel: Discover, Installed, Marketplaces, Errors
+/plugin install github@claude-plugins-official
+/plugin list                                   # what is installed
+/plugin disable <nome>@<marketplace>           # turn off without uninstalling
+/plugin uninstall <nome>@<marketplace>
+/reload-plugins                                # if the installation requires it
+```
+
+Before you press Enter, the details panel shows three pieces of information you should read:
+
+- **Context cost** — how many tokens the plugin adds to your context window **on every turn**.
+- **Last updated** — the date of the latest update.
+- **Will install** — the exact list of commands, agents, skills, hooks, MCP servers and LSPs it adds.
+
+There are three installation scopes: **user** (all your projects), **project** (all collaborators
+on the repository, written to `.claude/settings.json`), **local** (only you, only here).
+
+### How to try a skill you found
+
+A skill is not a package: it is a folder with a `SKILL.md` inside.
+
+<Steps>
+
+1. **Read it before copying it.** Especially the frontmatter: `allowed-tools` can grant broad
+   access to tools, and **workspace trust does not protect against that field**.
+2. **Install it at user level**, not project level, until you trust it:
+   ```bash
+   cp -r skill-trovata ~/.claude/skills/
+   ```
+3. **Check that Claude sees it**: `/reload-skills`, then ask `What skills are available?`.
+4. **Try it on something harmless** before real code.
+5. **Only afterwards**, move it into the project's `.claude/skills/` and commit it.
+
+</Steps>
+
+## Evaluation checklist
+
+To go through **before** installing anything — MCP server, plugin or skill.
+
+| # | Criterion | What to look at | Red flag |
+| --- | --- | --- | --- |
+| 1 | **Provenance** | Is it the vendor itself? Is it in the Anthropic Directory or the official registry? Does the "official" badge match a real organization? | A "Stripe" server published by an unknown personal account |
+| 2 | **Official remote server available?** | If the vendor publishes one, always prefer it to a local *wrapper* — third-party code that acts as a go-between to the service, adding one more intermediary you must trust | A community wrapper for a service that already has an official MCP |
+| 3 | **Maintenance** | Date of the last commit, open issues and whether they get answers, release cadence | Last commit over six months ago with ignored open issues |
+| 4 | **Adoption** | Stars, downloads, presence on several directories. On Glama, the **letter grades** for license, quality and maintenance | Zero adoption **and** zero maintenance together |
+| 5 | **What it actually installs** | In the `/plugin` panel: the **Will install** section. For a skill: `allowed-tools` and `disallowed-tools` in the frontmatter | A formatting plugin that wants to install an MCP server and hooks |
+| 6 | **Context cost** | The **Context cost** in the panel: you pay it on every turn, forever | A plugin that adds thousands of tokens for a feature you use once a month |
+| 7 | **Permissions and credentials** | Which credentials does it ask for? Can you give it a user with minimal privileges? Is a read-only token enough? | An analytics server that wants write credentials on the database |
+| 8 | **[Prompt injection](/en/glossario/#prompt-injection) surface** — the attack is explained properly two sections below | Does the server **fetch external content**? Web, email, issues, PR comments? | Any server that brings text written by third parties into the context |
+| 9 | **Data exfiltration** | Where does the data passing through the server end up? A local server that phones home? | A "local" server that opens unexplained network connections |
+| 10 | **Isolation possible** | Can you run it in a container, or in a sandbox? Is it on the Docker MCP Catalog? | A server that requires filesystem access outside the project |
+
+### The underestimated risk: prompt injection
+
+The documentation says it bluntly: **servers that fetch external content can
+expose you to prompt injection risk**. An attacker inserts malicious instructions into content that
+Claude will read — the body of an issue, a PR comment, a web page, an email — hoping Claude
+will follow them as if they came from you.
+
+Claude Code's built-in protections:
+
+- **Permission system** — sensitive operations require explicit approval.
+- **Context-aware analysis** — detects potentially harmful instructions by analyzing the full request.
+- **Network command approval** — `curl` and `wget` are **not** auto-approved by default.
+- **Isolated context windows** — web fetch uses a separate window, to avoid injecting malicious prompts.
+- **Trust verification** — the first run on a codebase and new MCP servers require verification. **Disabled with `-p`.**
+- **Command injection detection** — suspicious bash commands require manual approval even if already allowlisted.
+- **Fail-closed matching** — a non-matching command requires manual approval by default.
+
+And the recommended practices when working with untrusted content:
+
+<Steps>
+
+1. Review proposed commands before approving them.
+2. **Do not pipe untrusted content directly to Claude.**
+3. Verify proposed changes to critical files.
+4. Use virtual machines to run scripts and tool calls, especially when interacting with external web services.
+5. Report suspicious behavior with `/feedback`.
+
+</Steps>
+
+<Aside type="danger" title="The worst case, in one line">
+An MCP server that reads GitHub issues, in a session with `--dangerously-skip-permissions`, on a
+public repository. Anyone can open an issue; that issue enters Claude's context; and Claude has
+permission to do anything without asking. **The combination of external content and broad permissions is
+the risk, not either one alone.**
+</Aside>
+
+## Complete workflow: finding and configuring an MCP for Postgres
+
+Let's walk the whole cycle on a real case.
+
+<Steps>
+
+1. **Search — I start from the official registry.**
+
+   ```bash
+   # download the first 100 servers from the registry (curl -s = no progress bars)
+   curl -s "https://registry.modelcontextprotocol.io/v0/servers?limit=100" \
+     | jq -r '.servers[].server
+              | select((.name // "") | test("postgres|sql|database"; "i"))
+              | .name'
+   # the jq filter, piece by piece: for each server, keep only those whose
+   # name contains "postgres", "sql" or "database" — test() matches against a
+   # regex, the final "i" = ignore case — and print its name
+   ```
+
+   Then I widen to the directories with a quality judgment: on [Glama](https://glama.ai/mcp/servers) the
+   Databases category, looking at the **letter grades**; on [PulseMCP](https://www.pulsemcp.com/servers) sorting by
+   popularity and filtering by type.
+
+2. **Evaluate — I apply the checklist.** For this example we choose
+   [DBHub](https://github.com/bytebase/dbhub), the `@bytebase/dbhub` package, cited by the official
+   Claude Code documentation as an example for relational databases.
+
+   | Criterion | Check |
+   | --- | --- |
+   | Provenance | Published by Bytebase, a database-industry company. Cited by the official docs |
+   | Official remote server? | No: Postgres is a database, not a SaaS. A local server is the right form |
+   | Maintenance | Check recent commits and open issues on the repository |
+   | What it installs | A local stdio process. No hooks, no skills |
+   | Credentials | A connection string. **I can give it a read-only one** ✓ |
+   | Prompt injection | The server reads **my database**, not external content. Low surface |
+   | Exfiltration | Local process, with no network calls beyond the database |
+
+3. **Reduce the risk before installing.** A **read-only** database user, not
+   the application user — it is the same setup as in [module 9](/en/personalizzazione/mcp/), where every
+   SQL line is commented; the gist: create the user `claude_ro` and give it permission to *read* all
+   tables, present and future, and nothing else.
+
+   ```sql
+   CREATE USER claude_ro WITH PASSWORD 'una-password-lunga';
+   GRANT CONNECT ON DATABASE analytics TO claude_ro;
+   GRANT USAGE ON SCHEMA public TO claude_ro;
+   GRANT SELECT ON ALL TABLES IN SCHEMA public TO claude_ro;
+   ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO claude_ro;
+   ```
+
+   This step is worth more than all the others put together: whatever goes wrong, the worst that can
+   happen is a `SELECT`.
+
+4. **Install — at local scope, to try it out.**
+
+   ```bash
+   claude mcp add --transport stdio db -- npx -y @bytebase/dbhub \
+     --dsn "postgresql://claude_ro:una-password-lunga@localhost:5432/analytics"
+   ```
+
+5. **Test, in two stages: first the connection, then the capabilities.**
+
+   ```bash
+   claude mcp list
+   ```
+
+   It must show `db` with `✔ Connected`.
+
+   <Aside type="note" title="Three different 'schemas', one single word">
+   In this workflow the word "schema" appears with three meanings: the **JSON schema** (the shape of
+   a piece of data, module 13), the **database schema** (the set of its tables — what you will ask for
+   with *"show me the schema"*), and `SCHEMA public` in the SQL above (the Postgres "namespace" in
+   which the tables live). The context always tells you which of the three is in play.
+   </Aside>
+
+   Then, in a session:
+
+   ```text
+   /mcp
+   ```
+
+   The panel shows the number of exposed tools. Then the functional tests, starting from the most harmless:
+
+   ```text
+   Show me the schema for the orders table
+   ```
+
+   ```text
+   What's our total revenue this month?
+   ```
+
+   And the test that really matters — **checking that the confinement works**:
+
+   ```text
+   Delete the row with id 1 from the test table
+   ```
+
+   It must fail with a permissions error from the database. If it succeeds, your user is not read-only:
+   go back to step 3.
+
+6. **Promote to project scope, without credentials in git.**
+
+   ```bash
+   claude mcp remove db
+   ```
+
+   ```json title=".mcp.json"
+   {
+     "mcpServers": {
+       "db": {
+         "type": "stdio",
+         "command": "npx",
+         "args": ["-y", "@bytebase/dbhub", "--dsn", "${DATABASE_URL_RO}"]
+       }
+     }
+   }
+   ```
+
+   ```markdown title="CLAUDE.md"
+   ## MCP servers
+
+   The `db` server requires `DATABASE_URL_RO` in the environment, with the read-only
+   user `claude_ro`. See `docs/setup-db.md` to obtain it.
+   ```
+
+7. **Verify from a clean clone**, which is the only test that proves anything:
+
+   ```bash
+   cd /tmp && git clone <url> prova && cd prova && claude mcp list
+   ```
+
+   The server must appear as `⏸ Pending approval` and the variable must show as missing until you
+   export it. If it connects without you doing anything, you have a committed secret.
+
+</Steps>
+
+## Exercise
+
+Evaluate and install an extension for a service you actually use.
+
+1. Pick an external service from your work: issue tracker, monitoring, design, storage.
+2. Search at least **three** different sources and compare what you find.
+3. Apply the checklist and write down your decision, with reasons.
+4. Install, test and — if it doesn't convince you — uninstall cleanly.
+
+<details class="soluzione">
+<summary>Solution</summary>
+
+Let's take **Sentry** as an example, but the reasoning applies to any service.
+
+**Step 2 — three sources.**
+
+| Source | What I find |
+| --- | --- |
+| Official marketplace | A `sentry` plugin among the external integrations: preconfigured MCP, no manual setup |
+| Claude Code documentation | Cites `https://mcp.sentry.dev/mcp` as a remote HTTP server with OAuth |
+| Glama / PulseMCP | Several community wrappers, with varying grades and maintenance dates |
+
+The comparison already answers the question: **there is an official remote server from the vendor.** Criterion 2
+of the checklist closes the evaluation — the community wrappers need not even be examined.
+
+**Step 3 — the decision, written down.**
+
+```markdown title="docs/decisioni/mcp-sentry.md"
+# Sentry MCP — decision
+
+**Choice:** official remote server `https://mcp.sentry.dev/mcp`, OAuth, user scope.
+
+## Why not the alternatives
+- Community wrappers: no advantage over an official server, and they add one
+  more dependency to maintain.
+- Plugin `sentry@claude-plugins-official`: equivalent, but it brings a context
+  cost even when I am not using it. If the team needed it in the future, we would reconsider.
+
+## Checklist
+| Criterion | Outcome |
+| --- | --- |
+| Provenance | The vendor itself ✓ |
+| Official remote server | Yes, and it is the one chosen ✓ |
+| Maintenance | Managed by the vendor ✓ |
+| Credentials | OAuth, no token to store ✓ |
+| Prompt injection | **HIGH**: error titles and bodies come from user input ⚠ |
+| Exfiltration | Remote: data stays between Sentry and Anthropic ✓ |
+
+## Mitigating the injection risk
+The server brings into the context text I did not write. Therefore:
+- **User** scope, not project: I don't want it to activate in unattended `-p`
+  runs, where trust verification is disabled.
+- Never used together with `--dangerously-skip-permissions`.
+- Tasks that read Sentry stay in a mode that asks for confirmation on write actions.
+
+## Review
+In three months: is it still used? Does the Context cost justify how often it is used?
+```
+
+**Step 4 — install, test, and know how to roll back.**
+
+```bash
+claude mcp add --transport http sentry --scope user https://mcp.sentry.dev/mcp
+claude mcp login sentry
+claude mcp list
+```
+
+The tests, in increasing order of required trust:
+
+```text
+/mcp
+```
+→ the server is `connected` and shows the number of tools.
+
+```text
+List the top 3 unresolved issues from the last 7 days
+```
+→ it really reads.
+
+```text
+Take the top error and check in the codebase where it originates
+```
+→ it cross-references two sources. This is where the extension pays for itself.
+
+And the clean uninstall, if it doesn't convince you:
+
+```bash
+claude mcp logout sentry     # first revoke the credentials
+claude mcp remove sentry     # then remove the configuration
+claude mcp list              # check that it is gone
+```
+
+**Order matters:** `remove` before `logout` leaves the OAuth credentials stored for a server that
+no longer exists. Always revoke first.
+
+</details>
+
+## Common mistakes and troubleshooting
+
+| Symptom | Cause | Solution |
+| --- | --- | --- |
+| You installed a community wrapper for a service that has an official MCP | You searched only the community directories | Always start from the official registry and the vendor's site |
+| A server with many stars misbehaves | Stars are neither maintenance nor security | Look at the last commit and open issues; on Glama, the letter grades |
+| The context became heavy after a few installations | Every plugin has a context cost **per turn** | `/context` for the diagnosis; the `/plugin` panel shows the Context cost |
+| You no longer remember why you installed something | No written decision | `/plugin` lists plugins **not used recently**, with the last-used date |
+| A plugin installed more than you expected | You did not read the **Will install** section | It is in the details panel before installation |
+| A skill from a cloned repository has broad permissions | `allowed-tools` is not gated by workspace trust | Read the frontmatter **before** launching Claude Code in the repo |
+| A project MCP server connects in a `-p` run without you approving it | Non-interactive sessions do not show the prompt, and with `-p` trust verification is **disabled** | `--bare` in CI, or `disabledMcpjsonServers` |
+| `Marketplace "claude-plugins-official" not found` | It was not added automatically | `/plugin marketplace add anthropics/claude-plugins-official` |
+| Removing a marketplace makes plugins disappear | Removing a marketplace **uninstalls** the plugins that came from it | Disable the single plugin instead of removing the marketplace |
+| A plugin's skills do not show up | Plugin cache | `rm -rf ~/.claude/plugins/cache`, restart, reinstall |
+| `claude.ai/directory` does not open | It requires login to claude.ai | Sign in to your account first |
+
+## Cheat sheet
+
+**Where to look, in order**
+
+```text
+1. The vendor's site           → is there an official remote server?
+2. registry.modelcontextprotocol.io → which server is canonical?
+3. claude.ai/directory         → connectors reviewed by Anthropic
+4. Glama / PulseMCP            → quality, maintenance, adoption
+5. Smithery / Docker Catalog   → if the problem is auth or isolation
+6. awesome-mcp-servers         → readable overview of a category
+```
+
+**The checklist in ten words**
+
+```text
+Provenance · Official? · Maintenance · Adoption · What it installs
+Cost · Credentials · Injection · Exfiltration · Isolation
+```
+
+**Commands**
+
+| Command | |
+| --- | --- |
+| `/plugin` | Panel: Discover, Installed, Marketplaces, Errors |
+| `/plugin marketplace add <owner/repo>` | Adds a marketplace |
+| `/plugin install <nome>@<marketplace>` | Installs |
+| `/plugin list [--enabled\|--disabled]` | What is installed |
+| `/plugin disable` · `/plugin uninstall` | Turns off · removes |
+| `/reload-plugins` | Applies without restarting |
+| `claude mcp list` | Configured servers, with health status |
+| `claude mcp login` · `claude mcp logout` | Authenticates · revokes (**logout before remove**) |
+| `/mcp` | Server panel, with the tool count |
+
+**The two rules that avoid almost every problem**
+
+```text
+1. If the vendor has an official remote server, use that one.
+2. Always give credentials with the minimum privileges that suffice.
+```
+
+## Sources
+
+Links checked one by one on **16 August 2026**.
+
+**MCP directories**
+
+- [Official MCP Registry](https://registry.modelcontextprotocol.io) — the protocol's source of truth
+- [Anthropic Directory](https://claude.ai/directory) — reviewed connectors (**requires login to claude.ai**)
+- [Glama MCP servers](https://glama.ai/mcp/servers) — 72,476 servers, letter grades, Inspector and hosting
+- [PulseMCP](https://www.pulsemcp.com/servers) — 22,057 servers, daily updates, classification by type
+- [Smithery](https://smithery.ai) — over 14,936 MCPs, auth and credential management
+- [mcp.so](https://mcp.so) — marketplace with servers, clients, skills and agents
+- [Docker MCP Catalog](https://hub.docker.com/catalogs/mcp) — containerized servers, MCP Toolkit and Gateway
+- [awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers) — curated list on GitHub
+- [modelcontextprotocol/servers](https://github.com/modelcontextprotocol/servers) — the reference servers
+- [modelcontextprotocol.io](https://modelcontextprotocol.io) and the [guide to building a server](https://modelcontextprotocol.io/docs/develop/build-server)
+
+**Skills and plugins**
+
+- [anthropics/skills](https://github.com/anthropics/skills) — official skills repository
+- [claude.com/plugins](https://claude.com/plugins) — catalog of official plugins
+- [anthropics/claude-plugins-official](https://github.com/anthropics/claude-plugins-official)
+- [anthropics/claude-plugins-community](https://github.com/anthropics/claude-plugins-community)
+- [awesome-claude-code](https://github.com/hesreallyhim/awesome-claude-code) — community list
+
+**Official Claude Code documentation**
+
+- [Discover and install plugins](https://code.claude.com/docs/en/discover-plugins) — marketplaces, installation, scopes, security
+- [Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp) — where to find servers and the trust warning
+- [Security](https://code.claude.com/docs/en/security) — prompt injection, built-in protections, MCP security
+- [Security guidance plugin](https://code.claude.com/docs/en/security-guidance) — automatic vulnerability review
+- [Extend Claude with skills](https://code.claude.com/docs/en/skills) — `allowed-tools` and workspace trust
+- [Plugin marketplaces](https://code.claude.com/docs/en/plugin-marketplaces) — creating and restricting marketplaces
+
+**In the example**
+
+- [DBHub](https://github.com/bytebase/dbhub) — the MCP server for relational databases used in the workflow

@@ -1,0 +1,724 @@
+---
+title: "14 · Local pipelines"
+description: "Composing Claude Code with Unix tools: pipes, batch processing over many files, fan-out with claude -p and integration into CI pipelines with GitHub Actions."
+---
+
+import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
+import Zero from '@/components/Zero.astro';
+
+<div class="meta-modulo">
+	<span><strong>Estimated time:</strong> 55 minutes</span>
+	<span><strong>Prerequisites:</strong> modules <a href="/en/automazione/cli-scripting/">12</a> and <a href="/en/automazione/output-json/">13</a>. For the CI part you need a repository on GitHub.</span>
+</div>
+
+A [pipeline](/en/glossario/#pipeline) is a chain of automatic steps in which the output of one is
+the input of the next: collect → process → publish. In this module Claude becomes **one of the
+links** in the chain — not the whole chain — and you will learn the three patterns that cover almost everything:
+composition with Unix tools, **fan-out** (literally "opening like a fan": the same
+work spread across many independent invocations, one per file) and integration into
+[CI](/en/glossario/#ci--cd) — the service that runs automatic checks on every code change, for
+us GitHub Actions.
+
+## Objectives
+
+- Compose Claude Code with the other command-line tools instead of replacing them.
+- Process hundreds of files by spreading the work across parallel invocations.
+- Integrate Claude Code into GitHub Actions, with the right authentication.
+- Make a pipeline fail when needed, and only when needed.
+- Recognize when Claude is **not** the right tool for a step.
+
+## Key concepts
+
+**Claude Code is a piece of the pipeline, not the pipeline.** It reads from stdin, writes to stdout, returns
+an exit code: it composes with `git`, `jq`, `xargs`, `find`. The practical rule is that every step a
+deterministic command can do **must** be done by a deterministic command. Claude is for where you need
+judgment.
+
+```bash
+# ✗ Wrong: asking Claude to do what grep does better
+claude -p "find all files containing TODO"
+
+# ✓ Right: grep finds, Claude judges
+grep -rn "TODO" src/ | claude -p "group these TODOs by theme and flag the ones that look like real bugs"
+```
+
+**Fan-out beats the single giant prompt.** For migrations or analyses over many files, spreading the
+work across many `claude -p` invocations is more reliable than a single prompt that asks to do everything: each
+invocation has a clean context, errors are isolated, and you can retry only the failed files.
+
+**In CI, authenticate with a token, not with the browser.** `claude setup-token` generates a long-lived
+OAuth token, valid for one year, that authenticates with your subscription. You put it in the repository secrets as
+`CLAUDE_CODE_OAUTH_TOKEN`.
+
+<Aside type="caution" title="The token is tied to the person">
+An OAuth token is bound to the subscription of whoever ran `claude setup-token`. For a secret
+shared across many repositories of an organization, the documentation recommends an **API key** from the
+Console instead of an OAuth token. For a personal project, the token is perfectly fine.
+</Aside>
+
+## Composing with Unix tools
+
+### Input pipes
+
+```bash
+# Explain a build error
+npm run build 2>&1 | tail -50 | claude -p 'spiega in un paragrafo la causa radice di questo errore'
+
+# Review a diff without giving Claude Bash permissions
+git diff main | claude -p 'elenca i problemi di correttezza, uno per riga, formato file:riga — problema'
+
+# Analyze logs
+journalctl -u myservice --since "1 hour ago" | claude -p 'raggruppa questi errori per causa e stima la gravità'
+
+# Summarize a CSV
+head -200 dati.csv | claude -p 'descrivi le colonne, i tipi e le anomalie che noti'
+```
+
+<Aside type="tip" title="The pipe is also a security measure">
+Passing the diff via stdin instead of letting Claude read it means you **do not need to give it the
+Bash permission**. Fewer permissions, less surface: in CI it is the difference between a job that can only read and
+one that can run anything.
+</Aside>
+
+### Output pipes
+
+```bash
+# The result into a file
+claude -p 'riassumi il progetto' > SUMMARY.md
+
+# Extract and reuse
+claude -p "elenca gli endpoint" --output-format json | jq -r '.result' | sort
+
+# Chain with other commands
+claude -p "elenca i file da migrare" \
+  --output-format json --json-schema '{"type":"object","properties":{"files":{"type":"array","items":{"type":"string"}}},"required":["files"]}' \
+  | jq -r '.structured_output.files[]' > files.txt
+```
+
+## Batch processing
+
+The documented pattern for large-scale migrations has three phases.
+
+<Steps>
+
+1. **Generate the work list.** Have Claude write the list of files to handle, so the loop of the
+   next step can read it. The example we will follow throughout the chapter: migrating the files that
+   still use the project's old configuration API to the new one.
+
+   ```text
+   list all files that still use the legacy config API and save the list to files.txt
+   ```
+
+   *(= "list the files that still use the old configuration API and save the list to files.txt")*
+
+2. **Loop over the list.** One loop iteration = one Claude invocation = one file, each with its own
+   clean context:
+
+   ```bash
+   # for each line of files.txt...
+   for file in $(cat files.txt); do
+     # ...a dedicated invocation, which answers only OK or FAIL
+     claude -p "Migrate $file from the legacy config API to the new one. Return OK or FAIL." \
+       --allowedTools "Edit,Bash(git commit *)"
+   done
+   ```
+
+3. **Try on a few files, then scale.** Refine the prompt based on what goes wrong on the first two or three, then
+   launch on the full set. `--allowedTools` limits what Claude can do, and it matters a lot when it runs
+   unsupervised.
+
+</Steps>
+
+### A more robust version
+
+The minimal loop works for a demonstration. Real work needs parallelism, logs and the
+ability to retry:
+
+```bash title="migra.sh"
+#!/usr/bin/env bash
+# Note: the "-e" (exit on first error) is left out on purpose: a file that
+# fails must NOT stop the migration of the others — we handle the failures
+# ourselves, marking them and moving on.
+set -uo pipefail
+
+# arguments with defaults: the list of files and how many migrations in parallel
+LISTA="${1:-files.txt}"
+PARALLELI="${2:-4}"
+# three working folders in one go (brace expansion {a,b,c} creates them all)
+mkdir -p .migrazione/{ok,fail,log}
+
+# the function that migrates ONE file
+migra_uno() {
+  local file="$1"
+  local slug
+  # turn the path into a valid file name: src/app.py -> src_app.py
+  slug=$(printf '%s' "$file" | tr '/' '_')
+
+  # IDEMPOTENCE (= re-running does no harm): if this file is already
+  # migrated from a previous run, skip it. That is what makes the script
+  # re-runnable after an interruption without redoing everything.
+  [ -f ".migrazione/ok/$slug" ] && { echo "skip  $file"; return 0; }
+
+  # the real invocation: precise prompt, minimal permissions, a cap on turns,
+  # and ALL output in a log dedicated to this file (2>&1 = errors too)
+  if claude -p "Migrate $file from the legacy config API to the new one. \
+Follow the pattern in src/config/new-api.ts. Do not change behaviour. \
+Run \`npm run typecheck\` when done. Reply with exactly OK or FAIL." \
+      --allowedTools "Read,Edit,Bash(npm run typecheck)" \
+      --max-turns 15 \
+      > ".migrazione/log/$slug.log" 2>&1
+  then
+    # Claude answered: did it actually say "OK"?
+    if grep -q '^OK' ".migrazione/log/$slug.log"; then
+      touch ".migrazione/ok/$slug"; echo "ok    $file"; return 0
+    fi
+  fi
+
+  # any other outcome: mark the failure (the log will say why)
+  touch ".migrazione/fail/$slug"; echo "FAIL  $file"; return 1
+}
+# makes the function visible to the child processes xargs will launch
+export -f migra_uno
+
+# the parallelism engine: xargs reads the list (-a) and launches up to
+# PARALLELI processes together (-P), calling migra_uno on each file.
+# The tail "bash -c '...' _ {}" is a fixed idiom: it only serves to pass
+# the file name to the function — copy it as it is.
+xargs -a "$LISTA" -P "$PARALLELI" -I{} bash -c 'migra_uno "$@"' _ {}
+
+# summary: count the markers in the two folders
+echo
+echo "riusciti: $(ls .migrazione/ok | wc -l)   falliti: $(ls .migrazione/fail | wc -l)"
+echo "per ritentare i falliti:"
+# rebuilds the paths from the marker names and saves them as a new list
+echo "  ls .migrazione/fail | tr '_' '/' > retry.txt && ./migra.sh retry.txt"
+```
+
+The four properties that make it usable: **idempotence** (files already done are skipped),
+controlled **parallelism** with `xargs -P`, **per-file logs** to understand failures, and a **retry
+list** instead of redoing everything.
+
+<Aside type="caution" title="Commit between one batch and the next">
+A loop that modifies 200 files without committing produces a working copy you no longer know how it got
+there. Commit in blocks — or better, have Claude commit each file, as in the documentation's
+example — so `git log` becomes the migration's record and `git revert` the way out.
+</Aside>
+
+## Claude Code in CI
+
+### Setting up authentication
+
+<Steps>
+
+1. **Generate the token**, once only, from your machine:
+
+   ```bash
+   claude setup-token
+   ```
+
+   The same browser authorization flow as `/login` opens, and the token is printed to the
+   terminal after approval. **It is not saved anywhere**: copy it right away.
+
+2. **Put it in the repository secrets** as `CLAUDE_CODE_OAUTH_TOKEN`:
+
+   ```bash
+   gh secret set CLAUDE_CODE_OAUTH_TOKEN
+   ```
+
+3. **Remember its limits.** The token can **only make requests to the model**: it cannot establish Remote
+   Control sessions or fetch claude.ai connectors. Locally configured MCP servers work.
+
+</Steps>
+
+### A script in CI
+
+<Zero title="What GitHub Actions is and how to read a workflow">
+**GitHub Actions** is the [CI](/en/glossario/#ci--cd) service built into GitHub: you put a
+[YAML](/en/glossario/#yaml) file in the repository's `.github/workflows/` folder, and GitHub runs those
+steps on one of its machines (the *runner*) every time the specified event happens. The keywords of the
+files you will see: `on:` = when to trigger (a push, a PR being opened, a time of day); `jobs:` = the
+jobs to run; `steps:` = the steps of each job; `uses:` = "reuse a ready-made action";
+`run:` = "run this command"; `secrets` = the credentials kept by GitHub, never written in the
+file.
+</Zero>
+
+The simplest way: a script that runs like any other step.
+
+```yaml title=".github/workflows/review.yml"
+name: Claude review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Installa Claude Code
+        run: curl -fsSL https://claude.ai/install.sh | bash
+
+      - name: Review della diff
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          git diff origin/${{ github.base_ref }}...HEAD \
+            | claude --bare -p "Review this diff. Report only defects that affect correctness or security and that have a concrete failure scenario." \
+              --output-format json \
+              --max-turns 10 \
+            | jq -r '.result'
+```
+
+The `--bare` is the choice that matters: without it, the job would run the hooks and MCP servers defined in the
+repository, which on a PR from a fork means **running a stranger's code**.
+
+### The official GitHub Action
+
+For full integration — responding to `@claude`, opening PRs, commenting inline — there is
+[`anthropics/claude-code-action`](https://github.com/anthropics/claude-code-action).
+
+The quick setup is a command from inside Claude Code:
+
+```text
+/install-github-app
+```
+
+It installs the Claude GitHub App, configures the authentication secret and prepares the PR with the
+workflow files. You need admin access to the repository and an authenticated [GitHub CLI](https://cli.github.com).
+
+The minimal workflow, in interactive mode:
+
+```yaml title=".github/workflows/claude.yml"
+name: Claude Code
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+jobs:
+  claude:
+    if: contains(github.event.comment.body, '@claude')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+```
+
+Almost every line in this file is the fixed structure every workflow repeats identically (the
+"boilerplate" in the sense of ceremony code — do not confuse it with the template folders of
+[module 18](/en/professionale/boilerplate/), which borrow the same name). The lines that do deserve
+attention:
+
+| Line | Why it is there |
+| --- | --- |
+| `id-token: write` | Required by the default authentication via GitHub App |
+| `actions: read` | Lets Claude read CI results on PRs |
+| `actions/checkout` | Gives Claude a local copy of the repository |
+| `if: contains(...)` | Avoids starting runners on comments that do not mention `@claude` |
+
+### Two modes
+
+| Mode | When | Behavior |
+| --- | --- | --- |
+| **Interactive** | The workflow does **not** pass the `prompt` input | Claude waits for the trigger phrase, `@claude` by default, in a comment or in the body of a newly opened issue. Progress and results appear as a comment |
+| **Automation** | The workflow passes `prompt` | Claude starts without waiting for a mention. Results end up in the run log, unless the prompt tells it to publish |
+
+### Who can start a run
+
+Two checks on the actor who triggered the run, and the run **fails** if either one refuses:
+
+- **Write access** — on issue and pull request events, the user must have write access to the
+  repository. To allow specific users without write access you need `allowed_non_write_users`, which
+  also requires a custom GitHub token (`github_token`). Beware the double edge of that
+  parameter: as we will see in troubleshooting, passing the default `GITHUB_TOKEN` **prevents**
+  Claude's commits from triggering CI — so use it only if you really need this exception, and in
+  that case with a token from a dedicated GitHub App. Events without an author, such as a
+  `schedule` trigger, skip the check.
+- **Human actor** — on every event, a bot actor is rejected unless it is in `allowed_bots`.
+  It prevents bots from starting Claude in a loop. **It also applies to scheduled runs**, which
+  GitHub attributes to a repository user, usually the last one who touched the `cron`.
+
+### A scheduled run
+
+```yaml title=".github/workflows/report.yml"
+name: Daily Report
+on:
+  schedule:
+    - cron: "0 9 * * *"    # cron syntax: minute hour day month day-of-week
+                           # "0 9 * * *" = at 9:00 UTC, every day
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+      id-token: write
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: "Generate a summary of yesterday's commits and open issues"
+          claude_args: |
+            --model claude-opus-4-8
+            --allowedTools "mcp__github__list_commits,mcp__github__list_issues"
+```
+
+With a plain text prompt, Claude **has no access to a shell or to the GitHub APIs** until you
+grant it the tools it needs, through `--allowedTools` in `claude_args` or a `permissions.allow` rule
+in the `settings` input. Here it reads commits and issues via API with GitHub's MCP tools, so the checkout is not
+needed.
+
+<Aside type="note" title="Two GitHub constraints on scheduled workflows">
+GitHub runs scheduled workflows **only from the default branch** and, in public repositories, **disables
+the schedule after 60 days** without activity on the repository.
+</Aside>
+
+### The `claude_args` parameter
+
+It accepts any CLI argument:
+
+```yaml
+claude_args: "--max-turns 5 --model claude-sonnet-5 --mcp-config /path/to/config.json"
+```
+
+The most used: `--max-turns`, `--model`, `--mcp-config`, `--allowedTools`, `--debug`.
+
+## Guided example
+
+<Steps>
+
+1. **A local pipeline in one command.** Find, judge, format:
+
+   ```bash
+   git log --since="1 week ago" --oneline \
+     | claude -p "raggruppa questi commit per area funzionale. Per ogni area, una riga: area — cosa è cambiato. Niente preamboli." \
+     | tee CHANGELOG-settimana.md
+   ```
+
+2. **A reusable gate.** Take the script from [module 12](/en/automazione/cli-scripting/) and use it as a
+   pre-push hook:
+
+   ```bash title=".git/hooks/pre-push"
+   #!/usr/bin/env bash
+   ./gate.sh origin/main || {
+     echo "Push bloccato dal gate. Per forzare: git push --no-verify" >&2
+     exit 1
+   }
+   ```
+
+   ```bash
+   chmod +x .git/hooks/pre-push
+   ```
+
+3. **A batch over many files.** First the list:
+
+   ```bash
+   grep -rln "require(" src/ > files.txt
+   wc -l files.txt
+   ```
+
+   Then two test files:
+
+   ```bash
+   head -2 files.txt > prova.txt
+   ./migra.sh prova.txt 1
+   cat .migrazione/log/*.log
+   ```
+
+   Only when those two work, all the rest:
+
+   ```bash
+   ./migra.sh files.txt 4
+   ```
+
+4. **Bring the same thing into CI.** Create the token and the secret:
+
+   ```bash
+   claude setup-token
+   gh secret set CLAUDE_CODE_OAUTH_TOKEN
+   ```
+
+   Then the `review.yml` workflow seen above.
+
+5. **Check the workflow without waiting for a PR.**
+
+   ```bash
+   gh workflow run review.yml || gh run list --workflow=review.yml --limit 3
+   ```
+
+   For a workflow that triggers on `pull_request`, open a test PR with a trivial change.
+
+6. **Add the official Action.**
+
+   ```text
+   /install-github-app
+   ```
+
+   Then mention `@claude` in an issue comment to verify.
+
+</Steps>
+
+## When Claude is not the right tool
+
+It is worth saying explicitly, because it is the most expensive mistake in a pipeline:
+
+| Do not use Claude for | Use instead | What they are |
+| --- | --- | --- |
+| Finding text patterns | `grep`, `rg` | The terminal's text searchers, instant |
+| Formatting code | `prettier`, `black`, `gofmt` | Automatic formatters (JS, Python, Go) |
+| Applying deterministic lint rules | `eslint`, `ruff` | [Linters](/en/glossario/#linter): they find errors without running the code |
+| Mechanical syntactic transformations | `codemod`, `jscodeshift`, `ast-grep` | Tools that rewrite code following an exact rule |
+| Validating a schema | `ajv`, `jsonschema` | [JSON Schema](/en/glossario/#json-schema) validators |
+| Counting, sorting, deduplicating | `wc`, `sort`, `uniq` | The Unix Swiss Army knives for text |
+
+Claude is for where you need **judgment**: understanding *why* a build fails, deciding whether a TODO is a bug,
+writing the code the codemod cannot write, reviewing a diff. Putting it where a command is enough
+means paying latency and tokens for a less reliable result.
+
+## Exercise
+
+Build a pipeline that produces a weekly report of the repository, and make it run on its own.
+
+1. Collect the data with deterministic commands: commits, issues, CI results.
+2. Give Claude only the judgment part: what really happened, what is at risk.
+3. Produce structured output, not prose.
+4. Make it run every Monday in GitHub Actions.
+
+<details class="soluzione">
+<summary>Solution</summary>
+
+**Steps 1–3.** The local script, which collects with `git` and `gh` and delegates only the synthesis:
+
+```bash title="report-settimanale.sh"
+#!/usr/bin/env bash
+set -euo pipefail
+
+DA="${1:-1 week ago}"
+
+# Everything deterministic is done by git and gh. The braces { ... }
+# group the commands: the output of ALL of them ends up together in the file
+# given after the brace (a single ">" for the whole block).
+{
+  echo "## Commit"
+  # the week's history, one commit per line (%h=hash, %s=message, %an=author)
+  git log --since="$DA" --pretty='- %h %s (%an)'
+  echo
+  echo "## Issue aperte questa settimana"
+  # gh returns JSON; its --jq flag formats it on the fly into markdown
+  # lines (it is jq "nested" inside gh: same syntax as module 13)
+  gh issue list --state open --search "created:>$(date -d "$DA" +%F)" \
+    --json number,title,labels \
+    --jq '.[] | "- #\(.number) \(.title) [\(.labels | map(.name) | join(", "))]"'
+  echo
+  echo "## Ultimi run di CI"
+  gh run list --limit 20 --json conclusion,name,createdAt \
+    --jq '.[] | "- \(.createdAt[0:10]) \(.name): \(.conclusion)"'
+} > .dati-settimana.md
+
+# Only the judgment goes to Claude.
+claude --bare -p "Da questi dati grezzi produci un report settimanale.
+Non ripetere l'elenco dei commit: sintetizza per tema.
+Per i rischi, riporta solo cose che i dati mostrano davvero, citando la prova." \
+  --output-format json \
+  --json-schema '{
+    "type": "object",
+    "properties": {
+      "titolo":   { "type": "string" },
+      "sintesi":  { "type": "string" },
+      "temi": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "tema":    { "type": "string" },
+            "cosa":    { "type": "string" },
+            "commit":  { "type": "array", "items": { "type": "string" } }
+          },
+          "required": ["tema", "cosa", "commit"]
+        }
+      },
+      "rischi": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "rischio": { "type": "string" },
+            "prova":   { "type": "string" },
+            "gravita": { "type": "string", "enum": ["alta", "media", "bassa"] }
+          },
+          "required": ["rischio", "prova", "gravita"]
+        }
+      }
+    },
+    "required": ["titolo", "sintesi", "temi", "rischi"]
+  }' \
+  < .dati-settimana.md \
+  | jq '.structured_output' > report.json
+
+# The markdown is generated by jq, not Claude: it is formatting, not judgment.
+jq -r '
+  "# \(.titolo)\n\n\(.sintesi)\n\n## Temi\n" +
+  ([.temi[] | "### \(.tema)\n\(.cosa)\n\nCommit: \(.commit | join(", "))\n"] | join("\n")) +
+  "\n## Rischi\n" +
+  ([.rischi[] | "- **[\(.gravita)]** \(.rischio)\n  - prova: \(.prova)"] | join("\n"))
+' report.json > REPORT.md
+
+rm -f .dati-settimana.md
+echo "✔ REPORT.md generato"
+```
+
+Three decisions worth noticing:
+
+| Decision | Why |
+| --- | --- |
+| The data is collected by `git` and `gh` | They are exact and free. Asking Claude to run `git log` would cost permissions, turns and tokens for a less reliable result |
+| `--bare` | No `CLAUDE.md` or repo hooks: the report must come from the data, not from project instructions |
+| The markdown is generated by `jq` | Formatting requires no judgment. Claude produces the **structure**, a template does the presentation |
+
+**Step 4.** The workflow:
+
+```yaml title=".github/workflows/report-settimanale.yml"
+name: Report settimanale
+
+on:
+  schedule:
+    - cron: "0 7 * * 1"   # every Monday at 07:00 UTC
+  workflow_dispatch:       # and by hand, to try it out
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Installa Claude Code
+        run: curl -fsSL https://claude.ai/install.sh | bash
+
+      - name: Genera il report
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./report-settimanale.sh "1 week ago"
+
+      - name: Pubblica come issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh issue create --title "Report settimanale $(date +%F)" --body-file REPORT.md
+```
+
+Two details that make the difference between a workflow that works and one that seems to work:
+
+- **`workflow_dispatch`** lets you try it right away with `gh workflow run report-settimanale.yml`,
+  instead of waiting for Monday to discover a syntax error.
+- **`fetch-depth: 0`**: without it, `actions/checkout` makes a *shallow* clone (it downloads only
+  the last commit, without the history) and `git log --since="1 week ago"`
+  returns almost nothing. It is the most common way to get an empty report without understanding why.
+
+And remember GitHub's constraint: scheduled workflows run **only from the default branch**, and in
+public repositories the schedule is disabled after 60 days of inactivity.
+
+</details>
+
+## Common mistakes & troubleshooting
+
+| Symptom | Cause | Solution |
+| --- | --- | --- |
+| In CI the result is not reproducible | `-p` loads the repository's hooks, MCP and `CLAUDE.md` | `--bare` |
+| A CI job runs code from a PR from a fork | Without `--bare`, the repo's hooks run | `--bare` is mandatory on code that is not yours |
+| The job hangs waiting for a permission | In CI nobody can approve | `--allowedTools` or `--permission-mode dontAsk` |
+| `git log --since` returns nothing in CI | `actions/checkout` makes a shallow clone (no history) | `fetch-depth: 0` |
+| The batch loop restarts from scratch after an error | No idempotence | Mark the files already done and skip them |
+| A batch consumes tokens endlessly | No turn limit | `--max-turns` for each invocation |
+| The scheduled workflow does not start | GitHub runs them only from the default branch | Make sure the file is on `main` |
+| The schedule disabled itself | In public repos, after 60 days of inactivity | Re-enable it from the GitHub UI |
+| `@claude` does not respond | App not installed, missing secret, or the user lacks write access | Check the three in this order |
+| A scheduled run is rejected | GitHub attributes scheduled runs to a user, and bots are rejected | Add that actor to `allowed_bots` |
+| CI does not start on Claude's commits | GitHub does not trigger workflows on commits made with the default `GITHUB_TOKEN` | Do not pass `github_token: ${{ secrets.GITHUB_TOKEN }}` to the action |
+| The OAuth token does not work for colleagues | It is tied to the subscription of whoever generated it | For an organization, use an API key from the Console |
+| Authentication errors in the workflow | The token is not valid | Try it locally first with `claude` |
+
+## Cheat sheet
+
+**Composition**
+
+```bash
+comando | claude -p "prompt"          # input data, no permissions needed
+claude -p "prompt" | comando          # result to something else
+claude -p "prompt" --output-format json | jq -r '.result'
+```
+
+**Batch**
+
+```bash
+# Sequential fan-out
+for f in $(cat files.txt); do claude -p "..." --allowedTools "Edit"; done
+
+# Parallel fan-out
+xargs -a files.txt -P 4 -I{} bash -c 'claude -p "... {}" --allowedTools "Edit"'
+```
+
+**CI**
+
+| Step | Command |
+| --- | --- |
+| Generate the token | `claude setup-token` |
+| Put it in the secrets | `gh secret set CLAUDE_CODE_OAUTH_TOKEN` |
+| Install in CI | `curl -fsSL https://claude.ai/install.sh \| bash` |
+| Official Action setup | `/install-github-app` from inside Claude Code |
+| Try a workflow by hand | `gh workflow run <file>.yml` |
+
+**The minimal workflow**
+
+```yaml
+- uses: actions/checkout@v6
+- uses: anthropics/claude-code-action@v1
+  with:
+    claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+```
+
+Required permissions: `contents: write`, `pull-requests: write`, `issues: write`, `id-token: write`,
+`actions: read`.
+
+**Golden rules**
+
+```text
+1. What a deterministic command can do, a deterministic command does
+2. --bare in CI, always
+3. --max-turns on every unsupervised invocation
+4. The input pipe avoids giving Bash permissions
+5. Idempotent batch, with per-file logs and a retry list
+```
+
+## Sources
+
+Official pages consulted, checked on **16 August 2026**:
+
+- [Run Claude Code programmatically](https://code.claude.com/docs/en/headless) — pipes, bare mode, build scripts, permissions
+- [Best practices](https://code.claude.com/docs/en/best-practices) — fan-out over files and non-interactive mode
+- [Claude Code GitHub Actions](https://code.claude.com/docs/en/github-actions) — setup, workflows, modes, `claude_args`, who can trigger runs
+- [GitLab CI/CD](https://code.claude.com/docs/en/gitlab-ci-cd) — the GitLab equivalent
+- [Authentication](https://code.claude.com/docs/en/authentication) — `claude setup-token` and the token's limits
+- [CLI reference](https://code.claude.com/docs/en/cli-reference) — flags used in the scripts
+- [Code review](https://code.claude.com/docs/en/code-review) — automatic review without maintaining a workflow

@@ -26,11 +26,11 @@
 }
 
 .meta-modulo > span {
-	display: inline-flex;
-	gap: 0.35rem;
+	display: inline;
 }
 
 .meta-modulo strong {
+	margin-inline-end: 0.35rem;
 	color: var(--sl-color-white);
 	font-weight: 600;
 }
