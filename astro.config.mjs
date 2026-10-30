@@ -28,6 +28,7 @@ export default defineConfig({
 			components: {
 				Footer: './src/components/Footer.astro',
 				SiteTitle: './src/components/SiteTitle.astro',
+				LanguageSelect: './src/components/LanguageSelect.astro',
 			},
 			plugins: [starlightLinksValidator()],
 			social: [

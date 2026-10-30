@@ -3,13 +3,17 @@
 // visibile la firma dell'autore, con link alla sua home page.
 import Default from '@astrojs/starlight/components/SiteTitle.astro';
 import { isInglese } from './lingua';
+import Bandierina from './Bandierina.astro';
 
 const en = isInglese(Astro.url);
 ---
 
 <div class="titolo-con-autore">
 	<Default><slot /></Default>
-	<a class="autore" href={en ? 'https://www.giuseppebosi.com/en/' : 'https://www.giuseppebosi.com'}>{en ? 'by Prof. Giuseppe Bosi' : 'Prof. Giuseppe Bosi'}</a>
+	<div class="riga-autore">
+		<a class="autore" href={en ? 'https://www.giuseppebosi.com/en/' : 'https://www.giuseppebosi.com'}>{en ? 'by Prof. Giuseppe Bosi' : 'Prof. Giuseppe Bosi'}</a>
+		<span class="lang-mobile"><Bandierina /></span>
+	</div>
 </div>
 
 <style>
@@ -33,5 +37,19 @@ const en = isInglese(Astro.url);
 	.autore:hover {
 		color: var(--sl-color-text-accent);
 		text-decoration: underline;
+	}
+
+	.riga-autore {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+	}
+
+	/* Su telefono Starlight nasconde il lato destro dell'header: la bandierina
+	   resta visibile qui, accanto alla firma. */
+	@media (min-width: 50rem) {
+		.lang-mobile {
+			display: none;
+		}
 	}
 </style>

@@ -1,0 +1,59 @@
+---
+// Cambio lingua con bandierina, come su www.giuseppebosi.com: sulla pagina
+// italiana la bandiera UK porta alla stessa pagina in inglese, e viceversa.
+// SVG inline 22x11, niente immagini o font esterni.
+import { isInglese } from './lingua';
+
+const en = isInglese(Astro.url);
+const percorso = Astro.url.pathname;
+const href = en ? percorso.replace(/^\/en(\/|$)/, '/') : '/en' + percorso;
+---
+
+{
+	en ? (
+		<a class="lang" href={href} hreflang="it" lang="it" title="Versione italiana">
+			<svg viewBox="0 0 3 2" width="22" height="11" preserveAspectRatio="none" aria-hidden="true">
+				<rect width="1" height="2" fill="#009246" />
+				<rect x="1" width="1" height="2" fill="#fff" />
+				<rect x="2" width="1" height="2" fill="#CE2B37" />
+			</svg>
+			IT
+		</a>
+	) : (
+		<a class="lang" href={href} hreflang="en" lang="en" title="English version">
+			<svg viewBox="0 0 60 30" width="22" height="11" aria-hidden="true">
+				<clipPath id="fg"><path d="M0,0v30h60V0z" /></clipPath>
+				<clipPath id="fh"><path d="M30,15h30v15zv15H0zH0V0zV0h30z" /></clipPath>
+				<g clip-path="url(#fg)">
+					<path d="M0,0v30h60V0z" fill="#012169" />
+					<path d="M0,0 60,30M60,0 0,30" stroke="#fff" stroke-width="6" />
+					<path d="M0,0 60,30M60,0 0,30" clip-path="url(#fh)" stroke="#C8102E" stroke-width="4" />
+					<path d="M30,0v30M0,15h60" stroke="#fff" stroke-width="10" />
+					<path d="M30,0v30M0,15h60" stroke="#C8102E" stroke-width="6" />
+				</g>
+			</svg>
+			EN
+		</a>
+	)
+}
+
+<style>
+	a.lang {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		font: 600 12px var(--sl-font-mono);
+		color: var(--sl-color-gray-3);
+		text-decoration: none;
+		white-space: nowrap;
+	}
+
+	a.lang:hover {
+		color: var(--sl-color-text-accent);
+	}
+
+	a.lang svg {
+		border-radius: 2px;
+		box-shadow: 0 0 0 1px #0002;
+	}
+</style>
