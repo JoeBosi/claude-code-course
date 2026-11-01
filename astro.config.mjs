@@ -61,7 +61,7 @@ export default defineConfig({
 							url: 'https://www.giuseppebosi.com',
 							sameAs: ['https://www.linkedin.com/in/giuseppebosi'],
 							jobTitle: 'Professore di Scienze e Tecnologie Informatiche',
-							hasCredential: 'Dottore in Ingegneria Elettronica (V.O.)',
+							hasCredential: 'Dottore in Ingegneria Elettronica',
 						},
 						provider: { '@type': 'Person', name: 'Prof. Giuseppe Bosi', url: 'https://www.giuseppebosi.com' },
 					}),
