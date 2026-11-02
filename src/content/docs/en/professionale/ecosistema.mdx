@@ -97,6 +97,24 @@ The response has this shape:
 The `nextCursor` field is used for pagination. For a script that needs to resolve *which server is
 canonical for X*, this is the way.
 
+<Aside type="tip" title="Try it online, nothing to install">
+The official registry has a public API, no key and no account: you can query it right away, with `curl` and with Python, in a free notebook.
+
+[Open the notebook in Google Colab](https://colab.research.google.com/github/JoeBosi/claude-code-course/blob/main/notebooks/registry-mcp-en.ipynb)
+
+To run the cells Colab asks you to sign in with a free Google account; no Anthropic account is needed and nothing gets installed.
+</Aside>
+
+### What you should see
+
+A list of names in the format `domain/server-name` (it changes over time, because the registry is updated all the time). Searching `dbhub` with Python you find, among others:
+
+```text
+io.github.amansingh63/dbhub-analytics
+io.github.bytebase/dbhub
+```
+
+
 ## Skills and plugins
 
 ### Where to find them
@@ -220,15 +238,18 @@ Let's walk the whole cycle on a real case.
 1. **Search — I start from the official registry.**
 
    ```bash
-   # download the first 100 servers from the registry (curl -s = no progress bars)
-   curl -s "https://registry.modelcontextprotocol.io/v0/servers?limit=100" \
-     | jq -r '.servers[].server
-              | select((.name // "") | test("postgres|sql|database"; "i"))
-              | .name'
-   # the jq filter, piece by piece: for each server, keep only those whose
-   # name contains "postgres", "sql" or "database" — test() matches against a
-   # regex, the final "i" = ignore case — and print its name
+   # ask the registry for servers that mention "postgres" (curl -s = no progress bars)
+   curl -s "https://registry.modelcontextprotocol.io/v0/servers?limit=100&search=postgres" \
+     | jq -r '.servers[].server.name' | sort -u
+   # the jq filter, piece by piece: for each element of "servers" print the
+   # server name (-r = without quotes); sort -u sorts them and removes
+   # duplicates (the same server appears once per published version)
    ```
+
+   You will see a list of names in the format `domain/server-name`. The list changes over time, because the
+   registry is updated all the time: what matters is the format, not the exact names. The `search` parameter
+   works with any word: the DBHub we will choose in step 2 is found with `&search=dbhub`, and appears as
+   `io.github.bytebase/dbhub`.
 
    Then I widen to the directories with a quality judgment: on [Glama](https://glama.ai/mcp/servers) the
    Databases category, looking at the **letter grades**; on [PulseMCP](https://www.pulsemcp.com/servers) sorting by

@@ -429,6 +429,35 @@ Scrivi uno script che usi Claude come gate di qualità, e che si comporti bene q
 3. Non deve avere bisogno di nessun permesso Bash.
 4. Deve degradare in modo pulito se `claude` fallisce.
 
+<Aside type="tip" title="Provalo online, senza installare nulla">
+Claude Code richiede un abbonamento o una API key, quindi qui non c'è un servizio gratuito che lo esegua. Puoi però provare la **logica dello script** (exit code, gestione degli errori) con un notebook in cui un `claude` finto risponde con JSON preconfezionato: `gate.sh` gira davvero, cambia solo l'IA.
+
+[Apri il notebook in Google Colab](https://colab.research.google.com/github/JoeBosi/claude-code-course/blob/main/notebooks/script-automazione-claude-finto-it.ipynb)
+
+Per eseguire le celle Colab chiede di accedere con un account Google gratuito; non serve nessun account Anthropic e non si installa nulla.
+</Aside>
+
+### Cosa dovresti vedere
+
+Tre esiti, tre exit code diversi:
+
+```text
+--- 1) il finto claude trova un problema ---
+✘ 1 problemi bloccanti:
+  app.py:3  divisione per zero
+      → con b = 0 la funzione solleva ZeroDivisionError
+exit: 1
+
+--- 2) claude non riesce a girare ---
+gate: claude non ha completato il run
+exit: 2
+
+--- 3) nessuna differenza da verificare ---
+Nessuna differenza rispetto a main.
+exit: 0
+```
+
+
 <details class="soluzione">
 <summary>Soluzione</summary>
 

@@ -471,10 +471,15 @@ Aggiungi `"type": "module"` al `package.json` e uno script di test:
    Output atteso, nella forma prodotta da `node --test`:
 
    ```text
-   ✔ GET /health returns 200 and status ok
-   # pass 1
-   # fail 0
+   ✔ GET /health returns 200 and status ok (93.6ms)
+   ℹ tests 1
+   ℹ pass 1
+   ℹ fail 0
    ```
+
+   I millisecondi tra parentesi cambiano a ogni esecuzione. Se invece rediriggi l'output su un file o lo
+   passi a un'altra pipe, Node usa il formato TAP (`ok 1 - GET /health…` e righe `# pass 1`): è lo stesso
+   risultato, scritto in modo più adatto ai programmi.
 
 7. Se il test fallisce, non copiare l'errore a mano: esiste la @-menzione dell'output del terminale.
    Attenzione alla sintassi: qui `bash` è **il nome del pannello del terminale** (lo leggi sulla sua

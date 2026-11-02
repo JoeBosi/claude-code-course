@@ -140,7 +140,7 @@ you can have several **groups**, each with its own filter (`matcher`: which tool
 group can run several **scripts** (the inner `hooks` list). So: event → filtered groups →
 scripts to run.
 
-```json title=".claude/settings.json"
+```jsonc title=".claude/settings.json"
 {
   "hooks": {
     "PreToolUse": [            // ← the event: before every tool call...
@@ -584,6 +584,33 @@ Build a safety net for a real project.
 3. A hook that injects the current branch and CI status at session start.
 4. Check that all three really fire.
 
+<Aside type="tip" title="Try it online, nothing to install">
+Hooks are plain scripts: you can watch them work even without Claude Code. In a free notebook you write the JSON that Claude Code would send to the hook, and read the answer of every script in the exercise (migrations, tests, session-start context, `Stop` hook).
+
+[Open the notebook in Google Colab](https://colab.research.google.com/github/JoeBosi/claude-code-course/blob/main/notebooks/hooks-playground-en.ipynb)
+
+To run the cells Colab asks you to sign in with a free Google account; no Anthropic account is needed and nothing gets installed.
+</Aside>
+
+### What you should see
+
+The first hook, the one that blocks `rm -rf`, answers with a denial; with a harmless command it prints nothing:
+
+```text
+--- rm -rf build/ ---
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": "Comando distruttivo bloccato da un hook di progetto"
+  }
+}
+exit code: 0
+--- ls ---
+exit code: 0
+```
+
+
 <details class="soluzione">
 <summary>Solution</summary>
 
@@ -688,7 +715,7 @@ breaking anything (that is the point of the various `|| echo ...`: "if the comma
 ```bash title=".claude/hooks/context.sh"
 #!/usr/bin/env bash
 # the current branch name (or "non-git" outside a repository)
-BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "non-git")
+BRANCH=$(git branch --show-current 2>/dev/null || echo "non-git")
 # how many files are modified: git status in compact format,
 # counted with wc -l (tr strips the spaces from the number)
 SPORCO=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')

@@ -471,10 +471,15 @@ Add `"type": "module"` to `package.json` and a test script:
    Expected output, in the form produced by `node --test`:
 
    ```text
-   ✔ GET /health returns 200 and status ok
-   # pass 1
-   # fail 0
+   ✔ GET /health returns 200 and status ok (93.6ms)
+   ℹ tests 1
+   ℹ pass 1
+   ℹ fail 0
    ```
+
+   The milliseconds in parentheses change on every run. If you redirect the output to a file or pipe it to
+   another command, Node switches to the TAP format (`ok 1 - GET /health…` and `# pass 1` lines): same
+   result, written in a way that suits programs better.
 
 7. If the test fails, don't copy the error by hand: there is the @-mention for terminal output.
    Mind the syntax: here `bash` is **the name of the terminal panel** (you read it on its

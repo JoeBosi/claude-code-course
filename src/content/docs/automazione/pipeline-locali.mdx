@@ -175,23 +175,23 @@ Run \`npm run typecheck\` when done. Reply with exactly OK or FAIL." \
   fi
 
   # qualsiasi altro esito: marca il fallimento (il log dira perche)
-  touch ".migrazione/fail/$slug"; echo "FAIL  $file"; return 1
+  echo "$file" > ".migrazione/fail/$slug"; echo "FAIL  $file"; return 1
 }
 # rende la funzione visibile ai processi figli che xargs lancera
 export -f migra_uno
 
-# il motore del parallelismo: xargs legge la lista (-a) e lancia fino a
+# il motore del parallelismo: xargs legge la lista (da "< $LISTA") e lancia fino a
 # PARALLELI processi insieme (-P), chiamando migra_uno su ogni file.
 # La coda "bash -c '...' _ {}" e un idioma fisso: serve solo a passare
 # il nome del file alla funzione — copialo cosi com'e.
-xargs -a "$LISTA" -P "$PARALLELI" -I{} bash -c 'migra_uno "$@"' _ {}
+xargs -P "$PARALLELI" -I{} bash -c 'migra_uno "$@"' _ {} < "$LISTA"
 
 # riepilogo: conta i marcatori nelle due cartelle
 echo
 echo "riusciti: $(ls .migrazione/ok | wc -l)   falliti: $(ls .migrazione/fail | wc -l)"
 echo "per ritentare i falliti:"
-# ricostruisce i percorsi dai nomi dei marcatori e li salva come nuova lista
-echo "  ls .migrazione/fail | tr '_' '/' > retry.txt && ./migra.sh retry.txt"
+# ogni marcatore di fallimento contiene il percorso del file: li unisce in una nuova lista
+echo "  cat .migrazione/fail/* > retry.txt && rm -rf .migrazione/fail && ./migra.sh retry.txt"
 ```
 
 Le quattro proprietà che lo rendono usabile: **idempotenza** (i file già fatti si saltano),
@@ -500,6 +500,28 @@ Costruisci una pipeline che produca un report settimanale del repository, e fall
 3. Produci un output strutturato, non prosa.
 4. Falla girare ogni lunedì in GitHub Actions.
 
+<Aside type="tip" title="Provalo online, senza installare nulla">
+L'esercizio usa Claude Code, che non ha un servizio gratuito senza installazione. La parte meccanica (lotti paralleli con `xargs`, marcatori, riprova dei file falliti) si prova nello stesso notebook dell'esercizio precedente, con un `claude` finto: `migra.sh` gira davvero.
+
+[Apri il notebook in Google Colab](https://colab.research.google.com/github/JoeBosi/claude-code-course/blob/main/notebooks/script-automazione-claude-finto-it.ipynb)
+
+Per eseguire le celle Colab chiede di accedere con un account Google gratuito; non serve nessun account Anthropic e non si installa nulla.
+</Aside>
+
+### Cosa dovresti vedere
+
+Con quattro file, uno dei quali «rotto», `migra.sh` ne migra tre e segna il quarto come fallito (l'ordine delle righe può cambiare, perché i file girano in parallelo):
+
+```text
+FAIL  src/rotto_config.py
+ok    src/app.py
+ok    src/my_utils.py
+ok    src/db.py
+
+riusciti: 3   falliti: 1
+```
+
+
 <details class="soluzione">
 <summary>Soluzione</summary>
 
@@ -591,6 +613,10 @@ Tre decisioni che vale la pena notare:
 | `--bare` | Nessun `CLAUDE.md` né hook del repo: il report deve venire dai dati, non da istruzioni di progetto |
 | Il markdown lo genera `jq` | Formattare non richiede giudizio. Claude produce la **struttura**, la presentazione la fa un template |
 
+Una nota di portabilità: `date -d "1 week ago"` è la versione GNU di `date`, quella di Linux, di WSL e dei
+runner di GitHub Actions (dove il workflow qui sotto lo esegue). Sul Terminale di macOS la stessa data si
+scrive `date -v-7d +%F`.
+
 **Passo 4.** Il workflow:
 
 ```yaml title=".github/workflows/report-settimanale.yml"
@@ -676,7 +702,7 @@ claude -p "prompt" --output-format json | jq -r '.result'
 for f in $(cat files.txt); do claude -p "..." --allowedTools "Edit"; done
 
 # Fan-out parallelo
-xargs -a files.txt -P 4 -I{} bash -c 'claude -p "... {}" --allowedTools "Edit"'
+xargs -P 4 -I{} bash -c 'claude -p "... {}" --allowedTools "Edit"' < files.txt
 ```
 
 **CI**

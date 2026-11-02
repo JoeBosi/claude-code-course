@@ -140,7 +140,7 @@ puoi avere più **gruppi**, ognuno con il suo filtro (`matcher`: a quali tool si
 gruppo può eseguire più **script** (la lista `hooks` interna). Quindi: evento → gruppi filtrati →
 script da eseguire.
 
-```json title=".claude/settings.json"
+```jsonc title=".claude/settings.json"
 {
   "hooks": {
     "PreToolUse": [            // ← l'evento: prima di ogni chiamata a tool...
@@ -584,6 +584,33 @@ Costruisci una rete di sicurezza per un progetto reale.
 3. Un hook che inietta all'avvio della sessione il branch corrente e lo stato di CI.
 4. Verifica che tutti e tre scattino davvero.
 
+<Aside type="tip" title="Provalo online, senza installare nulla">
+Gli hook sono semplici script: puoi vederli in azione anche senza Claude Code. In un notebook gratuito scrivi tu il JSON che Claude Code manderebbe all'hook, e leggi la risposta di ogni script dell'esercizio (migrazioni, test, contesto all'avvio, hook `Stop`).
+
+[Apri il notebook in Google Colab](https://colab.research.google.com/github/JoeBosi/claude-code-course/blob/main/notebooks/hooks-playground-it.ipynb)
+
+Per eseguire le celle Colab chiede di accedere con un account Google gratuito; non serve nessun account Anthropic e non si installa nulla.
+</Aside>
+
+### Cosa dovresti vedere
+
+Il primo hook, quello che blocca `rm -rf`, risponde con una decisione di rifiuto; con un comando innocuo non stampa nulla:
+
+```text
+--- rm -rf build/ ---
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": "Comando distruttivo bloccato da un hook di progetto"
+  }
+}
+exit code: 0
+--- ls ---
+exit code: 0
+```
+
+
 <details class="soluzione">
 <summary>Soluzione</summary>
 
@@ -688,7 +715,7 @@ rompere nulla (è il senso dei vari `|| echo ...`: "se il comando fallisce, usa 
 ```bash title=".claude/hooks/context.sh"
 #!/usr/bin/env bash
 # il nome del branch corrente (o "non-git" fuori da un repository)
-BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "non-git")
+BRANCH=$(git branch --show-current 2>/dev/null || echo "non-git")
 # quanti file risultano modificati: git status in formato compatto,
 # contato con wc -l (tr toglie gli spazi dal numero)
 SPORCO=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
